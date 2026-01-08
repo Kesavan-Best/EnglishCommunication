@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImproveCommunication</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .hero {
+            text-align: center;
+            padding: 60px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 40px;
+        }
+        .hero h1 {
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+        .hero p {
+            font-size: 1.2em;
+            max-width: 600px;
+            margin: 0 auto 30px;
+            opacity: 0.9;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            padding: 40px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .feature-card p {
+            color: #666;
+            line-height: 1.6;
+        }
+        .cta-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin: 40px 0;
+        }
+        .btn {
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+        .btn-secondary {
+            background: white;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+        .btn-secondary:hover {
+            background: #f7f7f7;
+        }
+        .status-container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+        .status-box {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .test-accounts {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .test-accounts h3 {
+            color: #2c5282;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>🗣️ ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="index.html">Home</a>
+                <a href="#features">Features</a>
+                <a href="#about">About</a>
+                <a href="templates/login.html" class="nav-btn">Login</a>
+                <a href="templates/register.html" class="nav-btn primary">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Improve Your English Communication</h1>
+        <p>AI-powered platform for practicing English speaking, getting real-time feedback, and competing with learners worldwide.</p>
+        <div class="cta-buttons">
+            <a href="templates/register.html" class="btn btn-primary">Start Free Trial</a>
+            <a href="templates/login.html" class="btn btn-secondary">Login to Dashboard</a>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <div class="feature-card">
+            <h3>🎤 AI-Powered Calls</h3>
+            <p>Practice 1-on-1 audio calls with learners worldwide. AI analyzes your speech in real-time.</p>
+        </div>
+        <div class="feature-card">
+            <h3>📊 Instant Feedback</h3>
+            <p>Get detailed analysis on grammar, fluency, vocabulary, and pronunciation after each call.</p>
+        </div>
+        <div class="feature-card">
+            <h3>🏆 Leaderboard</h3>
+            <p>Compete with other learners and track your progress on the global leaderboard.</p>
+        </div>
+        <div class="feature-card">
+            <h3>📚 Personalized Quizzes</h3>
+            <p>Receive custom practice quizzes based on your weak areas identified by AI.</p>
+        </div>
+    </section>
+
+    <!-- System Status -->
+    <section class="status-container">
+        <h2 style="text-align: center; margin-bottom: 30px;">System Status</h2>
+        
+        <div class="status-box">
+            <h3>🔌 Backend Connection</h3>
+            <div id="backend-status">Checking...</div>
+        </div>
+        
+        <div class="status-box">
+            <h3>💾 Database Connection</h3>
+            <div id="db-status">Checking...</div>
+        </div>
+        
+        <div class="test-accounts">
+            <h3>🧪 Test Accounts (Use these to login)</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-top: 15px;">
+                <div style="background: white; padding: 15px; border-radius: 8px;">
+                    <strong>👤 John Doe</strong><br>
+                    Email: john@example.com<br>
+                    Password: password123
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px;">
+                    <strong>👩 Jane Smith</strong><br>
+                    Email: jane@example.com<br>
+                    Password: password123
+                </div>
+                <div style="background: white; padding: 15px; border-radius: 8px;">
+                    <strong>👨 Bob Wilson</strong><br>
+                    Email: bob@example.com<br>
+                    Password: password123
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer style="text-align: center; padding: 40px 20px; background: #f8f9fa; margin-top: 60px;">
+        <p>© 2024 ImproveCommunication. All rights reserved.</p>
+        <p style="margin-top: 10px; color: #666;">
+            <a href="#" style="color: #667eea; margin: 0 10px;">Privacy Policy</a> |
+            <a href="#" style="color: #667eea; margin: 0 10px;">Terms of Service</a> |
+            <a href="#" style="color: #667eea; margin: 0 10px;">Contact Us</a>
+        </p>
+    </footer>
+
+    <script>
+        // Check backend health
+        async function checkBackend() {
+            try {
+                const response = await fetch('http://localhost:8000/health');
+                if (response.ok) {
+                    document.getElementById('backend-status').innerHTML = 
+                        '<div class="success">✅ Backend is running at http://localhost:8000</div>';
+                } else {
+                    document.getElementById('backend-status').innerHTML = 
+                        '<div class="error">❌ Backend returned error: ' + response.status + '</div>';
+                }
+            } catch (error) {
+                document.getElementById('backend-status').innerHTML = 
+                    '<div class="error">❌ Cannot connect to backend. Make sure you ran: python main.py</div>';
+            }
+        }
+        
+        // Check database via API
+        async function checkDatabase() {
+            try {
+                const response = await fetch('http://localhost:8000/api/users/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        email: 'john@example.com',
+                        password: 'password123'
+                    })
+                });
+                
+                if (response.ok) {
+                    document.getElementById('db-status').innerHTML = 
+                        '<div class="success">✅ Database connected successfully</div>';
+                } else {
+                    document.getElementById('db-status').innerHTML = 
+                        '<div class="error">❌ Database test failed</div>';
+                }
+            } catch (error) {
+                document.getElementById('db-status').innerHTML = 
+                    '<div class="error">⚠️ Could not test database connection</div>';
+            }
+        }
+        
+        // Run checks on page load
+        window.onload = function() {
+            checkBackend();
+            setTimeout(checkDatabase, 1000);
+        };
+    </script>
+</body>
+</html>

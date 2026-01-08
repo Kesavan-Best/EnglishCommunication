@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - ImproveCommunication</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/auth.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>🗣️ ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="../index.html">Home</a>
+                <a href="login.html">Login</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Registration Form -->
+    <div class="auth-page">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>🚀 Join ImproveCommunication</h1>
+                    <p>Create your free account and start improving today</p>
+                </div>
+                
+                <form id="register-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" placeholder="Enter your full name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <div class="form-hint">We'll never share your email with anyone</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Create a password" required>
+                        <div class="password-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" id="strength-fill"></div>
+                            </div>
+                            <span class="strength-text" id="strength-text">Weak</span>
+                        </div>
+                        <div class="form-hint">Minimum 8 characters with letters and numbers</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="confirm-password">Confirm Password</label>
+                        <input type="password" id="confirm-password" placeholder="Confirm your password" required>
+                        <div class="form-hint" id="password-match">Passwords must match</div>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="terms" required>
+                            <span>I agree to the <a href="#" class="link">Terms of Service</a> and <a href="#" class="link">Privacy Policy</a></span>
+                        </label>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="newsletter" checked>
+                            <span>Send me learning tips and updates</span>
+                        </label>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block" id="register-btn">
+                        <span class="btn-text">Create Free Account</span>
+                        <span class="btn-loader" style="display: none;">⏳ Creating account...</span>
+                    </button>
+                    
+                    <div class="auth-divider">
+                        <span>Already have an account?</span>
+                    </div>
+                    
+                    <a href="login.html" class="btn btn-block" style="background: #f8f9fa; color: #333;">
+                        Login to Existing Account
+                    </a>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>By registering, you agree to our learning community guidelines</p>
+                </div>
+                
+                <!-- Message Container -->
+                <div id="message" class="message-container"></div>
+            </div>
+            
+            <div class="auth-side">
+                <div class="side-content">
+                    <h2>Why Join Our Application?</h2>
+                    <ul class="features-list">
+                        <li>🎤 <strong>Real-Time Practice</strong> - Connect with learners worldwide for live English conversations</li>
+                        <li>🤖 <strong>AI-Powered Analysis</strong> - Get instant feedback on grammar, fluency, vocabulary, and pronunciation</li>
+                        <li>📊 <strong>Detailed Performance Insights</strong> - Identify weaknesses and track improvement over time</li>
+                        <li>🎯 <strong>Personalized Learning Path</strong> - Receive targeted quizzes based on your specific needs</li>
+                        <li>🏆 <strong>Gamified Progress</strong> - Earn scores, compete on leaderboards, and stay motivated</li>
+                        <li>💡 <strong>Smart Suggestions</strong> - Get AI-generated tips to improve your communication skills</li>
+                    </ul>
+                    
+                    <div class="testimonial">
+                        <div class="quote">"Practice with real people, get AI feedback, and see actual improvement - all in one platform!"</div>
+                        <div class="author">- Adaptive Learning for Every Student</div>
+                    </div>
+                    
+                    <div class="stats">
+                        <div class="stat">
+                            <h3>100%</h3>
+                            <p>Free to Start</p>
+                        </div>
+                        <div class="stat">
+                            <h3>24/7</h3>
+                            <p>Practice Partners</p>
+                        </div>
+                        <div class="stat">
+                            <h3>4.8★</h3>
+                            <p>User Rating</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Password strength checker
+        const passwordInput = document.getElementById('password');
+        const strengthFill = document.getElementById('strength-fill');
+        const strengthText = document.getElementById('strength-text');
+        const confirmInput = document.getElementById('confirm-password');
+        const passwordMatch = document.getElementById('password-match');
+        
+        passwordInput.addEventListener('input', function() {
+            const password = this.value;
+            let strength = 0;
+            
+            // Length check
+            if (password.length >= 8) strength += 25;
+            if (password.length >= 12) strength += 10;
+            
+            // Character type checks
+            if (/[A-Z]/.test(password)) strength += 25;
+            if (/[0-9]/.test(password)) strength += 25;
+            if (/[^A-Za-z0-9]/.test(password)) strength += 15;
+            
+            // Update strength bar
+            strengthFill.style.width = `${strength}%`;
+            
+            // Update text
+            if (strength < 50) {
+                strengthFill.style.background = '#e74c3c';
+                strengthText.textContent = 'Weak';
+            } else if (strength < 75) {
+                strengthFill.style.background = '#f39c12';
+                strengthText.textContent = 'Fair';
+            } else {
+                strengthFill.style.background = '#2ecc71';
+                strengthText.textContent = 'Strong';
+            }
+            
+            // Check password match
+            checkPasswordMatch();
+        });
+        
+        confirmInput.addEventListener('input', checkPasswordMatch);
+        
+        function checkPasswordMatch() {
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+            
+            if (confirm === '') {
+                passwordMatch.textContent = 'Passwords must match';
+                passwordMatch.style.color = '#888';
+                return;
+            }
+            
+            if (password === confirm) {
+                passwordMatch.textContent = '✓ Passwords match';
+                passwordMatch.style.color = '#2ecc71';
+            } else {
+                passwordMatch.textContent = '✗ Passwords do not match';
+                passwordMatch.style.color = '#e74c3c';
+            }
+        }
+        
+        // Show message
+        function showMessage(text, type = 'error') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${text}</div>`;
+            messageDiv.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('register-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Validate passwords match
+            if (passwordInput.value !== confirmInput.value) {
+                showMessage('Passwords do not match');
+                return;
+            }
+            
+            // Validate terms
+            if (!document.getElementById('terms').checked) {
+                showMessage('You must agree to the Terms of Service');
+                return;
+            }
+            
+            const name = document.getElementById('name').value;
+            const email = document.getElementById('email').value;
+            const password = passwordInput.value;
+            const registerBtn = document.getElementById('register-btn');
+            const btnText = registerBtn.querySelector('.btn-text');
+            const btnLoader = registerBtn.querySelector('.btn-loader');
+            
+            // Show loading state
+            btnText.style.display = 'none';
+            btnLoader.style.display = 'inline';
+            registerBtn.disabled = true;
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/users/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        name, 
+                        email, 
+                        password 
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showMessage('✅ Account created successfully! Redirecting to login...', 'success');
+                    
+                    // Auto login after registration
+                    setTimeout(async () => {
+                        try {
+                            const loginResponse = await fetch('http://localhost:8000/api/users/login', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ email, password })
+                            });
+                            
+                            if (loginResponse.ok) {
+                                const loginData = await loginResponse.json();
+                                localStorage.setItem('token', loginData.access_token);
+                                localStorage.setItem('user', JSON.stringify(loginData.user));
+                                window.location.href = 'dashboard.html';
+                            } else {
+                                window.location.href = 'login.html?registered=true';
+                            }
+                        } catch (error) {
+                            window.location.href = 'login.html?registered=true';
+                        }
+                    }, 2000);
+                    
+                } else {
+                    showMessage(`❌ ${data.detail || 'Registration failed'}`);
+                    // Reset button
+                    btnText.style.display = 'inline';
+                    btnLoader.style.display = 'none';
+                    registerBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                showMessage(`❌ Network error: ${error.message}`);
+                // Reset button
+                btnText.style.display = 'inline';
+                btnLoader.style.display = 'none';
+                registerBtn.disabled = false;
+            }
+        });
+        
+        // Check if user is already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                showMessage('You are already logged in. Redirecting to dashboard...', 'success');
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1000);
+            }
+        };
+    </script>
+    
+    <style>
+        .password-strength {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        
+        .strength-bar {
+            flex: 1;
+            height: 6px;
+            background: #e1e5e9;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .strength-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 3px;
+            transition: all 0.3s;
+        }
+        
+        .strength-text {
+            font-size: 12px;
+            font-weight: 600;
+            min-width: 40px;
+        }
+        
+        .testimonial {
+            margin: 40px 0;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            border-left: 4px solid #4ade80;
+        }
+        
+        .quote {
+            font-style: italic;
+            margin-bottom: 10px;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+        
+        .author {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+    </style>
+</body>
+</html>

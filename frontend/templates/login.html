@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - ImproveCommunication</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/auth.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h2>🗣️ ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="../index.html">Home</ a>
+                <a href="register.html">Register</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Login Form -->
+    <div class="auth-page">
+        <div class="auth-container">
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h1>🔐 Welcome Back</h1>
+                    <p>Login to your ImproveCommunication account</p>
+                </div>
+                
+                <form id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <div class="form-hint">Use test account: john@example.com</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                        <div class="form-hint">Test password: password123</div>
+                    </div>
+                    
+                    <div class="form-options">
+                        <label class="checkbox">
+                            <input type="checkbox" id="remember">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link">Forgot password?</a>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary btn-block" id="login-btn">
+                        <span class="btn-text">Login to Dashboard</span>
+                        <span class="btn-loader" style="display: none;">⏳ Logging in...</span>
+                    </button>
+                    
+                    <div class="auth-divider">
+                        <span>or continue with</span>
+                    </div>
+                    
+                    <div class="social-login">
+                        <button type="button" class="btn btn-google" disabled>
+                            <span>Google</span>
+                        </button>
+                        <button type="button" class="btn btn-github" disabled>
+                            <span>GitHub</span>
+                        </button>
+                    </div>
+                </form>
+                
+                <div class="auth-footer">
+                    <p>Don't have an account? <a href="register.html" class="link">Sign up now</a></p>
+                </div>
+                
+                <!-- Message Container -->
+                <div id="message" class="message-container"></div>
+                
+                <!-- Test Accounts -->
+                <div class="test-accounts">
+                    <h3>🧪 Quick Test Accounts</h3>
+                    <div class="account-grid">
+                        <div class="account-card">
+                            <strong>👤 John Doe</strong>
+                            <div class="account-details">
+                                <span class="email">john@example.com</span>
+                                <span class="password">password123</span>
+                            </div>
+                            <button class="btn-sm" onclick="fillCredentials('john@example.com', 'password123')">Use This</button>
+                        </div>
+                        <div class="account-card">
+                            <strong>👩 Jane Smith</strong>
+                            <div class="account-details">
+                                <span class="email">jane@example.com</span>
+                                <span class="password">password123</span>
+                            </div>
+                            <button class="btn-sm" onclick="fillCredentials('jane@example.com', 'password123')">Use This</button>
+                        </div>
+                        <div class="account-card">
+                            <strong>👨 Bob Wilson</strong>
+                            <div class="account-details">
+                                <span class="email">bob@example.com</span>
+                                <span class="password">password123</span>
+                            </div>
+                            <button class="btn-sm" onclick="fillCredentials('bob@example.com', 'password123')">Use This</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="auth-side">
+                <div class="side-content">
+                    <h2>Start Improving Your English Today</h2>
+                    <ul class="features-list">
+                        <li>🎤 Practice with real people worldwide</li>
+                        <li>📊 Get AI-powered feedback instantly</li>
+                        <li>🏆 Compete on the global leaderboard</li>
+                        <li>📚 Receive personalized learning materials</li>
+                        <li>⚡ Track your progress over time</li>
+                    </ul>
+                    <div class="stats">
+                        <div class="stat">
+                            <h3>500+</h3>
+                            <p>Active Learners</p>
+                        </div>
+                        <div class="stat">
+                            <h3>10k+</h3>
+                            <p>Practice Hours</p>
+                        </div>
+                        <div class="stat">
+                            <h3>95%</h3>
+                            <p>Satisfaction Rate</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fill credentials with test accounts
+        function fillCredentials(email, password) {
+            document.getElementById('email').value = email;
+            document.getElementById('password').value = password;
+            showMessage('Credentials filled! Click "Login to Dashboard"', 'success');
+        }
+        
+        // Show message
+        function showMessage(text, type = 'error') {
+            const messageDiv = document.getElementById('message');
+            messageDiv.innerHTML = `<div class="${type}">${text}</div>`;
+            messageDiv.style.display = 'block';
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    messageDiv.style.display = 'none';
+                }, 3000);
+            }
+        }
+        
+        // Handle form submission
+        document.getElementById('login-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('login-btn');
+            const btnText = loginBtn.querySelector('.btn-text');
+            const btnLoader = loginBtn.querySelector('.btn-loader');
+            
+            // Show loading state
+            btnText.style.display = 'none';
+            btnLoader.style.display = 'inline';
+            loginBtn.disabled = true;
+            
+            try {
+                const response = await fetch('http://localhost:8000/api/users/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Save to localStorage
+                    localStorage.setItem('token', data.access_token);
+                    localStorage.setItem('user', JSON.stringify(data.user));
+                    
+                    showMessage('✅ Login successful! Redirecting to dashboard...', 'success');
+                    
+                    // Redirect after delay
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1500);
+                    
+                } else {
+                    showMessage(`❌ ${data.detail || 'Login failed. Check your credentials.'}`);
+                    // Reset button
+                    btnText.style.display = 'inline';
+                    btnLoader.style.display = 'none';
+                    loginBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                showMessage(`❌ Network error: ${error.message}`);
+                // Reset button
+                btnText.style.display = 'inline';
+                btnLoader.style.display = 'none';
+                loginBtn.disabled = false;
+            }
+        });
+        
+        // Check if user is already logged in
+        window.onload = function() {
+            const token = localStorage.getItem('token');
+            if (token) {
+                showMessage('You are already logged in. Redirecting...', 'success');
+                setTimeout(() => {
+                    window.location.href = 'dashboard.html';
+                }, 1000);
+            }
+        };
+    </script>
+</body>
+</html>

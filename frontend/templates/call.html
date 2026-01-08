@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Call - ImproveCommunication</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="https://meet.jit.si/external_api.js"></script>
+    <style>
+        .call-page {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #1a1a2e;
+        }
+        
+        .call-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+        }
+        
+        .call-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .call-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            color: #667eea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+        }
+        
+        .call-details h2 {
+            margin: 0;
+            font-size: 20px;
+        }
+        
+        .call-details p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .call-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .end-call-btn {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);
+        }
+        
+        .end-call-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(245, 87, 108, 0.4);
+        }
+        
+        #meet-container {
+            flex: 1;
+            position: relative;
+            background: #000;
+        }
+        
+        .loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            z-index: 10;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .call-stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 14px;
+            z-index: 5;
+        }
+        
+        .call-timer {
+            font-size: 24px;
+            font-weight: bold;
+            color: #38ef7d;
+        }
+        
+        .pre-call-screen {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .pre-call-screen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        .pre-call-screen p {
+            font-size: 20px;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .start-call-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 18px 40px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 6px 25px rgba(0,0,0,0.2);
+        }
+        
+        .start-call-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+        }
+        
+        .partner-list {
+            background: white;
+            color: #333;
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 30px;
+            max-width: 400px;
+        }
+        
+        .partner-list h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+        
+        .partner-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .partner-item:hover {
+            background: #f0f2ff;
+            padding-left: 15px;
+        }
+        
+        .partner-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="call-page">
+        <!-- Call Header -->
+        <div class="call-header">
+            <div class="call-info">
+                <div class="call-avatar" id="partner-avatar">?</div>
+                <div class="call-details">
+                    <h2 id="partner-name">Practice Call</h2>
+                    <p id="call-status">Connecting...</p>
+                </div>
+            </div>
+            <div class="call-actions">
+                <button class="end-call-btn" onclick="endCall()">📞 End Call</button>
+            </div>
+        </div>
+        
+        <!-- Pre-call Screen -->
+        <div class="pre-call-screen" id="pre-call-screen">
+            <h1>🎤 Ready to Practice?</h1>
+            <p>Start a video call to improve your English speaking skills</p>
+            <button class="start-call-btn" onclick="startCall()">Start Call</button>
+            
+            <div class="partner-list" id="partner-info" style="display: none;">
+                <h3>Calling...</h3>
+                <p id="selected-partner">-</p>
+            </div>
+        </div>
+        
+        <!-- Jitsi Meet Container -->
+        <div id="meet-container" style="display: none;">
+            <div class="loading-screen" id="loading-screen">
+                <div class="loading-spinner"></div>
+                <h2>Connecting to call...</h2>
+                <p>Please wait while we set up your video call</p>
+            </div>
+            
+            <div class="call-stats" id="call-stats" style="display: none;">
+                <div>Call Duration</div>
+                <div class="call-timer" id="call-timer">00:00</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let jitsiApi = null;
+        let callStartTime = null;
+        let timerInterval = null;
+        let currentUser = null;
+        let partnerId = null;
+        let partnerName = null;
+        let callId = null;
+
+        // Check authentication
+        async function checkAuth() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                window.location.href = 'login.html';
+                return null;
+            }
+            
+            return JSON.parse(user);
+        }
+
+        // Start call
+        async function startCall() {
+            // Get partner info from localStorage (set from users page)
+            partnerId = localStorage.getItem('callPartnerId');
+            partnerName = localStorage.getItem('callPartnerName');
+            
+            if (!partnerId) {
+                alert('Please select a partner from the Find Partners page first');
+                window.location.href = 'users.html';
+                return;
+            }
+            
+            // Update UI
+            document.getElementById('partner-name').textContent = partnerName;
+            document.getElementById('partner-avatar').textContent = partnerName.charAt(0).toUpperCase();
+            document.getElementById('call-status').textContent = 'Starting call...';
+            
+            // Hide pre-call screen
+            document.getElementById('pre-call-screen').style.display = 'none';
+            document.getElementById('meet-container').style.display = 'block';
+            
+            // Initialize call in backend
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch('http://localhost:8000/api/calls/invite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        receiver_id: partnerId
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    callId = data.call_id;
+                    
+                    // Initialize Jitsi
+                    initJitsi(data.room_name || `call-${callId}`);
+                } else {
+                    alert('Failed to start call');
+                    window.location.href = 'users.html';
+                }
+            } catch (error) {
+                console.error('Error starting call:', error);
+                alert('Error starting call. Please try again.');
+                window.location.href = 'users.html';
+            }
+        }
+
+        // Initialize Jitsi Meet
+        function initJitsi(roomName) {
+            const domain = 'meet.jit.si';
+            const options = {
+                roomName: roomName,
+                width: '100%',
+                height: '100%',
+                parentNode: document.getElementById('meet-container'),
+                configOverwrite: {
+                    startWithAudioMuted: false,
+                    startWithVideoMuted: false,
+                    enableWelcomePage: false,
+                    prejoinPageEnabled: false,
+                    disableDeepLinking: true
+                },
+                interfaceConfigOverwrite: {
+                    TOOLBAR_BUTTONS: [
+                        'microphone', 'camera', 'closedcaptions', 'desktop',
+                        'fullscreen', 'fodeviceselection', 'hangup', 'profile',
+                        'recording', 'settings', 'raisehand',
+                        'videoquality', 'filmstrip', 'stats', 'tileview'
+                    ],
+                    SHOW_JITSI_WATERMARK: false,
+                    SHOW_BRAND_WATERMARK: false,
+                    SHOW_WATERMARK_FOR_GUESTS: false,
+                    DEFAULT_REMOTE_DISPLAY_NAME: partnerName,
+                    DEFAULT_LOCAL_DISPLAY_NAME: currentUser.name
+                },
+                userInfo: {
+                    displayName: currentUser.name,
+                    email: currentUser.email
+                }
+            };
+
+            jitsiApi = new JitsiMeetExternalAPI(domain, options);
+
+            // Event listeners
+            jitsiApi.addEventListener('videoConferenceJoined', () => {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('call-stats').style.display = 'block';
+                document.getElementById('call-status').textContent = 'In call';
+                
+                callStartTime = Date.now();
+                startTimer();
+            });
+
+            jitsiApi.addEventListener('videoConferenceLeft', () => {
+                endCall();
+            });
+
+            jitsiApi.addEventListener('readyToClose', () => {
+                endCall();
+            });
+        }
+
+        // Start call timer
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('call-timer').textContent = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        // End call
+        async function endCall() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+
+            if (jitsiApi) {
+                jitsiApi.dispose();
+                jitsiApi = null;
+            }
+
+            // Save call data to backend
+            if (callId && callStartTime) {
+                const duration = Math.floor((Date.now() - callStartTime) / 1000);
+                const token = localStorage.getItem('token');
+                
+                try {
+                    await fetch('http://localhost:8000/api/calls/end', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({
+                            call_id: callId,
+                            duration_seconds: duration
+                        })
+                    });
+                } catch (error) {
+                    console.error('Error saving call data:', error);
+                }
+            }
+
+            // Clear partner info
+            localStorage.removeItem('callPartnerId');
+            localStorage.removeItem('callPartnerName');
+
+            // Redirect to dashboard
+            window.location.href = 'dashboard.html';
+        }
+
+        // Initialize
+        window.onload = async function() {
+            currentUser = await checkAuth();
+            
+            if (currentUser) {
+                // Check if partner is selected
+                const hasPartner = localStorage.getItem('callPartnerId');
+                
+                if (hasPartner) {
+                    const partnerName = localStorage.getItem('callPartnerName');
+                    document.getElementById('selected-partner').textContent = partnerName;
+                    document.getElementById('partner-info').style.display = 'block';
+                }
+            }
+        };
+
+        // Handle page close/refresh during call
+        window.addEventListener('beforeunload', (e) => {
+            if (jitsiApi) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
+import uvicorn
+import os
+
+from app.api import users, calls, analysis, leaderboard, websocket
+from app.database import init_db
+from app.core.config import settings
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    print("Initializing database...")
+    await init_db()
+    print("Database initialized")
+    yield
+    # Shutdown
+    print("Shutting down...")
+
+app = FastAPI(
+    title="English Communication Platform",
+    description="AI-powered English speaking improvement platform",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware - Allow all origins for development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Must be False when allow_origins is "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files for audio storage
+os.makedirs("static/audio", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Include routers
+app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
+app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
+app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+
+@app.get("/")
+async def root():
+    return {"message": "English Communication Platform API"}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
