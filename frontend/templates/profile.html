@@ -513,7 +513,7 @@
             
             try {
                 // Get user info
-                const userResponse = await fetch('http://localhost:8000/api/users/me', {
+                const userResponse = await fetch('/api/users/me', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -569,7 +569,7 @@
             
             // Avatar
             if (user.avatar_url) {
-                document.getElementById('avatar-img').src = `http://localhost:8000${user.avatar_url}`;
+                document.getElementById('avatar-img').src = `${user.avatar_url}`;
             }
             
             // Member since (format date)
@@ -600,7 +600,7 @@
         // Load user statistics
         async function loadUserStatistics(token) {
             try {
-                const statsResponse = await fetch('http://localhost:8000/api/users/stats', {
+                const statsResponse = await fetch('/api/users/stats', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -673,7 +673,7 @@
         // Load achievements
         async function loadAchievements(token) {
             try {
-                const achievementsResponse = await fetch(`http://localhost:8000/api/leaderboard/achievements/${userData.id}`, {
+                const achievementsResponse = await fetch(`/api/leaderboard/achievements/${userData.id}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -733,7 +733,7 @@
                 const formData = new FormData();
                 formData.append('name', newName.trim());
                 
-                const response = await fetch('http://localhost:8000/api/users/profile', {
+                const response = await fetch('/api/users/profile', {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -787,7 +787,7 @@
             formData.append('avatar', file);
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/profile', {
+                const response = await fetch('/api/users/profile', {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -804,7 +804,7 @@
                     
                     // Update avatar display
                     if (updatedUser.avatar_url) {
-                        document.getElementById('avatar-img').src = `http://localhost:8000${updatedUser.avatar_url}?t=${Date.now()}`;
+                        document.getElementById('avatar-img').src = `${updatedUser.avatar_url}?t=${Date.now()}`;
                     }
                     
                     alert('Avatar updated successfully!');
@@ -823,7 +823,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                await fetch('http://localhost:8000/api/users/logout', {
+                await fetch('/api/users/logout', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`

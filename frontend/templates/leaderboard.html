@@ -480,7 +480,7 @@
                 
                 // Load leaderboard
                 const leaderboardResponse = await fetch(
-                    `http://localhost:8000/api/leaderboard/top?timeframe=${currentTimeframe}&skill_filter=${currentFilter}&limit=20`,
+                    `/api/leaderboard/top?timeframe=${currentTimeframe}&skill_filter=${currentFilter}&limit=20`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -583,7 +583,7 @@
             
             try {
                 const rankResponse = await fetch(
-                    `http://localhost:8000/api/leaderboard/my-rank?timeframe=${currentTimeframe}`,
+                    `/api/leaderboard/my-rank?timeframe=${currentTimeframe}`,
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -633,7 +633,7 @@
             
             try {
                 const statsResponse = await fetch(
-                    'http://localhost:8000/api/leaderboard/global-stats',
+                    '/api/leaderboard/global-stats',
                     {
                         headers: {
                             'Authorization': `Bearer ${token}`
@@ -679,7 +679,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                await fetch('http://localhost:8000/api/users/logout', {
+                await fetch('/api/users/logout', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`

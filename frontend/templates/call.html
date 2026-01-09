@@ -290,7 +290,7 @@
             // Initialize call in backend
             const token = localStorage.getItem('token');
             try {
-                const response = await fetch('http://localhost:8000/api/calls/invite', {
+                const response = await fetch('/api/calls/invite', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -400,7 +400,7 @@
                 const token = localStorage.getItem('token');
                 
                 try {
-                    await fetch('http://localhost:8000/api/calls/end', {
+                    await fetch('/api/calls/end', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',

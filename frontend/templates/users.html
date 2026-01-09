@@ -433,7 +433,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/all', {
+                const response = await fetch('/api/users/all', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -459,7 +459,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/friends', {
+                const response = await fetch('/api/users/all', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -563,7 +563,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/friends', {
+                const response = await fetch('/api/users/friends', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -634,7 +634,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/friend-requests', {
+                const response = await fetch('/api/users/friend-requests', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -698,7 +698,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch(`http://localhost:8000/api/users/friend-request/${userId}`, {
+                const response = await fetch(`/api/users/friend-request/${userId}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -723,7 +723,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch(`http://localhost:8000/api/users/friend-request/${requestId}/accept`, {
+                const response = await fetch(`/api/users/friend-request/${requestId}/accept`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -748,7 +748,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch(`http://localhost:8000/api/users/friend-request/${requestId}/reject`, {
+                const response = await fetch(`/api/users/friend-request/${requestId}/reject`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -772,7 +772,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/find-random-partner', {
+                const response = await fetch('/api/users/find-random-partner', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -812,7 +812,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                await fetch('http://localhost:8000/api/users/logout', {
+                await fetch('/api/users/logout', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`

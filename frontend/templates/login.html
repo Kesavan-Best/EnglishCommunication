@@ -15,7 +15,7 @@
                 <h2>🗣️ ImproveCommunication</h2>
             </div>
             <div class="nav-links">
-                <a href="../index.html">Home</ a>
+                <a href="../index.html">Home</a>
                 <a href="register.html">Register</a>
             </div>
         </div>
@@ -175,7 +175,7 @@
             loginBtn.disabled = true;
             
             try {
-                const response = await fetch('http://localhost:8000/api/users/login', {
+                const response = await fetch('/api/users/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

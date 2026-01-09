@@ -194,7 +194,7 @@
             
             try {
                 // Get current user info
-                const response = await fetch('http://localhost:8000/api/users/me', {
+                const response = await fetch('/api/users/me', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -241,7 +241,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                const response = await fetch('http://localhost:8000/api/leaderboard/top?limit=3', {
+                const response = await fetch('/api/leaderboard/top?limit=3', {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -273,7 +273,7 @@
             const token = localStorage.getItem('token');
             
             try {
-                await fetch('http://localhost:8000/api/users/logout', {
+                await fetch('/api/users/logout', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`

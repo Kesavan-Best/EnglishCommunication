@@ -200,10 +200,10 @@
         // Check backend health
         async function checkBackend() {
             try {
-                const response = await fetch('http://localhost:8000/health');
+                const response = await fetch('/health');
                 if (response.ok) {
                     document.getElementById('backend-status').innerHTML = 
-                        '<div class="success">✅ Backend is running at http://localhost:8000</div>';
+                        '<div class="success">✅ Backend is running</div>';
                 } else {
                     document.getElementById('backend-status').innerHTML = 
                         '<div class="error">❌ Backend returned error: ' + response.status + '</div>';
@@ -217,7 +217,7 @@
         // Check database via API
         async function checkDatabase() {
             try {
-                const response = await fetch('http://localhost:8000/api/users/login', {
+                const response = await fetch('/api/users/login', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
