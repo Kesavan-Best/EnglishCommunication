@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Call - ImproveCommunication</title>
+    <title>Audio Call - ImproveCommunication</title>
     <link rel="stylesheet" href="../css/style.css">
     <script src="https://meet.jit.si/external_api.js"></script>
     <style>
@@ -220,7 +220,7 @@
         <!-- Pre-call Screen -->
         <div class="pre-call-screen" id="pre-call-screen">
             <h1>🎤 Ready to Practice?</h1>
-            <p>Start a video call to improve your English speaking skills</p>
+            <p>Start an audio call to improve your English speaking skills</p>
             <button class="start-call-btn" onclick="startCall()">Start Call</button>
             
             <div class="partner-list" id="partner-info" style="display: none;">
@@ -234,7 +234,7 @@
             <div class="loading-screen" id="loading-screen">
                 <div class="loading-spinner"></div>
                 <h2>Connecting to call...</h2>
-                <p>Please wait while we set up your video call</p>
+                <p>Please wait while we set up your audio call</p>
             </div>
             
             <div class="call-stats" id="call-stats" style="display: none;">
@@ -328,17 +328,18 @@
                 parentNode: document.getElementById('meet-container'),
                 configOverwrite: {
                     startWithAudioMuted: false,
-                    startWithVideoMuted: false,
+                    startWithVideoMuted: true,
                     enableWelcomePage: false,
                     prejoinPageEnabled: false,
-                    disableDeepLinking: true
+                    disableDeepLinking: true,
+                    startAudioOnly: true,
+                    disableVideoQuality: true
                 },
                 interfaceConfigOverwrite: {
                     TOOLBAR_BUTTONS: [
-                        'microphone', 'camera', 'closedcaptions', 'desktop',
+                        'microphone', 'closedcaptions',
                         'fullscreen', 'fodeviceselection', 'hangup', 'profile',
-                        'recording', 'settings', 'raisehand',
-                        'videoquality', 'filmstrip', 'stats', 'tileview'
+                        'settings', 'raisehand', 'stats'
                     ],
                     SHOW_JITSI_WATERMARK: false,
                     SHOW_BRAND_WATERMARK: false,
