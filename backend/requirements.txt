@@ -6,7 +6,6 @@ passlib[bcrypt]==1.7.4
 pymongo==4.5.0
 websockets==12.0
 redis==5.0.1
-openai-whisper
 nltk==3.8.1
 language-tool-python==2.7.1
 langdetect==1.0.9
