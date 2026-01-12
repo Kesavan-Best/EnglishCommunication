@@ -3,10 +3,10 @@ from bson import ObjectId
 from datetime import datetime, timedelta
 from typing import List, Optional
 
-from app.auth import AuthHandler
-from app.database import Database
-from app.models import UserInDB
-from app.schemas import LeaderboardEntry
+from backend.app.auth import AuthHandler
+from backend.app.database import Database
+from backend.app.models import UserInDB
+from backend.app.schemas import LeaderboardEntry
 
 router = APIRouter()
 

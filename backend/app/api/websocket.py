@@ -5,8 +5,8 @@ import asyncio
 from datetime import datetime
 from bson import ObjectId
 
-from app.database import Database
-from app.auth import AuthHandler
+from backend.app.database import Database
+from backend.app.auth import AuthHandler
 
 router = APIRouter()
 

@@ -5,7 +5,7 @@ from passlib.context import CryptContext
 import secrets
 import bcrypt
 
-from app.core.config import settings
+from backend.app.core.config import settings
 
 # Using bcrypt directly for better Python 3.13 compatibility
 # pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

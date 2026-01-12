@@ -7,7 +7,7 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.append(str(project_root))
 
-from app.database import Database
+from backend.app.database import Database
 from pymongo import MongoClient
 from datetime import datetime
 import bcrypt

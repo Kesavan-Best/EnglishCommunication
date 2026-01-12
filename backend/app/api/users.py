@@ -5,11 +5,11 @@ from bson import ObjectId
 import shutil
 import os
 
-from app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse
-from app.models import UserInDB
-from app.auth import AuthHandler
-from app.database import Database
-from app.core.config import settings
+from backend.app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse
+from backend.app.models import UserInDB
+from backend.app.auth import AuthHandler
+from backend.app.database import Database
+from backend.app.core.config import settings
 
 router = APIRouter()
 

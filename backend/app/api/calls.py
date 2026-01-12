@@ -4,11 +4,11 @@ from datetime import datetime
 import uuid
 import os
 
-from app.auth import AuthHandler
-from app.database import Database
-from app.models import UserInDB
-from app.schemas import CallResponse, CallInviteRequest, CallAcceptRequest, CallEndRequest
-from app.core.config import settings
+from backend.app.auth import AuthHandler
+from backend.app.database import Database
+from backend.app.models import UserInDB
+from backend.app.schemas import CallResponse, CallInviteRequest, CallAcceptRequest, CallEndRequest
+from backend.app.core.config import settings
 
 router = APIRouter()
 

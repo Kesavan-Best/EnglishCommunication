@@ -2,13 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from bson import ObjectId
 from datetime import datetime
 
-from app.auth import AuthHandler
-from app.database import Database
-from app.models import UserInDB
-from app.schemas import AnalysisResponse, QuizResponse
-from app.ai_processing.whisper_transcriber import whisper_transcriber
-from app.ai_processing.text_analyzer import text_analyzer
-from app.ai_processing.quiz_generator import QuizGenerator
+from backend.app.auth import AuthHandler
+from backend.app.database import Database
+from backend.app.models import UserInDB
+from backend.app.schemas import AnalysisResponse, QuizResponse
+from backend.app.ai_processing.whisper_transcriber import whisper_transcriber
+from backend.app.ai_processing.text_analyzer import text_analyzer
+from backend.app.ai_processing.quiz_generator import QuizGenerator
 
 router = APIRouter()
 quiz_generator = QuizGenerator()

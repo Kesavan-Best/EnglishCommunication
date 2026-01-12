@@ -5,10 +5,10 @@ from datetime import datetime, timedelta
 from typing import Optional
 from bson import ObjectId
 
-from app.database import Database
-from app.core.security import verify_password, get_password_hash, create_access_token, decode_access_token
-from app.models import UserInDB, UserPublic, Token
-from app.core.config import settings
+from backend.app.database import Database
+from backend.app.core.security import verify_password, get_password_hash, create_access_token, decode_access_token
+from backend.app.models import UserInDB, UserPublic, Token
+from backend.app.core.config import settings
 
 security = HTTPBearer()
 

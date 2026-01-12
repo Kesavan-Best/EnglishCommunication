@@ -5,9 +5,9 @@ from contextlib import asynccontextmanager
 import uvicorn
 import os
 
-from app.api import users, calls, analysis, leaderboard, websocket
-from app.database import init_db
-from app.core.config import settings
+from backend.app.api import users, calls, analysis, leaderboard, websocket
+from backend.app.database import init_db
+from backend.app.core.config import settings
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
