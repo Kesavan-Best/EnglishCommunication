@@ -292,6 +292,146 @@
             border-radius: 6px;
             cursor: pointer;
         }
+        
+        .user-status-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .user-status-badge.online {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .user-status-badge.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .user-avatar img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #667eea;
+        }
+        
+        .user-stats-mini {
+            display: flex;
+            justify-content: space-around;
+            margin: 15px 0;
+            padding: 10px 0;
+            border-top: 1px solid #eee;
+        }
+        
+        .stat-mini {
+            text-align: center;
+        }
+        
+        .stat-mini .stat-label {
+            font-size: 11px;
+            color: #999;
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .stat-mini .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .user-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .btn-action {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .btn-call {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-call:hover {
+            background: #5a67d8;
+        }
+        
+        .btn-add-friend {
+            background: #38ef7d;
+            color: white;
+        }
+        
+        .btn-add-friend:hover {
+            background: #2dd46f;
+        }
+        
+        .btn-profile {
+            background: #f0f2ff;
+            color: #667eea;
+        }
+        
+        .btn-profile:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-disabled {
+            background: #ccc;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .toast-message {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 15px 25px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            z-index: 10000;
+            transform: translateX(400px);
+            transition: transform 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .toast-message.show {
+            transform: translateX(0);
+        }
+        
+        .toast-message.success {
+            background: #38ef7d;
+        }
+        
+        .toast-message.error {
+            background: #e74c3c;
+        }
+        
+        .toast-message.info {
+            background: #667eea;
+        }
     </style>
 </head>
 <body>
@@ -320,527 +460,54 @@
         
         <!-- Tabs -->
         <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('all-users')">All Users</button>
-            <button class="tab-btn" onclick="switchTab('friends')">My Friends</button>
-            <button class="tab-btn" onclick="switchTab('requests')">Friend Requests <span id="request-count" style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px; display: none;"></span></button>
-            <button class="tab-btn" onclick="switchTab('random')">Random Match</button>
+            <button class="tab-btn active" data-tab="all">All Users</button>
+            <button class="tab-btn" data-tab="friends">My Friends</button>
+            <button class="tab-btn" data-tab="requests">Friend Requests <span id="request-count" style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px; display: none;"></span></button>
+            <button class="tab-btn" data-tab="random">Random Match</button>
         </div>
         
         <!-- All Users Tab -->
-        <div id="all-users" class="tab-content active">
+        <div id="all-tab" class="tab-content active">
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="🔍 Search by name or email...">
             </div>
             
-            <div class="users-grid" id="users-grid">
+            <div class="users-grid" id="all-users-grid">
                 <!-- Users will be loaded here -->
-            </div>
-            
-            <div class="empty-state" id="empty-state" style="display: none;">
-                <div style="font-size: 60px;">🔍</div>
-                <h3>No users found</h3>
-                <p>Try adjusting your search criteria</p>
             </div>
         </div>
         
         <!-- Friends Tab -->
-        <div id="friends" class="tab-content">
+        <div id="friends-tab" class="tab-content">
             <div class="users-grid" id="friends-grid">
                 <!-- Friends will be loaded here -->
-            </div>
-            
-            <div class="empty-state" id="friends-empty" style="display: none;">
-                <div style="font-size: 60px;">👥</div>
-                <h3>No friends yet</h3>
-                <p>Add friends to start practicing together!</p>
             </div>
         </div>
         
         <!-- Friend Requests Tab -->
-        <div id="requests" class="tab-content">
+        <div id="requests-tab" class="tab-content">
             <div id="requests-container">
                 <!-- Friend requests will be loaded here -->
-            </div>
-            
-            <div class="empty-state" id="requests-empty" style="display: none;">
-                <div style="font-size: 60px;">📬</div>
-                <h3>No pending friend requests</h3>
-                <p>You don't have any friend requests at the moment</p>
             </div>
         </div>
         
         <!-- Random Match Tab -->
-        <div id="random" class="tab-content">
+        <div id="random-tab" class="tab-content">
             <div class="random-match-box">
                 <div style="font-size: 80px; margin-bottom: 20px;">🎲</div>
                 <h2>Find a Random Partner</h2>
                 <p style="color: #666; margin: 20px 0;">Connect with a random online user for instant practice!</p>
-                <button class="random-match-btn" onclick="findRandomPartner()">
+                <button class="random-match-btn" id="find-random-btn" onclick="loadRandomPartner()">
                     🔀 Find Random Partner
                 </button>
+                <div id="random-status" style="margin-top: 30px;"></div>
             </div>
         </div>
     </div>
 
-    <script>
-        let allUsers = [];
-        let friends = [];
-        let friendRequests = [];
-        let currentUser = null;
-        let userFriends = [];
-
-        // Check authentication
-        async function checkAuth() {
-            const token = localStorage.getItem('token');
-            const user = localStorage.getItem('user');
-            
-            if (!token || !user) {
-                window.location.href = 'login.html';
-                return null;
-            }
-            
-            return JSON.parse(user);
-        }
-
-        // Switch tabs
-        function switchTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remove active from all buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show selected tab
-            document.getElementById(tabName).classList.add('active');
-            
-            // Add active to clicked button
-            event.target.classList.add('active');
-            
-            // Load data for the tab
-            if (tabName === 'friends') {
-                loadFriends();
-            } else if (tabName === 'requests') {
-                loadFriendRequests();
-            }
-        }
-
-        // Load all users
-        async function loadUsers() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/api/users/all', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    allUsers = await response.json();
-                    
-                    // Load user's friends list
-                    await loadUserFriends();
-                    
-                    displayUsers(allUsers);
-                } else {
-                    console.error('Failed to load users');
-                }
-            } catch (error) {
-                console.error('Error loading users:', error);
-            }
-        }
-
-        // Load user's friends list to check relationships
-        async function loadUserFriends() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/api/users/all', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    userFriends = await response.json();
-                }
-            } catch (error) {
-                console.error('Error loading friends:', error);
-            }
-        }
-
-        // Check if user is a friend
-        function isFriend(userId) {
-            return userFriends.some(friend => friend.id === userId);
-        }
-
-        // Display users
-        function displayUsers(users) {
-            const usersGrid = document.getElementById('users-grid');
-            const emptyState = document.getElementById('empty-state');
-            
-            // Filter out current user
-            const filteredUsers = users.filter(u => u.id !== currentUser.id);
-            
-            if (filteredUsers.length === 0) {
-                usersGrid.style.display = 'none';
-                emptyState.style.display = 'block';
-                return;
-            }
-            
-            usersGrid.style.display = 'grid';
-            emptyState.style.display = 'none';
-            
-            usersGrid.innerHTML = filteredUsers.map(user => {
-                const friendStatus = isFriend(user.id);
-                
-                return `
-                <div class="user-card">
-                    <div class="${user.is_online ? 'online-status' : 'offline-status'}" title="${user.is_online ? 'Online' : 'Offline'}"></div>
-                    
-                    <div class="user-avatar">
-                        ${user.name.charAt(0).toUpperCase()}
-                    </div>
-                    
-                    <div class="user-info">
-                        <div class="user-name">${user.name}</div>
-                        <div class="user-email">${user.email}</div>
-                    </div>
-                    
-                    <div class="user-stats">
-                        <div class="stat-item">
-                            <div class="stat-value">${user.ai_score.toFixed(1)}</div>
-                            <div class="stat-label">AI Score</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${user.total_calls}</div>
-                            <div class="stat-label">Calls</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">#${user.rank || 'N/A'}</div>
-                            <div class="stat-label">Rank</div>
-                        </div>
-                    </div>
-                    
-                    ${friendStatus ? `
-                        <button class="btn call-btn" onclick="startCall('${user.id}', '${user.name}')" ${!user.is_online ? 'disabled' : ''}>
-                            📞 ${user.is_online ? 'Call Now' : 'Offline'}
-                        </button>
-                        <button class="btn friend-btn" disabled>
-                            ✓ Friends
-                        </button>
-                    ` : `
-                        <button class="btn add-friend-btn" onclick="sendFriendRequest('${user.id}')">
-                            ➕ Add Friend
-                        </button>
-                    `}
-                </div>
-            `;
-            }).join('');
-        }
-
-        // Search users
-        document.getElementById('search-input').addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            
-            if (searchTerm === '') {
-                displayUsers(allUsers);
-            } else {
-                const filtered = allUsers.filter(user => 
-                    user.name.toLowerCase().includes(searchTerm) || 
-                    user.email.toLowerCase().includes(searchTerm)
-                );
-                displayUsers(filtered);
-            }
-        });
-
-        // Load friends
-        async function loadFriends() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/api/users/friends', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    friends = await response.json();
-                    displayFriends(friends);
-                } else {
-                    console.error('Failed to load friends');
-                }
-            } catch (error) {
-                console.error('Error loading friends:', error);
-            }
-        }
-
-        // Display friends
-        function displayFriends(friends) {
-            const friendsGrid = document.getElementById('friends-grid');
-            const emptyState = document.getElementById('friends-empty');
-            
-            if (friends.length === 0) {
-                friendsGrid.style.display = 'none';
-                emptyState.style.display = 'block';
-                return;
-            }
-            
-            friendsGrid.style.display = 'grid';
-            emptyState.style.display = 'none';
-            
-            friendsGrid.innerHTML = friends.map(friend => `
-                <div class="user-card">
-                    <div class="${friend.is_online ? 'online-status' : 'offline-status'}" title="${friend.is_online ? 'Online' : 'Offline'}"></div>
-                    
-                    <div class="user-avatar">
-                        ${friend.name.charAt(0).toUpperCase()}
-                    </div>
-                    
-                    <div class="user-info">
-                        <div class="user-name">${friend.name}</div>
-                        <div class="user-email">${friend.email}</div>
-                    </div>
-                    
-                    <div class="user-stats">
-                        <div class="stat-item">
-                            <div class="stat-value">${friend.ai_score.toFixed(1)}</div>
-                            <div class="stat-label">AI Score</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">${friend.total_calls}</div>
-                            <div class="stat-label">Calls</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="stat-value">#${friend.rank || 'N/A'}</div>
-                            <div class="stat-label">Rank</div>
-                        </div>
-                    </div>
-                    
-                    <button class="btn call-btn" onclick="startCall('${friend.id}', '${friend.name}')" ${!friend.is_online ? 'disabled' : ''}>
-                        📞 ${friend.is_online ? 'Call Now' : 'Offline'}
-                    </button>
-                </div>
-            `).join('');
-        }
-
-        // Load friend requests
-        async function loadFriendRequests() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/api/users/friend-requests', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    friendRequests = await response.json();
-                    displayFriendRequests(friendRequests);
-                    
-                    // Update request count badge
-                    const countBadge = document.getElementById('request-count');
-                    if (friendRequests.length > 0) {
-                        countBadge.textContent = friendRequests.length;
-                        countBadge.style.display = 'inline';
-                    } else {
-                        countBadge.style.display = 'none';
-                    }
-                } else {
-                    console.error('Failed to load friend requests');
-                }
-            } catch (error) {
-                console.error('Error loading friend requests:', error);
-            }
-        }
-
-        // Display friend requests
-        function displayFriendRequests(requests) {
-            const container = document.getElementById('requests-container');
-            const emptyState = document.getElementById('requests-empty');
-            
-            if (requests.length === 0) {
-                container.style.display = 'none';
-                emptyState.style.display = 'block';
-                return;
-            }
-            
-            container.style.display = 'block';
-            emptyState.style.display = 'none';
-            
-            container.innerHTML = requests.map(request => `
-                <div class="friend-request-card">
-                    <div class="friend-request-info">
-                        <div class="user-avatar" style="width: 50px; height: 50px; font-size: 20px; margin: 0;">
-                            ${request.from_user.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                            <div style="font-weight: 600;">${request.from_user.name}</div>
-                            <div style="font-size: 14px; color: #666;">${request.from_user.email}</div>
-                        </div>
-                    </div>
-                    <div class="friend-request-actions">
-                        <button class="accept-btn" onclick="acceptFriendRequest('${request.request_id}')">Accept</button>
-                        <button class="reject-btn" onclick="rejectFriendRequest('${request.request_id}')">Reject</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // Send friend request
-        async function sendFriendRequest(userId) {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch(`/api/users/friend-request/${userId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    alert('Friend request sent successfully!');
-                    await loadUsers(); // Reload to update UI
-                } else {
-                    const error = await response.json();
-                    alert(error.detail || 'Failed to send friend request');
-                }
-            } catch (error) {
-                console.error('Error sending friend request:', error);
-                alert('Failed to send friend request');
-            }
-        }
-
-        // Accept friend request
-        async function acceptFriendRequest(requestId) {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch(`/api/users/friend-request/${requestId}/accept`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    alert('Friend request accepted!');
-                    await loadFriendRequests();
-                    await loadUsers();
-                } else {
-                    alert('Failed to accept friend request');
-                }
-            } catch (error) {
-                console.error('Error accepting friend request:', error);
-                alert('Failed to accept friend request');
-            }
-        }
-
-        // Reject friend request
-        async function rejectFriendRequest(requestId) {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch(`/api/users/friend-request/${requestId}/reject`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    alert('Friend request rejected');
-                    await loadFriendRequests();
-                } else {
-                    alert('Failed to reject friend request');
-                }
-            } catch (error) {
-                console.error('Error rejecting friend request:', error);
-                alert('Failed to reject friend request');
-            }
-        }
-
-        // Find random partner
-        async function findRandomPartner() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const response = await fetch('/api/users/find-random-partner', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    if (data.partner) {
-                        if (confirm(`Found ${data.partner.name}! Start a call now?`)) {
-                            startCall(data.partner.id, data.partner.name);
-                        }
-                    } else {
-                        alert('No online partners available at the moment. Try again later!');
-                    }
-                } else {
-                    alert('Failed to find a random partner');
-                }
-            } catch (error) {
-                console.error('Error finding random partner:', error);
-                alert('Failed to find a random partner');
-            }
-        }
-
-        // Start call
-        function startCall(userId, userName) {
-            // Store call information
-            localStorage.setItem('callPartnerId', userId);
-            localStorage.setItem('callPartnerName', userName);
-            
-            // Redirect to call page
-            window.location.href = 'call.html';
-        }
-
-        // Logout function
-        async function logout() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                await fetch('/api/users/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            } catch (error) {
-                console.error('Logout error:', error);
-            } finally {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = 'login.html';
-            }
-        }
-
-        // Initialize
-        window.onload = async function() {
-            currentUser = await checkAuth();
-            if (currentUser) {
-                await loadUsers();
-                await loadFriendRequests();
-                
-                // Refresh users and requests every 10 seconds
-                setInterval(() => {
-                    loadUsers();
-                    loadFriendRequests();
-                }, 10000);
-            }
-        };
-    </script>
+    <!-- Scripts -->
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
+    <script src="../js/users.js"></script>
 </body>
 </html>
