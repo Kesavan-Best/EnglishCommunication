@@ -9,8 +9,6 @@ redis==5.0.1
 nltk==3.8.1
 language-tool-python==2.7.1
 langdetect==1.0.9
-pydantic==2.5.0
-pydantic-settings==2.1.0
+pydantic<2
 python-dotenv==1.0.0
-celery==5.3.4
 textblob==0.17.1
