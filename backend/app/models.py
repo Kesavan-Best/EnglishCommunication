@@ -2,12 +2,47 @@ from datetime import datetime
 from typing import Optional, List, Any
 from pydantic import BaseModel, EmailStr, Field
 from bson import ObjectId
+import pydantic
+
+# Check Pydantic version
+PYDANTIC_V2 = int(pydantic.VERSION.split('.')[0]) >= 2
+
+if PYDANTIC_V2:
+    from pydantic import GetJsonSchemaHandler
+    from pydantic.json_schema import JsonSchemaValue
+    from pydantic_core import core_schema
 
 class PyObjectId(ObjectId):
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
+    if PYDANTIC_V2:
+        @classmethod
+        def __get_pydantic_core_schema__(
+            cls, source_type: Any, handler: Any
+        ) -> core_schema.CoreSchema:
+            return core_schema.union_schema([
+                core_schema.is_instance_schema(ObjectId),
+                core_schema.chain_schema([
+                    core_schema.str_schema(),
+                    core_schema.no_info_plain_validator_function(cls.validate),
+                ])
+            ],
+            serialization=core_schema.plain_serializer_function_ser_schema(
+                lambda x: str(x)
+            ))
+        
+        @classmethod
+        def __get_pydantic_json_schema__(
+            cls, schema: core_schema.CoreSchema, handler: GetJsonSchemaHandler
+        ) -> JsonSchemaValue:
+            return {"type": "string"}
+    else:
+        @classmethod
+        def __get_validators__(cls):
+            yield cls.validate
 
+        @classmethod
+        def __modify_schema__(cls, field_schema):
+            field_schema.update(type="string")
+    
     @classmethod
     def validate(cls, v):
         if isinstance(v, ObjectId):
@@ -15,10 +50,6 @@ class PyObjectId(ObjectId):
         if isinstance(v, str) and ObjectId.is_valid(v):
             return ObjectId(v)
         raise ValueError("Invalid ObjectId")
-
-    @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -46,11 +77,19 @@ class UserInDB(UserBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    if PYDANTIC_V2:
+        model_config = {
+            "from_attributes": True,
+            "populate_by_name": True,
+            "arbitrary_types_allowed": True,
+            "json_encoders": {ObjectId: str}
+        }
+    else:
+        class Config:
+            orm_mode = True
+            allow_population_by_field_name = True
+            arbitrary_types_allowed = True
+            json_encoders = {ObjectId: str}
 
 class UserPublic(UserBase):
     id: str
@@ -78,11 +117,19 @@ class CallInDB(CallBase):
     analysis_id: Optional[PyObjectId] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
-    class Config:
-        orm_mode = True
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-        json_encoders = {ObjectId: str}
+    if PYDANTIC_V2:
+        model_config = {
+            "from_attributes": True,
+            "populate_by_name": True,
+            "arbitrary_types_allowed": True,
+            "json_encoders": {ObjectId: str}
+        }
+    else:
+        class Config:
+            orm_mode = True
+            allow_population_by_field_name = True
+            arbitrary_types_allowed = True
+            json_encoders = {ObjectId: str}
 
 class TranscriptBase(BaseModel):
     call_id: PyObjectId

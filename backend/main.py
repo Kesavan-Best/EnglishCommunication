@@ -4,6 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import uvicorn
 import os
+import sys
+from pathlib import Path
+
+# Add parent directory to path for both local and Render deployment
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
 
 from backend.app.api import users, calls, analysis, leaderboard, websocket
 from backend.app.database import init_db
