@@ -1,0 +1,61 @@
+# Render Blueprint for English Communication Platform
+# This file enables one-click deployment to Render
+
+services:
+  # Backend API Service
+  - type: web
+    name: english-communication-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: MONGODB_URL
+        sync: false  # Set manually in Render dashboard
+      - key: OPENAI_API_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: DB_NAME
+        value: english_comm
+      - key: JITSI_DOMAIN
+        value: meet.jit.si
+      - key: CORS_ORIGINS
+        sync: false  # Set to your frontend URL
+      - key: PYTHON_VERSION
+        value: 3.11.0
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Frontend Static Site (Optional - you can also use Cloudflare Pages)
+  - type: web
+    name: english-communication-frontend
+    env: static
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: frontend
+    staticPublishPath: .
+    buildCommand: echo "No build needed for static site"
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    envVars:
+      - key: API_BASE_URL
+        sync: false  # Set to backend URL
+    autoDeploy: true
+
+# Notes:
+# 1. Before deploying, create a MongoDB Atlas free cluster at https://www.mongodb.com/cloud/atlas
+# 2. Get your OpenAI API key from https://platform.openai.com/api-keys
+# 3. After deployment, add these environment variables in Render dashboard:
+#    - MONGODB_URL: Your MongoDB connection string
+#    - OPENAI_API_KEY: Your OpenAI API key
+#    - CORS_ORIGINS: Your frontend URL (e.g., https://english-communication-frontend.onrender.com)
+# 4. Update frontend/js/config.js with your backend URL

@@ -9,17 +9,19 @@ const API_ENDPOINTS = {
     logout: `${API_BASE_URL}/api/users/logout`,
     me: `${API_BASE_URL}/api/users/me`,
     allUsers: `${API_BASE_URL}/api/users/all`,
-    userProfile: `${API_BASE_URL}/api/users/profile`,
     userStats: `${API_BASE_URL}/api/users/stats`,
     friends: `${API_BASE_URL}/api/users/friends`,
     friendRequests: `${API_BASE_URL}/api/users/friend-requests`,
     findRandomPartner: `${API_BASE_URL}/api/users/find-random-partner`,
+    userProfile: (userId) => `${API_BASE_URL}/api/users/${userId}`,
+    updateProfile: `${API_BASE_URL}/api/users/profile`,
     
     // Call endpoints
     inviteCall: `${API_BASE_URL}/api/calls/invite`,
     endCall: `${API_BASE_URL}/api/calls/end`,
     
     // Leaderboard endpoints
+    leaderboard: `${API_BASE_URL}/api/leaderboard/top`,
     leaderboardTop: `${API_BASE_URL}/api/leaderboard/top`,
     
     // WebSocket

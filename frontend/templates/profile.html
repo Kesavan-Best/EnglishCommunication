@@ -1,3 +1,4 @@
+<!-- templates/profile.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,224 +6,317 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Profile - ImproveCommunication</title>
     <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Profile Page Specific Styles */
         .profile-container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
         }
         
-        .profile-header {
+        /* Navigation for Profile Page */
+        .profile-nav {
             background: white;
-            padding: 40px;
-            border-radius: 20px;
+            border-radius: 15px;
+            padding: 20px;
             margin-bottom: 30px;
-            box-shadow: 0 5px 25px rgba(0,0,0,0.08);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 40px;
         }
         
-        .avatar-section {
-            text-align: center;
-            flex-shrink: 0;
+        .nav-tabs {
+            display: flex;
+            gap: 20px;
         }
         
-        .avatar {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 5px solid #667eea;
-            margin-bottom: 15px;
+        .nav-tab {
+            padding: 10px 20px;
+            text-decoration: none;
+            color: #666;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.3s;
         }
         
-        .avatar-upload {
-            position: relative;
-        }
-        
-        .avatar-upload input {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-        
-        .upload-btn {
+        .nav-tab.active {
             background: #667eea;
             color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
         }
         
-        .upload-btn:hover {
-            background: #5a67d8;
+        .nav-tab:hover:not(.active) {
+            background: #f0f2ff;
+            color: #667eea;
+        }
+        
+        /* Profile Header */
+        .profile-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 20px;
+            padding: 40px;
+            color: white;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .profile-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 200px;
+            height: 200px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 50%;
+            transform: translate(30%, -30%);
         }
         
         .profile-info {
-            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 30px;
         }
         
-        .profile-name {
-            font-size: 32px;
+        .profile-avatar-container {
+            position: relative;
+        }
+        
+        .profile-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 4px solid white;
+            object-fit: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .online-status {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            background: #38ef7d;
+            border: 3px solid white;
+            border-radius: 50%;
+        }
+        
+        .profile-details h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .profile-details .email {
+            font-size: 1.1em;
+            opacity: 0.9;
+            margin-bottom: 15px;
+        }
+        
+        .member-since {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-icon {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        
+        .stat-value {
+            font-size: 2.2em;
+            font-weight: 700;
             color: #333;
             margin-bottom: 10px;
         }
         
-        .profile-email {
-            color: #666;
-            margin-bottom: 20px;
-            font-size: 16px;
-        }
-        
-        .profile-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin: 30px 0;
-        }
-        
-        .stat-card {
-            background: #f8f9fa;
-            padding: 20px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 32px;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 5px;
-        }
-        
         .stat-label {
             color: #666;
-            font-size: 14px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
         
-        .profile-content {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
-            margin-top: 30px;
-        }
+        .score-excellent { color: #38ef7d; }
+        .score-good { color: #4ade80; }
+        .score-average { color: #f59e0b; }
+        .score-poor { color: #e74c3c; }
         
-        .profile-section {
+        /* Progress Bars */
+        .progress-container {
             background: white;
-            padding: 30px;
             border-radius: 15px;
-            box-shadow: 0 3px 15px rgba(0,0,0,0.05);
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 40px;
         }
         
-        .section-title {
-            font-size: 20px;
+        .progress-title {
+            font-size: 1.3em;
             color: #333;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #f0f2ff;
-        }
-        
-        .edit-form {
-            display: none;
-            margin-top: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 600;
-        }
-        
-        .form-group input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e1e5e9;
-            border-radius: 8px;
-            font-size: 16px;
-        }
-        
-        .form-group input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        
-        .btn-group {
+            margin-bottom: 25px;
             display: flex;
-            gap: 10px;
-            margin-top: 20px;
+            justify-content: space-between;
+            align-items: center;
         }
         
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
+        .progress-item {
+            margin-bottom: 25px;
+        }
+        
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .progress-label {
             font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
-        
-        .btn-primary:hover {
-            background: #5a67d8;
-        }
-        
-        .btn-secondary {
-            background: #f8f9fa;
             color: #333;
-            border: 2px solid #e1e5e9;
         }
         
-        .btn-secondary:hover {
-            background: #e9ecef;
+        .progress-percent {
+            font-weight: 700;
+            color: #667eea;
         }
         
-        .weakness-list {
+        .progress-bar {
+            height: 10px;
+            background: #eef2ff;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 5px;
+            width: 0%;
+            transition: width 1s ease-in-out;
+        }
+        
+        /* Weaknesses Section */
+        .weaknesses-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 40px;
+        }
+        
+        .weaknesses-list {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 12px;
+            margin-top: 20px;
         }
         
         .weakness-tag {
-            background: #fee;
-            color: #c33;
+            background: #ffeaea;
+            color: #e74c3c;
             padding: 8px 16px;
             border-radius: 20px;
-            font-size: 14px;
-            display: flex;
+            font-weight: 600;
+            font-size: 0.9em;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
         }
         
-        .weakness-tag strong {
-            color: #a00;
+        .weakness-tag.improving {
+            background: #e8f6f3;
+            color: #1abc9c;
+        }
+        
+        /* Performance Chart */
+        .performance-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            margin-bottom: 40px;
+        }
+        
+        .chart-container {
+            height: 200px;
+            display: flex;
+            align-items: flex-end;
+            gap: 10px;
+            padding: 20px 0;
+            margin-top: 20px;
+        }
+        
+        .chart-bar {
+            flex: 1;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 8px 8px 0 0;
+            position: relative;
+            min-height: 20px;
+            transition: height 1s ease-in-out;
+        }
+        
+        .chart-label {
+            text-align: center;
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .chart-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-weight: 700;
+            font-size: 0.9em;
+            color: #667eea;
+        }
+        
+        /* Recent Activity */
+        .activity-container {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
         }
         
         .activity-list {
-            list-style: none;
+            margin-top: 20px;
         }
         
         .activity-item {
-            padding: 15px 0;
-            border-bottom: 1px solid #eee;
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            gap: 15px;
         }
         
         .activity-item:last-child {
@@ -230,89 +324,89 @@
         }
         
         .activity-icon {
-            font-size: 20px;
-            margin-right: 15px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #f0f2ff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #667eea;
+            font-size: 1.2em;
         }
         
         .activity-details {
             flex: 1;
         }
         
-        .activity-time {
-            color: #888;
-            font-size: 14px;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: #e1e5e9;
-            border-radius: 4px;
-            margin: 10px 0;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: #667eea;
-            border-radius: 4px;
-            transition: width 0.3s;
-        }
-        
-        .badge-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
-        }
-        
-        .badge {
-            background: #f8f9fa;
-            padding: 20px 10px;
-            border-radius: 10px;
-            text-align: center;
-            border: 2px solid transparent;
-        }
-        
-        .badge.unlocked {
-            border-color: #4ade80;
-            background: #f0fff4;
-        }
-        
-        .badge-icon {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-        
-        .badge-name {
-            font-size: 14px;
+        .activity-title {
             font-weight: 600;
+            color: #333;
             margin-bottom: 5px;
         }
         
-        .badge-desc {
-            font-size: 12px;
-            color: #666;
+        .activity-time {
+            font-size: 0.85em;
+            color: #999;
         }
         
-        .loading {
+        .activity-score {
+            font-weight: 700;
+            font-size: 1.1em;
+            color: #667eea;
+        }
+        
+        /* Empty States */
+        .empty-state {
             text-align: center;
-            padding: 40px;
-            color: #666;
+            padding: 50px 20px;
+            color: #999;
         }
         
+        .empty-state i {
+            font-size: 3em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+        
+        /* Loading Spinner */
+        .loading-spinner {
+            text-align: center;
+            padding: 50px;
+        }
+        
+        /* Responsive */
         @media (max-width: 768px) {
-            .profile-header {
+            .profile-info {
                 flex-direction: column;
                 text-align: center;
-                gap: 20px;
             }
             
-            .profile-content {
+            .nav-tabs {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .stats-grid {
                 grid-template-columns: 1fr;
             }
             
-            .profile-stats {
-                grid-template-columns: repeat(2, 1fr);
+            .chart-container {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .chart-bar {
+                width: 100%;
+                height: 30px !important;
+                border-radius: 0 8px 8px 0;
+            }
+            
+            .chart-value {
+                left: 10px;
+                transform: none;
+                top: 50%;
+                transform: translateY(-50%);
             }
         }
     </style>
@@ -325,526 +419,203 @@
                 <h2>🗣️ ImproveCommunication</h2>
             </div>
             <div class="nav-links">
-                <a href="dashboard.html">Dashboard</a>
-                <a href="users.html">Find Partners</a>
-                <a href="leaderboard.html">Leaderboard</a>
-                <a href="profile.html" class="active">My Profile</a>
-                <button onclick="logout()" class="nav-btn logout-btn">Logout</button>
+                <a href="dashboard.html" class="nav-tab"><i class="fas fa-chart-line"></i> Dashboard</a>
+                <a href="users.html" class="nav-tab"><i class="fas fa-users"></i> Find Partners</a>
+                <a href="leaderboard.html" class="nav-tab"><i class="fas fa-trophy"></i> Leaderboard</a>
+                <a href="profile.html" class="nav-tab active"><i class="fas fa-user"></i> My Profile</a>
+                <button onclick="logout()" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</button>
             </div>
         </div>
     </nav>
 
-    <!-- Profile Container -->
     <div class="profile-container">
-        <!-- Loading State -->
-        <div id="loading" class="loading">
-            <h3>Loading your profile...</h3>
-            <p>Please wait while we fetch your information</p>
-        </div>
-
-        <!-- Profile Content (hidden by default) -->
-        <div id="profile-content" style="display: none;">
-            <!-- Profile Header -->
-            <div class="profile-header">
-                <div class="avatar-section">
-                    <div class="avatar-upload">
-                        <img id="avatar-img" src="../assets/default-avatar.png" alt="Avatar" class="avatar">
-                        <input type="file" id="avatar-input" accept="image/*">
-                    </div>
-                    <button onclick="document.getElementById('avatar-input').click()" class="upload-btn">
-                        Change Photo
-                    </button>
+        <!-- Profile Header -->
+        <div class="profile-header" id="profile-header">
+            <div class="profile-info">
+                <div class="profile-avatar-container">
+                    <img src="https://ui-avatars.com/api/?name=CR&background=667eea&color=fff&size=120" 
+                         alt="Profile" 
+                         class="profile-avatar" 
+                         id="profile-avatar">
+                    <div class="online-status" id="online-status"></div>
                 </div>
-                
-                <div class="profile-info">
-                    <h1 id="profile-name" class="profile-name">Loading...</h1>
-                    <p id="profile-email" class="profile-email">Loading...</p>
-                    <div id="profile-rank" class="profile-rank">Rank: #0</div>
-                    
-                    <div class="profile-stats">
-                        <div class="stat-card">
-                            <div id="ai-score" class="stat-value">0.0</div>
-                            <div class="stat-label">AI Score</div>
-                        </div>
-                        <div class="stat-card">
-                            <div id="total-calls" class="stat-value">0</div>
-                            <div class="stat-label">Total Calls</div>
-                        </div>
-                        <div class="stat-card">
-                            <div id="total-duration" class="stat-value">0h</div>
-                            <div class="stat-label">Practice Time</div>
-                        </div>
-                        <div class="stat-card">
-                            <div id="fluency-score" class="stat-value">0%</div>
-                            <div class="stat-label">Avg Fluency</div>
-                        </div>
+                <div class="profile-details">
+                    <h1 id="profile-name">Loading...</h1>
+                    <div class="email" id="profile-email">kesavankarnan333@gmail.com</div>
+                    <div class="member-since">
+                        <i class="far fa-calendar"></i>
+                        <span id="member-since">Recently joined</span>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- Main Content -->
-            <div class="profile-content">
-                <!-- Left Column -->
-                <div>
-                    <!-- Personal Information -->
-                    <div class="profile-section">
-                        <div class="section-title">
-                            <span>Personal Information</span>
-                            <button onclick="toggleEditForm()" class="btn btn-secondary" style="float: right; padding: 5px 15px; font-size: 14px;">
-                                Edit
-                            </button>
-                        </div>
-                        
-                        <div id="info-display">
-                            <p><strong>Name:</strong> <span id="display-name">Loading...</span></p>
-                            <p><strong>Email:</strong> <span id="display-email">Loading...</span></p>
-                            <p><strong>Member Since:</strong> <span id="member-since">Loading...</span></p>
-                            <p><strong>Last Active:</strong> <span id="last-active">Loading...</span></p>
-                        </div>
-                        
-                        <div id="edit-form" class="edit-form">
-                            <div class="form-group">
-                                <label for="edit-name">Name</label>
-                                <input type="text" id="edit-name" placeholder="Enter your name">
-                            </div>
-                            <div class="btn-group">
-                                <button onclick="saveProfile()" class="btn btn-primary">Save Changes</button>
-                                <button onclick="toggleEditForm()" class="btn btn-secondary">Cancel</button>
-                            </div>
-                        </div>
-                    </div>
+        <!-- Stats Grid -->
+        <div class="stats-grid" id="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-brain"></i></div>
+                <div class="stat-value score-excellent" id="ai-score">0.0</div>
+                <div class="stat-label">AI Score</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-globe"></i></div>
+                <div class="stat-value" id="global-rank">#0</div>
+                <div class="stat-label">Global Rank</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-phone-alt"></i></div>
+                <div class="stat-value" id="total-calls">0</div>
+                <div class="stat-label">Total Calls</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                <div class="stat-value" id="practice-time">0h 0m</div>
+                <div class="stat-label">Practice Time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                <div class="stat-value score-good" id="avg-fluency">0.0%</div>
+                <div class="stat-label">Avg Fluency</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon"><i class="fas fa-star"></i></div>
+                <div class="stat-value" id="accuracy">0.0%</div>
+                <div class="stat-label">Accuracy</div>
+            </div>
+        </div>
 
-                    <!-- Weaknesses -->
-                    <div class="profile-section">
-                        <div class="section-title">Areas to Improve</div>
-                        <div id="weaknesses-container">
-                            <p>Analyzing your speaking patterns...</p>
-                        </div>
-                    </div>
-
-                    <!-- Recent Activity -->
-                    <div class="profile-section">
-                        <div class="section-title">Recent Activity</div>
-                        <div id="recent-activity">
-                            <p>No recent activity yet.</p>
-                        </div>
-                    </div>
+        <!-- Progress Section -->
+        <div class="progress-container">
+            <div class="progress-title">
+                <span>Skill Progress</span>
+                <button onclick="toggleEditMode()" class="btn btn-secondary btn-sm" id="edit-progress-btn">
+                    <i class="fas fa-edit"></i> Edit Goals
+                </button>
+            </div>
+            
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span class="progress-label">Grammar</span>
+                    <span class="progress-percent" id="grammar-percent">0%</span>
                 </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="grammar-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span class="progress-label">Fluency</span>
+                    <span class="progress-percent" id="fluency-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="fluency-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span class="progress-label">Vocabulary</span>
+                    <span class="progress-percent" id="vocab-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="vocab-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            
+            <div class="progress-item">
+                <div class="progress-header">
+                    <span class="progress-label">Pronunciation</span>
+                    <span class="progress-percent" id="pronunciation-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="pronunciation-progress" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
 
-                <!-- Right Column -->
-                <div>
-                    <!-- Progress Stats -->
-                    <div class="profile-section">
-                        <div class="section-title">Progress Overview</div>
-                        <div id="progress-stats">
-                            <div class="progress-item">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span>Grammar Accuracy</span>
-                                    <span id="grammar-percent">0%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div id="grammar-progress" class="progress-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            <div class="progress-item" style="margin-top: 20px;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span>Speaking Fluency</span>
-                                    <span id="fluency-percent">0%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div id="fluency-progress" class="progress-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                            <div class="progress-item" style="margin-top: 20px;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span>Vocabulary Range</span>
-                                    <span id="vocab-percent">0%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div id="vocab-progress" class="progress-fill" style="width: 0%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <!-- Weaknesses Section -->
+        <div class="weaknesses-container">
+            <h2 style="color: #333; margin-bottom: 10px;">
+                <i class="fas fa-exclamation-triangle"></i> Areas to Improve
+            </h2>
+            <p style="color: #666; margin-bottom: 20px;">Focus on these areas to boost your English skills</p>
+            
+            <div class="weaknesses-list" id="weaknesses-list">
+                <!-- Weaknesses will be loaded here -->
+            </div>
+            
+            <div id="no-weaknesses" style="display: none;">
+                <div class="empty-state">
+                    <i class="fas fa-check-circle"></i>
+                    <h3>No major weaknesses detected!</h3>
+                    <p>Keep up the good work! Your English skills are impressive.</p>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Achievements -->
-                    <div class="profile-section">
-                        <div class="section-title">Achievements & Badges</div>
-                        <div id="achievements-container" class="badge-grid">
-                            <!-- Badges will be loaded here -->
-                        </div>
-                    </div>
+        <!-- Performance Chart -->
+        <div class="performance-container">
+            <h2 style="color: #333; margin-bottom: 10px;">
+                <i class="fas fa-chart-line"></i> Performance Trend
+            </h2>
+            <p style="color: #666; margin-bottom: 20px;">Your improvement over the last 6 months</p>
+            
+            <div class="chart-container" id="performance-chart">
+                <!-- Chart will be loaded here -->
+            </div>
+            
+            <div id="no-performance-data" style="display: none;">
+                <div class="empty-state">
+                    <i class="fas fa-chart-bar"></i>
+                    <h3>No performance data yet</h3>
+                    <p>Start making calls to see your performance trend!</p>
+                </div>
+            </div>
+        </div>
 
-                    <!-- Performance Chart -->
-                    <div class="profile-section">
-                        <div class="section-title">Performance Trend</div>
-                        <div style="height: 200px; display: flex; align-items: flex-end; gap: 10px; margin-top: 20px;">
-                            <div id="performance-chart" style="display: flex; align-items: flex-end; gap: 15px; width: 100%;">
-                                <!-- Chart bars will be generated here -->
-                            </div>
-                        </div>
-                    </div>
+        <!-- Recent Activity -->
+        <div class="activity-container">
+            <h2 style="color: #333; margin-bottom: 10px;">
+                <i class="fas fa-history"></i> Recent Activity
+            </h2>
+            <p style="color: #666; margin-bottom: 20px;">Your recent calls and practice sessions</p>
+            
+            <div class="activity-list" id="recent-calls">
+                <!-- Recent calls will be loaded here -->
+            </div>
+            
+            <div id="no-activity" style="display: none;">
+                <div class="empty-state">
+                    <i class="fas fa-comments"></i>
+                    <h3>No recent calls</h3>
+                    <p>Start a conversation to see your activity here!</p>
+                    <a href="users.html" class="btn btn-primary" style="margin-top: 20px;">
+                        <i class="fas fa-users"></i> Find Partners
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Loading Overlay -->
+    <div id="loading" class="loading-spinner" style="display: none;">
+        <div class="spinner"></div>
+        <p style="margin-top: 20px; color: #667eea;">Loading your profile...</p>
+    </div>
+
+    <script src="../js/profile.js"></script>
+    <script src="../js/auth.js"></script>
     <script>
-        // Global variables
-        let userData = null;
-        let achievements = [];
-        
-        // Check authentication
-        async function checkAuth() {
-            const token = localStorage.getItem('token');
-            const user = localStorage.getItem('user');
-            
-            if (!token || !user) {
-                window.location.href = 'login.html';
-                return false;
-            }
-            
-            return JSON.parse(user);
-        }
-        
-        // Load profile data
-        async function loadProfileData() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                // Get user info
-                const userResponse = await fetch('/api/users/me', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (userResponse.ok) {
-                    userData = await userResponse.json();
-                    updateProfileDisplay(userData);
-                    
-                    // Load detailed statistics
-                    await loadUserStatistics(token);
-                    
-                    // Load achievements
-                    await loadAchievements(token);
-                    
-                    // Hide loading, show content
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('profile-content').style.display = 'block';
-                    
-                } else if (userResponse.status === 401) {
-                    // Token expired
-                    logout();
-                }
-            } catch (error) {
-                console.error('Error loading profile:', error);
-                document.getElementById('loading').innerHTML = `
-                    <h3>Error loading profile</h3>
-                    <p>${error.message}</p>
-                    <button onclick="location.reload()" class="btn btn-primary">Retry</button>
-                `;
-            }
-        }
-        
-        // Update profile display
-        function updateProfileDisplay(user) {
-            // Basic info
-            document.getElementById('profile-name').textContent = user.name;
-            document.getElementById('profile-email').textContent = user.email;
-            document.getElementById('display-name').textContent = user.name;
-            document.getElementById('display-email').textContent = user.email;
-            document.getElementById('edit-name').value = user.name;
-            
-            // Stats
-            document.getElementById('ai-score').textContent = user.ai_score.toFixed(1);
-            document.getElementById('total-calls').textContent = user.total_calls;
-            document.getElementById('fluency-score').textContent = `${user.avg_fluency_score.toFixed(1)}%`;
-            document.getElementById('profile-rank').textContent = `Rank: #${user.rank || 'N/A'}`;
-            
-            // Format duration
-            const hours = Math.floor(user.total_call_duration / 3600);
-            const minutes = Math.floor((user.total_call_duration % 3600) / 60);
-            document.getElementById('total-duration').textContent = `${hours}h ${minutes}m`;
-            
-            // Avatar
-            if (user.avatar_url) {
-                document.getElementById('avatar-img').src = `${user.avatar_url}`;
-            }
-            
-            // Member since (format date)
-            const memberDate = new Date(user.created_at);
-            document.getElementById('member-since').textContent = memberDate.toLocaleDateString();
-            
-            // Last active
-            const lastActive = new Date(user.last_seen);
-            document.getElementById('last-active').textContent = lastActive.toLocaleDateString() + ' ' + lastActive.toLocaleTimeString();
-            
-            // Weaknesses
-            const weaknessesContainer = document.getElementById('weaknesses-container');
-            if (user.weaknesses && user.weaknesses.length > 0) {
-                weaknessesContainer.innerHTML = `
-                    <div class="weakness-list">
-                        ${user.weaknesses.map(weakness => `
-                            <div class="weakness-tag">
-                                <strong>${weakness.replace('_', ' ').toUpperCase()}</strong>
-                            </div>
-                        `).join('')}
-                    </div>
-                `;
-            } else {
-                weaknessesContainer.innerHTML = '<p>Great! No major weaknesses detected.</p>';
-            }
-        }
-        
-        // Load user statistics
-        async function loadUserStatistics(token) {
-            try {
-                const statsResponse = await fetch('/api/users/stats', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (statsResponse.ok) {
-                    const stats = await statsResponse.json();
-                    updateProgressStats(stats);
-                }
-            } catch (error) {
-                console.error('Error loading statistics:', error);
-            }
-        }
-        
-        // Update progress stats
-        function updateProgressStats(stats) {
-            // Update progress bars (using sample data)
-            const grammarPercent = Math.min(100, 100 - (stats.analysis_stats?.avg_grammar_errors || 0) * 5);
-            const fluencyPercent = stats.analysis_stats?.avg_fluency || 0;
-            const vocabPercent = Math.min(100, 100 - (stats.analysis_stats?.vocabulary_repetition || 0) * 100);
-            
-            document.getElementById('grammar-percent').textContent = `${grammarPercent.toFixed(0)}%`;
-            document.getElementById('grammar-progress').style.width = `${grammarPercent}%`;
-            
-            document.getElementById('fluency-percent').textContent = `${fluencyPercent.toFixed(1)}%`;
-            document.getElementById('fluency-progress').style.width = `${fluencyPercent}%`;
-            
-            document.getElementById('vocab-percent').textContent = `${vocabPercent.toFixed(0)}%`;
-            document.getElementById('vocab-progress').style.width = `${vocabPercent}%`;
-            
-            // Generate performance chart
-            generatePerformanceChart(stats.improvement_timeline);
-        }
-        
-        // Generate performance chart
-        function generatePerformanceChart(timelineData) {
-            const chartContainer = document.getElementById('performance-chart');
-            chartContainer.innerHTML = '';
-            
-            if (!timelineData || timelineData.length === 0) {
-                chartContainer.innerHTML = '<p>No performance data yet</p>';
-                return;
-            }
-            
-            // Find max score for scaling
-            const maxScore = Math.max(...timelineData.map(item => item.avg_score), 100);
-            
-            timelineData.forEach(item => {
-                const height = (item.avg_score / maxScore) * 150;
-                const monthLabel = item._id.split('-')[1]; // Get month number
-                
-                const bar = document.createElement('div');
-                bar.style.cssText = `
-                    flex: 1;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                `;
-                
-                bar.innerHTML = `
-                    <div style="background: #667eea; width: 30px; height: ${height}px; border-radius: 6px 6px 0 0;"></div>
-                    <div style="margin-top: 10px; font-size: 12px; color: #666;">${monthLabel}</div>
-                    <div style="font-size: 11px; color: #888;">${item.avg_score.toFixed(0)}</div>
-                `;
-                
-                chartContainer.appendChild(bar);
-            });
-        }
-        
-        // Load achievements
-        async function loadAchievements(token) {
-            try {
-                const achievementsResponse = await fetch(`/api/leaderboard/achievements/${userData.id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (achievementsResponse.ok) {
-                    achievements = await achievementsResponse.json();
-                    displayAchievements();
-                }
-            } catch (error) {
-                console.error('Error loading achievements:', error);
-            }
-        }
-        
-        // Display achievements
-        function displayAchievements() {
-            const container = document.getElementById('achievements-container');
-            
-            if (achievements.achievements && achievements.achievements.length > 0) {
-                container.innerHTML = achievements.achievements.map(achievement => `
-                    <div class="badge ${achievement.unlocked ? 'unlocked' : ''}">
-                        <div class="badge-icon">${achievement.icon}</div>
-                        <div class="badge-name">${achievement.name}</div>
-                        <div class="badge-desc">${achievement.description}</div>
-                    </div>
-                `).join('');
-            } else {
-                container.innerHTML = '<p>No achievements yet. Start practicing to earn badges!</p>';
-            }
-        }
-        
-        // Toggle edit form
-        function toggleEditForm() {
-            const display = document.getElementById('info-display');
-            const editForm = document.getElementById('edit-form');
-            
-            if (editForm.style.display === 'none' || !editForm.style.display) {
-                display.style.display = 'none';
-                editForm.style.display = 'block';
-            } else {
-                display.style.display = 'block';
-                editForm.style.display = 'none';
-            }
-        }
-        
-        // Save profile changes
-        async function saveProfile() {
-            const token = localStorage.getItem('token');
-            const newName = document.getElementById('edit-name').value;
-            
-            if (!newName.trim()) {
-                alert('Name cannot be empty');
-                return;
-            }
-            
-            try {
-                const formData = new FormData();
-                formData.append('name', newName.trim());
-                
-                const response = await fetch('/api/users/profile', {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                        // Note: Don't set Content-Type header, let browser set it with boundary
-                    },
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const updatedUser = await response.json();
-                    
-                    // Update localStorage
-                    localStorage.setItem('user', JSON.stringify(updatedUser));
-                    
-                    // Update display
-                    updateProfileDisplay(updatedUser);
-                    userData = updatedUser;
-                    toggleEditForm();
-                    
-                    alert('Profile updated successfully!');
-                } else {
-                    const error = await response.json();
-                    alert(`Failed to update profile: ${error.detail || 'Unknown error'}`);
-                }
-            } catch (error) {
-                console.error('Error saving profile:', error);
-                alert('Failed to save profile. Please try again.');
-            }
-        }
-        
-        // Handle avatar upload
-        document.getElementById('avatar-input').addEventListener('change', async function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            // Validate file size (max 5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File size should be less than 5MB');
-                return;
-            }
-            
-            // Validate file type
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-            if (!allowedTypes.includes(file.type.toLowerCase())) {
-                alert('Please upload a valid image file (JPEG, PNG, GIF, or WebP)');
-                return;
-            }
-            
-            const token = localStorage.getItem('token');
-            const formData = new FormData();
-            formData.append('avatar', file);
-            
-            try {
-                const response = await fetch('/api/users/profile', {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                        // Don't set Content-Type, let browser handle it
-                    },
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const updatedUser = await response.json();
-                    
-                    // Update localStorage
-                    localStorage.setItem('user', JSON.stringify(updatedUser));
-                    
-                    // Update avatar display
-                    if (updatedUser.avatar_url) {
-                        document.getElementById('avatar-img').src = `${updatedUser.avatar_url}?t=${Date.now()}`;
-                    }
-                    
-                    alert('Avatar updated successfully!');
-                } else {
-                    const error = await response.json();
-                    alert(`Failed to update avatar: ${error.detail || 'Unknown error'}`);
-                }
-            } catch (error) {
-                console.error('Error uploading avatar:', error);
-                alert('Failed to upload avatar. Please try again.');
-            }
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+            initProfilePage();
         });
         
-        // Logout function
-        async function logout() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                await fetch('/api/users/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            } catch (error) {
-                console.error('Logout error:', error);
-            } finally {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = 'login.html';
-            }
+        function toggleEditMode() {
+            alert('Edit goals feature coming soon!');
         }
-        
-        // Initialize profile page
-        window.onload = async function() {
-            const user = await checkAuth();
-            if (user) {
-                await loadProfileData();
-            }
-        };
     </script>
 </body>
 </html>

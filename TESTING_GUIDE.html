@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-User Testing Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 18px;
+        }
+        
+        .method {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+        }
+        
+        .method h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .method h3 {
+            color: #333;
+            font-size: 18px;
+            margin: 20px 0 10px 0;
+        }
+        
+        .steps {
+            list-style: none;
+            counter-reset: step-counter;
+        }
+        
+        .steps li {
+            counter-increment: step-counter;
+            position: relative;
+            padding-left: 45px;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        
+        .steps li:before {
+            content: counter(step-counter);
+            position: absolute;
+            left: 0;
+            top: 0;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .highlight {
+            background: #fff3cd;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            transition: all 0.3s;
+            color: white;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #bee5eb;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .info-box h3 {
+            color: #0c5460;
+            margin-bottom: 10px;
+        }
+        
+        .info-box p {
+            color: #0c5460;
+            line-height: 1.6;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .warning-box h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 Testing Calls with Two Users</h1>
+        <p class="subtitle">Follow these simple methods to test the call functionality</p>
+        
+        <!-- Method 1 -->
+        <div class="method">
+            <h2>⭐ Method 1: Incognito/Private Window (EASIEST)</h2>
+            <p style="margin-bottom: 15px;">This is the fastest way to test with two different accounts on the same computer.</p>
+            
+            <h3>Steps:</h3>
+            <ol class="steps">
+                <li>Open your browser normally and go to <code>http://localhost:5500/frontend/index.html</code></li>
+                <li>Login as <span class="highlight">john@example.com</span> / <span class="highlight">password123</span></li>
+                <li>Open an <strong>Incognito/Private</strong> window (Ctrl+Shift+N in Chrome/Edge or Ctrl+Shift+P in Firefox)</li>
+                <li>In the incognito window, go to the same URL</li>
+                <li>Login as <span class="highlight">jane@example.com</span> / <span class="highlight">password123</span></li>
+                <li>Now you have two different users logged in!</li>
+                <li>Go to "Find Partners" page in both windows</li>
+                <li>Click "Call" button in one window</li>
+                <li>✅ Both users will join the Jitsi call and can talk!</li>
+            </ol>
+        </div>
+        
+        <!-- Method 2 -->
+        <div class="method">
+            <h2>🌐 Method 2: Two Different Browsers</h2>
+            <p style="margin-bottom: 15px;">Use two different browsers on your computer.</p>
+            
+            <h3>Steps:</h3>
+            <ol class="steps">
+                <li>Open <strong>Chrome</strong> and go to <code>http://localhost:5500/frontend/index.html</code></li>
+                <li>Login as <span class="highlight">john@example.com</span> / <span class="highlight">password123</span></li>
+                <li>Open <strong>Edge/Firefox</strong> and go to the same URL</li>
+                <li>Login as <span class="highlight">jane@example.com</span> / <span class="highlight">password123</span></li>
+                <li>Click "Call" from one browser</li>
+                <li>✅ Both browsers will join the call!</li>
+            </ol>
+        </div>
+        
+        <!-- Method 3 -->
+        <div class="method">
+            <h2>👥 Method 3: Browser Profiles</h2>
+            <p style="margin-bottom: 15px;">Create separate Chrome profiles for testing.</p>
+            
+            <h3>Steps:</h3>
+            <ol class="steps">
+                <li>Click your Chrome profile icon (top right)</li>
+                <li>Click "Add" to create a new profile</li>
+                <li>Name it "Test User 2"</li>
+                <li>Now you have two Chrome windows with different profiles</li>
+                <li>Login with different accounts in each window</li>
+                <li>Test calls between them!</li>
+            </ol>
+        </div>
+        
+        <!-- Method 4 -->
+        <div class="method">
+            <h2>🚀 Method 4: Deploy to Render (BEST for Real Testing)</h2>
+            <p style="margin-bottom: 15px;">Deploy to Render and share the link with friends!</p>
+            
+            <h3>Steps:</h3>
+            <ol class="steps">
+                <li>Follow the <code>RENDER_DEPLOYMENT_GUIDE.md</code> in the project</li>
+                <li>Deploy backend to Render (FREE)</li>
+                <li>Deploy frontend to Render/Cloudflare Pages (FREE)</li>
+                <li>Share the URL with anyone in the world</li>
+                <li>✅ Test with real users from different locations!</li>
+            </ol>
+        </div>
+        
+        <!-- Info Box -->
+        <div class="info-box">
+            <h3>💡 Why Do Both Tabs Show the Same User?</h3>
+            <p>
+                When you login in one tab, the authentication token is saved in <code>localStorage</code>. 
+                All tabs from the same browser share the same <code>localStorage</code>. 
+                That's why when you refresh or open another tab, it shows the same user.
+                <br><br>
+                <strong>Solution:</strong> Use incognito mode or different browsers, which have separate <code>localStorage</code>!
+            </p>
+        </div>
+        
+        <!-- Warning Box -->
+        <div class="warning-box">
+            <h3>⚠️ Important Notes</h3>
+            <p>
+                ✅ <strong>OpenAI API works on Render FREE tier!</strong> You can process AI calls without any issues.<br>
+                ✅ <strong>Jitsi calls are peer-to-peer</strong> - they don't use your server bandwidth.<br>
+                ⚠️ <strong>Render free tier sleeps after 15 min</strong> - first request after sleep takes ~30 seconds.<br>
+                💾 <strong>Use MongoDB Atlas free tier</strong> for database (not local MongoDB on Render).
+            </p>
+        </div>
+        
+        <!-- Buttons -->
+        <div class="button-group">
+            <a href="/frontend/index.html" class="btn btn-primary" target="_blank">
+                🚀 Open App (Regular Window)
+            </a>
+            <a href="/frontend/index.html" class="btn btn-secondary" onclick="openIncognito(); return false;">
+                🕵️ How to Open Incognito
+            </a>
+            <a href="RENDER_DEPLOYMENT_GUIDE.md" class="btn btn-primary">
+                📖 Render Deployment Guide
+            </a>
+        </div>
+    </div>
+    
+    <script>
+        function openIncognito() {
+            alert(
+                '🕵️ How to Open Incognito/Private Window:\n\n' +
+                '• Chrome/Edge: Press Ctrl + Shift + N\n' +
+                '• Firefox: Press Ctrl + Shift + P\n' +
+                '• Safari: Press Cmd + Shift + N\n\n' +
+                'Then navigate to the same URL and login with a different account!'
+            );
+        }
+    </script>
+</body>
+</html>

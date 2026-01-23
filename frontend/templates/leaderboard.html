@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leaderboard - ImproveCommunication</title>
     <link rel="stylesheet" href="../css/style.css">
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
     <style>
         .leaderboard-container {
             max-width: 1200px;
@@ -308,6 +310,90 @@
         .medal {
             font-size: 24px;
         }
+        
+        /* Leaderboard entry styles */
+        .leaderboard-entry {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border-bottom: 1px solid #f0f2ff;
+            transition: all 0.3s;
+        }
+        
+        .leaderboard-entry:hover {
+            background: #fafbff;
+            transform: translateX(5px);
+        }
+        
+        .leaderboard-entry.current-user {
+            background: linear-gradient(135deg, #f0f2ff 0%, #e6e9ff 100%);
+            border-left: 4px solid #667eea;
+        }
+        
+        .leaderboard-entry .rank {
+            font-size: 28px;
+            font-weight: bold;
+            width: 60px;
+            text-align: center;
+            color: #667eea;
+        }
+        
+        .leaderboard-entry.rank-1 .rank {
+            font-size: 36px;
+        }
+        
+        .leaderboard-entry .user-avatar img {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid #f0f2ff;
+        }
+        
+        .leaderboard-entry.rank-1 .user-avatar img,
+        .leaderboard-entry.rank-2 .user-avatar img,
+        .leaderboard-entry.rank-3 .user-avatar img {
+            width: 70px;
+            height: 70px;
+            border-width: 4px;
+        }
+        
+        .leaderboard-entry .user-info {
+            flex: 1;
+        }
+        
+        .leaderboard-entry .user-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .leaderboard-entry .user-stats-mini {
+            display: flex;
+            gap: 15px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .leaderboard-entry .score {
+            text-align: center;
+        }
+        
+        .leaderboard-entry .score-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+        
+        .leaderboard-entry .score-label {
+            font-size: 12px;
+            color: #888;
+            text-transform: uppercase;
+        }
     </style>
 </head>
 <body>
@@ -352,10 +438,18 @@
 
             <!-- Filter Controls -->
             <div class="controls">
-                <button class="filter-btn active" onclick="changeFilter('all')">🏆 Overall</button>
-                <button class="filter-btn" onclick="changeFilter('fluency')">💬 Fluency</button>
-                <button class="filter-btn" onclick="changeFilter('grammar')">📝 Grammar</button>
-                <button class="filter-btn" onclick="changeFilter('activity')">🔥 Activity</button>
+                <select id="timeframe-filter" class="filter-btn">
+                    <option value="all">All Time</option>
+                    <option value="monthly">This Month</option>
+                    <option value="weekly">This Week</option>
+                    <option value="daily">Today</option>
+                </select>
+                <select id="skill-filter" class="filter-btn">
+                    <option value="all">🏆 Overall</option>
+                    <option value="fluency">💬 Fluency</option>
+                    <option value="grammar">📝 Grammar</option>
+                    <option value="activity">🔥 Activity</option>
+                </select>
             </div>
 
             <!-- Main Content -->
@@ -369,20 +463,21 @@
 
                     <!-- Leaderboard Table -->
                     <div style="padding: 20px;">
-                        <table class="leaderboard-table" id="leaderboard-table">
-                            <thead>
-                                <tr>
-                                    <th class="rank-cell">Rank</th>
-                                    <th>Learner</th>
-                                    <th class="score-cell">AI Score</th>
-                                    <th class="stats-cell">Calls</th>
-                                    <th class="stats-cell">Fluency</th>
-                                </tr>
-                            </thead>
-                            <tbody id="leaderboard-body">
-                                <!-- Rows will be loaded dynamically -->
-                            </tbody>
-                        </table>
+                        <!-- Loading State -->
+                        <div id="loading-state" style="text-align: center; padding: 40px;">
+                            <div style="font-size: 40px; margin-bottom: 15px;">⏳</div>
+                            <p style="color: #666;">Loading leaderboard...</p>
+                        </div>
+                        
+                        <!-- Empty State -->
+                        <div id="empty-state" style="display: none;">
+                            <!-- Will be populated by JS -->
+                        </div>
+                        
+                        <!-- Leaderboard List -->
+                        <div id="leaderboard-list" style="display: none;">
+                            <!-- Will be populated by JS -->
+                        </div>
                     </div>
                 </div>
 
@@ -424,283 +519,6 @@
         </div>
     </div>
 
-    <script>
-        // Global variables
-        let currentFilter = 'all';
-        let currentTimeframe = 'all';
-        let leaderboardData = [];
-        let myRankData = null;
-        let globalStats = null;
-        
-        // Check authentication
-        async function checkAuth() {
-            const token = localStorage.getItem('token');
-            const user = localStorage.getItem('user');
-            
-            if (!token || !user) {
-                window.location.href = 'login.html';
-                return false;
-            }
-            
-            return JSON.parse(user);
-        }
-        
-        // Change timeframe
-        function changeTimeframe(timeframe) {
-            // Update active button
-            document.querySelectorAll('.timeframe-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            currentTimeframe = timeframe;
-            loadLeaderboardData();
-        }
-        
-        // Change filter
-        function changeFilter(filter) {
-            // Update active button
-            document.querySelectorAll('.filter-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
-            
-            currentFilter = filter;
-            loadLeaderboardData();
-        }
-        
-        // Load leaderboard data
-        async function loadLeaderboardData() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                // Show loading
-                document.getElementById('loading').style.display = 'block';
-                document.getElementById('leaderboard-content').style.display = 'none';
-                
-                // Load leaderboard
-                const leaderboardResponse = await fetch(
-                    `/api/leaderboard/top?timeframe=${currentTimeframe}&skill_filter=${currentFilter}&limit=20`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    }
-                );
-                
-                if (leaderboardResponse.ok) {
-                    leaderboardData = await leaderboardResponse.json();
-                    displayLeaderboard();
-                    
-                    // Load my rank
-                    await loadMyRank();
-                    
-                    // Load global stats
-                    await loadGlobalStats();
-                    
-                    // Hide loading, show content
-                    document.getElementById('loading').style.display = 'none';
-                    document.getElementById('leaderboard-content').style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Error loading leaderboard:', error);
-                document.getElementById('loading').innerHTML = `
-                    <h3>Error loading leaderboard</h3>
-                    <p>${error.message}</p>
-                    <button onclick="location.reload()" class="btn btn-primary">Retry</button>
-                `;
-            }
-        }
-        
-        // Display leaderboard
-        function displayLeaderboard() {
-            // Update podium (top 3)
-            const podiumContainer = document.getElementById('podium-container');
-            if (leaderboardData.length >= 3) {
-                const top3 = leaderboardData.slice(0, 3);
-                
-                podiumContainer.innerHTML = top3.map((user, index) => {
-                    const rankIcons = ['🥇', '🥈', '🥉'];
-                    const podiumHeight = [180, 140, 120];
-                    
-                    return `
-                        <div class="podium-item">
-                            <div class="podium-rank">${rankIcons[index]}</div>
-                            <img src="${user.avatar_url || '../assets/default-avatar.png'}" 
-                                 alt="${user.name}" 
-                                 class="podium-avatar">
-                            <div class="podium-name">${user.name}</div>
-                            <div class="podium-score">${user.ai_score.toFixed(1)}</div>
-                        </div>
-                    `;
-                }).join('');
-            } else {
-                podiumContainer.innerHTML = '<p>Not enough data for podium display</p>';
-            }
-            
-            // Update leaderboard table (starting from rank 4)
-            const tableBody = document.getElementById('leaderboard-body');
-            if (leaderboardData.length > 3) {
-                const remainingUsers = leaderboardData.slice(3);
-                
-                tableBody.innerHTML = remainingUsers.map(user => {
-                    return `
-                        <tr>
-                            <td class="rank-cell">
-                                <span class="rank-${user.rank}">${user.rank}</span>
-                            </td>
-                            <td>
-                                <div class="user-cell">
-                                    <img src="${user.avatar_url || '../assets/default-avatar.png'}" 
-                                         alt="${user.name}" 
-                                         class="user-avatar">
-                                    <div class="user-info">
-                                        <div class="user-name">${user.name}</div>
-                                        <div class="user-email">Rank #${user.rank}</div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td class="score-cell">${user.ai_score.toFixed(1)}</td>
-                            <td class="stats-cell">${user.total_calls}</td>
-                            <td class="stats-cell">${user.avg_fluency_score.toFixed(1)}%</td>
-                        </tr>
-                    `;
-                }).join('');
-            } else {
-                tableBody.innerHTML = `
-                    <tr>
-                        <td colspan="5" style="text-align: center; padding: 40px; color: #666;">
-                            More users needed for complete leaderboard
-                        </td>
-                    </tr>
-                `;
-            }
-        }
-        
-        // Load my rank
-        async function loadMyRank() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const rankResponse = await fetch(
-                    `/api/leaderboard/my-rank?timeframe=${currentTimeframe}`,
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    }
-                );
-                
-                if (rankResponse.ok) {
-                    myRankData = await rankResponse.json();
-                    displayMyRank();
-                }
-            } catch (error) {
-                console.error('Error loading my rank:', error);
-            }
-        }
-        
-        // Display my rank
-        function displayMyRank() {
-            const myPositionContainer = document.getElementById('my-position');
-            
-            myPositionContainer.innerHTML = `
-                <div class="position-header">Your Position</div>
-                <div class="position-details">
-                    <div class="position-stat">
-                        <div class="position-value">#${myRankData.rank}</div>
-                        <div class="position-label">Global Rank</div>
-                    </div>
-                    <div class="position-stat">
-                        <div class="position-value">${myRankData.percentile.toFixed(0)}%</div>
-                        <div class="position-label">Percentile</div>
-                    </div>
-                    <div class="position-stat">
-                        <div class="position-value">${myRankData.ai_score.toFixed(1)}</div>
-                        <div class="position-label">AI Score</div>
-                    </div>
-                    <div class="position-stat">
-                        <div class="position-value">${myRankData.total_users}</div>
-                        <div class="position-label">Total Learners</div>
-                    </div>
-                </div>
-            `;
-        }
-        
-        // Load global statistics
-        async function loadGlobalStats() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                const statsResponse = await fetch(
-                    '/api/leaderboard/global-stats',
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    }
-                );
-                
-                if (statsResponse.ok) {
-                    globalStats = await statsResponse.json();
-                    displayGlobalStats();
-                }
-            } catch (error) {
-                console.error('Error loading global stats:', error);
-            }
-        }
-        
-        // Display global statistics
-        function displayGlobalStats() {
-            const statsContainer = document.getElementById('global-stats');
-            
-            statsContainer.innerHTML = `
-                <div class="stat-item">
-                    <div class="stat-value">${globalStats.total_users}</div>
-                    <div class="stat-label">Total Learners</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">${globalStats.active_users}</div>
-                    <div class="stat-label">Active This Week</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">${globalStats.calls_stats.total_calls || 0}</div>
-                    <div class="stat-label">Practice Calls</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value">${globalStats.score_stats?.avg_score?.toFixed(1) || '0.0'}</div>
-                    <div class="stat-label">Avg AI Score</div>
-                </div>
-            `;
-        }
-        
-        // Logout function
-        async function logout() {
-            const token = localStorage.getItem('token');
-            
-            try {
-                await fetch('/api/users/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-            } catch (error) {
-                console.error('Logout error:', error);
-            } finally {
-                localStorage.removeItem('token');
-                localStorage.removeItem('user');
-                window.location.href = 'login.html';
-            }
-        }
-        
-        // Initialize leaderboard page
-        window.onload = async function() {
-            const user = await checkAuth();
-            if (user) {
-                await loadLeaderboardData();
-            }
-        };
-    </script>
+    <script src="../js/leaderboard.js"></script>
 </body>
 </html>

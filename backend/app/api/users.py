@@ -346,13 +346,16 @@ async def get_user_statistics(
 async def get_all_users(
     current_user: UserInDB = Depends(AuthHandler.get_current_user)
 ):
-    """Get all registered users excluding test accounts"""
+    """Get all registered users excluding test accounts and current user"""
     db = Database.get_db()
     
-    # Filter out test email addresses
+    # Filter out test email addresses and current user
     test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
     
-    users = db.users.find({"email": {"$nin": test_emails}})
+    users = db.users.find({
+        "_id": {"$ne": current_user.id},
+        "email": {"$nin": test_emails}
+    })
     
     result = []
     for user in users:
@@ -433,6 +436,15 @@ async def send_friend_request(
         )
     
     db.friend_requests.insert_one(friend_request)
+    
+    # Send WebSocket notification to recipient
+    from backend.app.api.websocket import manager
+    await manager.send_personal_message({
+        "type": "friend_request",
+        "from_user_id": str(current_user.id),
+        "sender_name": current_user.name,
+        "timestamp": datetime.utcnow().isoformat()
+    }, user_id)
     
     return {"message": "Friend request sent successfully"}
 
@@ -604,3 +616,40 @@ async def find_random_partner(
             "ai_score": random_partner.get("ai_score", 0.0)
         }
     }
+
+@router.get("/{user_id}", response_model=UserResponse)
+async def get_user_profile(
+    user_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get user profile by ID"""
+    db = Database.get_db()
+    
+    try:
+        user = db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        rank = await calculate_user_rank(user_id)
+        
+        return UserResponse(
+            id=str(user["_id"]),
+            email=user["email"],
+            name=user["name"],
+            avatar_url=user.get("avatar_url"),
+            is_online=user.get("is_online", False),
+            ai_score=user.get("ai_score", 0.0),
+            total_calls=user.get("total_calls", 0),
+            total_call_duration=user.get("total_call_duration", 0),
+            avg_fluency_score=user.get("avg_fluency_score", 0.0),
+            weaknesses=user.get("weaknesses", []),
+            rank=rank
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid user ID: {str(e)}"
+        )

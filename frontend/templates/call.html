@@ -5,7 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Call - ImproveCommunication</title>
     <link rel="stylesheet" href="../css/style.css">
-    <script src="https://meet.jit.si/external_api.js"></script>
+    <script src="../js/config.js"></script>
+    <!-- NO EXTERNAL API - Use iframe instead -->
     <style>
         .call-page {
             height: 100vh;
@@ -218,7 +219,7 @@
         </div>
         
         <!-- Pre-call Screen -->
-        <div class="pre-call-screen" id="pre-call-screen">
+        <div class="pre-call-screen" id="pre-call-screen" style="display: none;">
             <h1>🎤 Ready to Practice?</h1>
             <p>Start an audio call to improve your English speaking skills</p>
             <button class="start-call-btn" onclick="startCall()">Start Call</button>
@@ -230,12 +231,19 @@
         </div>
         
         <!-- Jitsi Meet Container -->
-        <div id="meet-container" style="display: none;">
-            <div class="loading-screen" id="loading-screen">
+        <div id="meet-container" style="display: flex; position: relative; flex: 1;">
+            <div class="loading-screen" id="loading-screen" style="display: flex;">
                 <div class="loading-spinner"></div>
                 <h2>Connecting to call...</h2>
                 <p>Please wait while we set up your audio call</p>
             </div>
+            
+            <!-- Direct Jitsi iframe - no external API needed -->
+            <iframe
+                id="jitsi-iframe"
+                allow="camera; microphone; fullscreen; display-capture; autoplay"
+                style="width: 100%; height: 100%; border: none; display: none;"
+            ></iframe>
             
             <div class="call-stats" id="call-stats" style="display: none;">
                 <div>Call Duration</div>
@@ -245,13 +253,14 @@
     </div>
 
     <script>
-        let jitsiApi = null;
+        let jitsiIframe = null;
         let callStartTime = null;
         let timerInterval = null;
         let currentUser = null;
         let partnerId = null;
         let partnerName = null;
         let callId = null;
+        let roomId = null;
 
         // Check authentication
         async function checkAuth() {
@@ -268,109 +277,195 @@
 
         // Start call
         async function startCall() {
-            // Get partner info from localStorage (set from users page)
-            partnerId = localStorage.getItem('callPartnerId');
-            partnerName = localStorage.getItem('callPartnerName');
+            console.log('📞 Starting call...');
             
-            if (!partnerId) {
-                alert('Please select a partner from the Find Partners page first');
+            // Get call ID from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            callId = urlParams.get('callId');
+            
+            console.log('📞 Call ID from URL:', callId);
+            
+            if (!callId) {
+                alert('❌ Invalid call link. Missing callId parameter.\n\nPlease start a call from the Find Partners page.');
                 window.location.href = 'users.html';
                 return;
             }
             
-            // Update UI
-            document.getElementById('partner-name').textContent = partnerName;
-            document.getElementById('partner-avatar').textContent = partnerName.charAt(0).toUpperCase();
-            document.getElementById('call-status').textContent = 'Starting call...';
-            
-            // Hide pre-call screen
+            // Update UI - Show loading screen
+            document.getElementById('call-status').textContent = 'Loading call details...';
             document.getElementById('pre-call-screen').style.display = 'none';
-            document.getElementById('meet-container').style.display = 'block';
+            document.getElementById('meet-container').style.display = 'flex';
+            document.getElementById('loading-screen').style.display = 'flex';
             
-            // Initialize call in backend
+            // Get call details from backend
             const token = localStorage.getItem('token');
+            console.log('📞 Token exists:', !!token);
+            console.log('📞 Fetching call details...');
+            
             try {
-                const response = await fetch('/api/calls/invite', {
-                    method: 'POST',
+                const response = await fetch(`${API_BASE_URL}/api/calls/my-calls`, {
                     headers: {
-                        'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({
-                        receiver_id: partnerId
-                    })
+                    }
                 });
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    callId = data.call_id;
-                    
-                    // Initialize Jitsi
-                    initJitsi(data.room_name || `call-${callId}`);
-                } else {
-                    alert('Failed to start call');
-                    window.location.href = 'users.html';
+                console.log('📞 API Response status:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
                 }
+                
+                const calls = await response.json();
+                console.log('📞 Got calls:', calls.length);
+                
+                const call = calls.find(c => c.id === callId);
+                
+                console.log('📞 Found call:', call);
+                
+                if (!call) {
+                    alert('❌ Call not found.\n\nThe call may have been ended or cancelled.');
+                    window.location.href = 'users.html';
+                    return;
+                }
+                
+                if (!call.jitsi_room_id) {
+                    alert('❌ Call has no Jitsi room ID.\n\nPlease try creating the call again.');
+                    window.location.href = 'users.html';
+                    return;
+                }
+                
+                roomId = call.jitsi_room_id;
+                console.log('✅ Jitsi Room ID:', roomId);
+                
+                // Get partner info
+                const isCallee = call.receiver_id === currentUser.id;
+                const partnerUserId = isCallee ? call.caller_id : call.receiver_id;
+                
+                console.log('📞 Partner ID:', partnerUserId);
+                console.log('📞 I am:', isCallee ? 'receiver' : 'caller');
+                
+                // Fetch partner details
+                const userResponse = await fetch(API_ENDPOINTS.userProfile(partnerUserId), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (userResponse.ok) {
+                    const partner = await userResponse.json();
+                    partnerName = partner.name;
+                    partnerId = partner.id;
+                    
+                    console.log('✅ Partner:', partnerName);
+                    
+                    // Update UI
+                    document.getElementById('partner-name').textContent = partnerName;
+                    document.getElementById('partner-avatar').textContent = partnerName.charAt(0).toUpperCase();
+                } else {
+                    console.warn('⚠️ Could not fetch partner details');
+                    partnerName = 'Partner';
+                }
+                
+                // Update status
+                document.getElementById('call-status').textContent = 'Connecting to Jitsi...';
+                
+                // Initialize Jitsi with the room ID
+                console.log('🎥 Initializing Jitsi...');
+                initJitsi(roomId);
             } catch (error) {
-                console.error('Error starting call:', error);
-                alert('Error starting call. Please try again.');
+                console.error('❌ Error starting call:', error);
+                alert(`❌ Failed to start call: ${error.message}\n\nPlease try again.`);
                 window.location.href = 'users.html';
             }
         }
 
-        // Initialize Jitsi Meet
+        // Initialize Jitsi Meet using IFRAME (bypasses all auth)
         function initJitsi(roomName) {
+            console.log('🎥 Initializing Jitsi via iframe...');
+            console.log('🎥 Room Name:', roomName);
+            console.log('🎥 User:', currentUser.name);
+            
+            // Use meet.jit.si with special config hash parameters
             const domain = 'meet.jit.si';
-            const options = {
-                roomName: roomName,
-                width: '100%',
-                height: '100%',
-                parentNode: document.getElementById('meet-container'),
-                configOverwrite: {
-                    startWithAudioMuted: false,
-                    startWithVideoMuted: true,
-                    enableWelcomePage: false,
-                    prejoinPageEnabled: false,
-                    disableDeepLinking: true,
-                    startAudioOnly: true,
-                    disableVideoQuality: true
-                },
-                interfaceConfigOverwrite: {
-                    TOOLBAR_BUTTONS: [
-                        'microphone', 'closedcaptions',
-                        'fullscreen', 'fodeviceselection', 'hangup', 'profile',
-                        'settings', 'raisehand', 'stats'
-                    ],
-                    SHOW_JITSI_WATERMARK: false,
-                    SHOW_BRAND_WATERMARK: false,
-                    SHOW_WATERMARK_FOR_GUESTS: false,
-                    DEFAULT_REMOTE_DISPLAY_NAME: partnerName,
-                    DEFAULT_LOCAL_DISPLAY_NAME: currentUser.name
-                },
-                userInfo: {
-                    displayName: currentUser.name,
-                    email: currentUser.email
-                }
+            const publicRoomName = `ImproveCommunication${roomName}`;
+            
+            // Config parameters that bypass authentication
+            const config = {
+                'startWithAudioMuted': false,
+                'startWithVideoMuted': true,
+                'prejoinPageEnabled': false,
+                'startAudioOnly': true,
+                'disableVideo': true,
+                'requireDisplayName': false,
+                'enableWelcomePage': false,
+                'enableClosePage': false,
+                'disableDeepLinking': true,
+                'disableProfile': true,
+                'hideConferenceSubject': true,
+                'subject': ' ',
+                'userInfo.displayName': currentUser.name
             };
-
-            jitsiApi = new JitsiMeetExternalAPI(domain, options);
-
-            // Event listeners
-            jitsiApi.addEventListener('videoConferenceJoined', () => {
+            
+            // Build config hash
+            const configString = Object.entries(config)
+                .map(([key, value]) => `config.${key}=${encodeURIComponent(value)}`)
+                .join('&');
+            
+            // Interface config to hide unnecessary elements
+            const interfaceConfig = {
+                'TOOLBAR_BUTTONS': ['microphone', 'hangup', 'desktop', 'fullscreen', 'settings'],
+                'SHOW_JITSI_WATERMARK': false,
+                'SHOW_BRAND_WATERMARK': false,
+                'DISABLE_JOIN_LEAVE_NOTIFICATIONS': true,
+                'HIDE_INVITE_MORE_HEADER': true,
+                'DEFAULT_REMOTE_DISPLAY_NAME': 'Partner',
+                'MOBILE_APP_PROMO': false
+            };
+            
+            const interfaceConfigString = Object.entries(interfaceConfig)
+                .map(([key, value]) => `interfaceConfig.${key}=${encodeURIComponent(JSON.stringify(value))}`)
+                .join('&');
+            
+            // Complete iframe URL
+            const iframeUrl = `https://${domain}/${publicRoomName}#${configString}&${interfaceConfigString}`;
+            
+            console.log('🎥 Loading Jitsi iframe:', iframeUrl);
+            
+            // Get iframe and load URL
+            jitsiIframe = document.getElementById('jitsi-iframe');
+            jitsiIframe.src = iframeUrl;
+            
+            // Show iframe, hide loading after 3 seconds (iframe loads)
+            setTimeout(() => {
                 document.getElementById('loading-screen').style.display = 'none';
+                jitsiIframe.style.display = 'block';
                 document.getElementById('call-stats').style.display = 'block';
                 document.getElementById('call-status').textContent = 'In call';
                 
                 callStartTime = Date.now();
                 startTimer();
-            });
-
-            jitsiApi.addEventListener('videoConferenceLeft', () => {
-                endCall();
-            });
-
-            jitsiApi.addEventListener('readyToClose', () => {
-                endCall();
+                markUserJoined();
+            }, 3000);
+            
+            // Listen for iframe messages (when user actually joins)
+            window.addEventListener('message', (event) => {
+                if (event.origin !== `https://${domain}`) return;
+                
+                try {
+                    const data = event.data;
+                    console.log('📨 Jitsi iframe message:', data);
+                    
+                    // Handle various Jitsi events
+                    if (data.event === 'videoConferenceJoined') {
+                        console.log('✅ User joined Jitsi conference');
+                        markUserJoined();
+                    } else if (data.event === 'videoConferenceLeft' || data.event === 'readyToClose') {
+                        console.log('👋 User left Jitsi conference');
+                        endCall();
+                    }
+                } catch (e) {
+                    // Ignore parse errors
+                }
             });
         }
 
@@ -383,6 +478,58 @@
                 document.getElementById('call-timer').textContent = `${minutes}:${seconds}`;
             }, 1000);
         }
+        
+        // Mark user as joined in the call
+        async function markUserJoined() {
+            if (!callId) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/mark-joined?call_id=${callId}`, {
+                    method: 'POST',
+                    }
+                }, 10000);
+            } catch (error) {
+                console.error('❌ Failed to initialize Jitsi:', error);
+                alert(`Failed to initialize video call: ${error.message}\n\nPlease try again or check your internet connection.`);
+                window.location.href = 'users.html';
+            }
+        }
+
+        // Start call timer
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - callStartTime) / 1000);
+                const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+                const seconds = (elapsed % 60).toString().padStart(2, '0');
+                document.getElementById('call-timer').textContent = `${minutes}:${seconds}`;
+            }, 1000);
+        }
+        
+        // Mark user as joined in the call
+        async function markUserJoined() {
+            if (!callId) return;
+            
+            const token = localStorage.getItem('token');
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/mark-joined?call_id=${callId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('✅ Marked as joined:', data);
+                    if (data.both_connected) {
+                        console.log('🎉 Both users now connected!');
+                    }
+                }
+            } catch (error) {
+                console.error('Error marking joined:', error);
+            }
+        }
 
         // End call
         async function endCall() {
@@ -390,9 +537,9 @@
                 clearInterval(timerInterval);
             }
 
-            if (jitsiApi) {
-                jitsiApi.dispose();
-                jitsiApi = null;
+            // Remove iframe
+            if (jitsiIframe) {
+                jitsiIframe.src = '';
             }
 
             // Save call data to backend
@@ -401,7 +548,7 @@
                 const token = localStorage.getItem('token');
                 
                 try {
-                    await fetch('/api/calls/end', {
+                    await fetch(API_ENDPOINTS.endCall, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -415,35 +562,50 @@
                 } catch (error) {
                     console.error('Error saving call data:', error);
                 }
+                
+                // Redirect to call results page
+                window.location.href = `call-results.html?callId=${callId}`;
+            } else {
+                // No call was active, go to dashboard
+                window.location.href = 'dashboard.html';
             }
-
-            // Clear partner info
-            localStorage.removeItem('callPartnerId');
-            localStorage.removeItem('callPartnerName');
-
-            // Redirect to dashboard
-            window.location.href = 'dashboard.html';
         }
 
         // Initialize
         window.onload = async function() {
+            console.log('🚀 Page loaded, initializing...');
+            
             currentUser = await checkAuth();
             
             if (currentUser) {
-                // Check if partner is selected
-                const hasPartner = localStorage.getItem('callPartnerId');
+                console.log('✅ User authenticated:', currentUser.name);
                 
-                if (hasPartner) {
-                    const partnerName = localStorage.getItem('callPartnerName');
-                    document.getElementById('selected-partner').textContent = partnerName;
-                    document.getElementById('partner-info').style.display = 'block';
+                // Check if we have a call ID in the URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlCallId = urlParams.get('callId');
+                
+                console.log('🔍 Call ID from URL:', urlCallId);
+                
+                if (urlCallId) {
+                    // Hide pre-call screen and show loading
+                    console.log('🎬 Auto-starting call...');
+                    document.getElementById('pre-call-screen').style.display = 'none';
+                    document.getElementById('meet-container').style.display = 'flex';
+                    document.getElementById('loading-screen').style.display = 'flex';
+                    
+                    // Auto-start the call after a brief delay
+                    setTimeout(() => startCall(), 500);
+                } else {
+                    console.log('⚠️ No callId in URL, showing pre-call screen');
+                    document.getElementById('pre-call-screen').style.display = 'flex';
+                    document.getElementById('meet-container').style.display = 'none';
                 }
             }
         };
 
         // Handle page close/refresh during call
         window.addEventListener('beforeunload', (e) => {
-            if (jitsiApi) {
+            if (jitsiIframe && jitsiIframe.src) {
                 e.preventDefault();
                 e.returnValue = '';
             }

@@ -113,8 +113,44 @@ class CallInDB(CallBase):
     end_time: Optional[datetime] = None
     duration_seconds: Optional[int] = None
     audio_url: Optional[str] = None
+    
+    # Track who actually joined
+    caller_joined: bool = False
+    receiver_joined: bool = False
+    both_users_connected: bool = False
+    
+    # Individual user recordings
+    caller_audio_url: Optional[str] = None
+    receiver_audio_url: Optional[str] = None
+    
+    # Transcripts
     transcript_id: Optional[PyObjectId] = None
+    caller_transcript_id: Optional[PyObjectId] = None
+    receiver_transcript_id: Optional[PyObjectId] = None
+    
+    # Analysis IDs
     analysis_id: Optional[PyObjectId] = None
+    caller_analysis_id: Optional[PyObjectId] = None
+    receiver_analysis_id: Optional[PyObjectId] = None
+    
+    # Ratings - each user gets two ratings
+    caller_ai_rating: Optional[float] = None  # AI rating for caller
+    receiver_ai_rating: Optional[float] = None  # AI rating for receiver
+    caller_peer_rating: Optional[float] = None  # Receiver rates caller
+    receiver_peer_rating: Optional[float] = None  # Caller rates receiver
+    
+    # Feedback
+    caller_ai_feedback: Optional[str] = None
+    receiver_ai_feedback: Optional[str] = None
+    caller_peer_feedback: Optional[str] = None
+    receiver_peer_feedback: Optional[str] = None
+    
+    # Weaknesses and quiz status
+    caller_weaknesses: List[str] = []
+    receiver_weaknesses: List[str] = []
+    caller_quiz_generated: bool = False
+    receiver_quiz_generated: bool = False
+    
     created_at: datetime = Field(default_factory=datetime.utcnow)
     
     if PYDANTIC_V2:

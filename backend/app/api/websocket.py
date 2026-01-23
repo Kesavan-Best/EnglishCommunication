@@ -20,6 +20,19 @@ class ConnectionManager:
         await websocket.accept()
         connection_id = str(id(websocket))
         
+        # Disconnect any existing connection for this user (handles page refresh)
+        if user_id in self.user_to_connection:
+            old_connection_id = self.user_to_connection[user_id]
+            if old_connection_id in self.active_connections:
+                try:
+                    old_ws = self.active_connections[old_connection_id]
+                    await old_ws.close()
+                except:
+                    pass
+                del self.active_connections[old_connection_id]
+            if old_connection_id in self.connection_to_user:
+                del self.connection_to_user[old_connection_id]
+        
         self.active_connections[connection_id] = websocket
         self.user_to_connection[user_id] = connection_id
         self.connection_to_user[connection_id] = user_id
@@ -30,6 +43,8 @@ class ConnectionManager:
             {"_id": ObjectId(user_id)},
             {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
         )
+        
+        print(f"User {user_id} connected - broadcasting online status")
         
         # Notify all users about online status change
         await self.broadcast_user_status(user_id, True)
@@ -53,20 +68,36 @@ class ConnectionManager:
                 {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
             )
             
+            print(f"User {user_id} disconnected - broadcasting offline status")
+            
             # Notify all users about offline status change
+            import asyncio
             asyncio.create_task(self.broadcast_user_status(user_id, False))
     
     async def send_personal_message(self, message: dict, user_id: str):
+        print(f"📤 Attempting to send message to user {user_id}: {message.get('type')}")
+        print(f"📊 Active connections: {len(self.active_connections)}")
+        print(f"📊 User {user_id} mapped: {user_id in self.user_to_connection}")
+        
         if user_id in self.user_to_connection:
             connection_id = self.user_to_connection[user_id]
             websocket = self.active_connections.get(connection_id)
             if websocket:
-                await websocket.send_json(message)
+                try:
+                    await websocket.send_json(message)
+                    print(f"✅ Message sent successfully to user {user_id}")
+                except Exception as e:
+                    print(f"❌ Error sending message: {e}")
+            else:
+                print(f"⚠️ WebSocket not found for connection {connection_id}")
+        else:
+            print(f"⚠️ User {user_id} not connected")
+            print(f"Available users: {list(self.user_to_connection.keys())}")
     
     async def broadcast_user_status(self, user_id: str, is_online: bool):
         """Broadcast user online/offline status to all connected users"""
         message = {
-            "type": "user_status",
+            "type": "user_online" if is_online else "user_offline",
             "user_id": user_id,
             "is_online": is_online,
             "timestamp": datetime.utcnow().isoformat()
@@ -128,6 +159,18 @@ manager = ConnectionManager()
 
 @router.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str):
+    # Validate user_id before connecting
+    if not user_id or user_id == "undefined" or user_id == "null":
+        await websocket.close(code=1008, reason="Invalid user ID")
+        return
+    
+    try:
+        # Validate ObjectId format
+        ObjectId(user_id)
+    except:
+        await websocket.close(code=1008, reason="Invalid user ID format")
+        return
+    
     await manager.connect(websocket, user_id)
     
     try:

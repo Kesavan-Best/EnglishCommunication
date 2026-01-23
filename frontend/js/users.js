@@ -20,7 +20,8 @@ async function initUsersPage() {
     // Load initial data
     await Promise.all([
         loadAllUsers(),
-        loadFriends()
+        loadFriends(),
+        loadPendingRequests()
     ]);
     
     // Setup WebSocket for live updates
@@ -33,6 +34,7 @@ async function initUsersPage() {
     setInterval(() => {
         loadAllUsers();
         loadFriends();
+        loadPendingRequests();
     }, 10000);
 }
 
@@ -70,6 +72,11 @@ function switchTab(tabName) {
 async function loadAllUsers() {
     try {
         const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'login.html';
+            return;
+        }
+        
         const response = await fetch(API_ENDPOINTS.allUsers, {
             headers: {
                 'Authorization': `Bearer ${token}`
@@ -78,13 +85,25 @@ async function loadAllUsers() {
         
         if (response.ok) {
             allUsers = await response.json();
+            console.log('Loaded users:', allUsers);
             // Filter out current user
-            allUsers = allUsers.filter(u => u.id !== currentUser.id);
+            if (currentUser) {
+                allUsers = allUsers.filter(u => u.id !== currentUser.id);
+            }
             displayUsers(allUsers, 'all-users-grid');
+        } else {
+            console.error('Failed to load users, status:', response.status);
+            const container = document.getElementById('all-users-grid');
+            if (container) {
+                container.innerHTML = '<div style="text-align: center; padding: 40px;"><p>Failed to load users</p><button onclick="loadAllUsers()" class="btn">Retry</button></div>';
+            }
         }
     } catch (error) {
         console.error('Error loading users:', error);
-        showMessage('Failed to load users', 'error');
+        const container = document.getElementById('all-users-grid');
+        if (container) {
+            container.innerHTML = '<div style="text-align: center; padding: 40px;"><p>Network error</p><button onclick="loadAllUsers()" class="btn">Retry</button></div>';
+        }
     }
 }
 
@@ -105,6 +124,127 @@ async function loadFriends() {
         console.error('Error loading friends:', error);
     }
 }
+
+async function loadPendingRequests() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(API_ENDPOINTS.friendRequests, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            const requests = await response.json();
+            displayFriendRequests(requests);
+        }
+    } catch (error) {
+        console.error('Error loading friend requests:', error);
+    }
+}
+
+function displayFriendRequests(requests) {
+    const container = document.getElementById('requests-container');
+    const countBadge = document.getElementById('request-count');
+    
+    if (!container) return;
+    
+    // Update count badge
+    if (countBadge) {
+        if (requests.length > 0) {
+            countBadge.textContent = requests.length;
+            countBadge.style.display = 'inline';
+        } else {
+            countBadge.style.display = 'none';
+        }
+    }
+    
+    if (requests.length === 0) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; background: white; border-radius: 15px;">
+                <div style="font-size: 80px; margin-bottom: 20px;">📭</div>
+                <h3 style="color: #333; margin-bottom: 10px;">No Friend Requests</h3>
+                <p style="color: #666;">You don't have any pending friend requests at the moment.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = `
+        <div style="display: grid; gap: 15px;">
+            ${requests.map(req => `
+                <div style="background: white; padding: 20px; border-radius: 15px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 3px 20px rgba(0,0,0,0.08);">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <img src="${req.from_user.avatar_url || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(req.from_user.name) + '&background=667eea&color=fff&size=100'}" 
+                             style="width: 60px; height: 60px; border-radius: 50%; border: 3px solid #667eea; object-fit: cover;">
+                        <div>
+                            <strong style="display: block; font-size: 18px; color: #333; margin-bottom: 5px;">${req.from_user.name}</strong>
+                            <small style="color: #666; display: block;">${req.from_user.email}</small>
+                            <small style="color: #999; display: block; margin-top: 5px;">⏱️ ${formatDate(req.created_at)}</small>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="acceptFriendRequest('${req.request_id}')" 
+                                style="padding: 10px 20px; background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.3s;">
+                            ✓ Accept
+                        </button>
+                        <button onclick="rejectFriendRequest('${req.request_id}')" 
+                                style="padding: 10px 20px; background: #f5f5f5; color: #666; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; transition: all 0.3s;">
+                            ✗ Reject
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+async function acceptFriendRequest(requestId) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/users/friend-request/${requestId}/accept`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            showMessage('✅ Friend request accepted!', 'success');
+            // Reload data
+            loadPendingRequests();
+            loadFriends();
+        } else {
+            showMessage('❌ Failed to accept request', 'error');
+        }
+    } catch (error) {
+        console.error('Error accepting request:', error);
+        showMessage('❌ Network error', 'error');
+    }
+}
+
+async function rejectFriendRequest(requestId) {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/users/friend-request/${requestId}/reject`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        
+        if (response.ok) {
+            showMessage('Request rejected', 'info');
+            loadPendingRequests();
+        } else {
+            showMessage('❌ Failed to reject request', 'error');
+        }
+    } catch (error) {
+        console.error('Error rejecting request:', error);
+        showMessage('❌ Network error', 'error');
+    }
+}
+
 
 async function loadRandomPartner() {
     const btn = document.getElementById('find-random-btn');
@@ -161,9 +301,11 @@ function displayUsers(users, containerId) {
 }
 
 function createUserCard(user, isFriend) {
-    const onlineClass = user.is_online ? 'online' : 'offline';
+    const onlineClass = user.is_online ? 'online-status' : 'offline-status';
     const onlineText = user.is_online ? 'Online' : 'Offline';
-    const onlineDot = user.is_online ? '🟢' : '⚫';
+    
+    // Check if user is already a friend
+    const isAlreadyFriend = isFriend || friends.some(f => f.id === user.id);
     
     const callBtn = user.is_online ? 
         `<button class="btn-action btn-call" onclick="initiateCall('${user.id}')" title="Start Call">
@@ -173,16 +315,19 @@ function createUserCard(user, isFriend) {
             📞 Offline
         </button>`;
     
-    const friendBtn = isFriend ? '' : 
+    const friendBtn = isAlreadyFriend ? 
+        `<button class="btn-action btn-disabled" disabled title="Already Friends">
+            ✅ Friends
+        </button>` :
         `<button class="btn-action btn-add-friend" onclick="sendFriendRequest('${user.id}')" title="Send Friend Request">
             ➕ Add Friend
         </button>`;
     
     return `
         <div class="user-card" data-user-id="${user.id}">
-            <div class="user-status-badge ${onlineClass}">${onlineDot} ${onlineText}</div>
+            <div class="${onlineClass}">${onlineText}</div>
             <div class="user-avatar">
-                <img src="${user.avatar_url || '../assets/icons/user-avatar.png'}" alt="${user.name}">
+                <img src="${user.avatar_url || '../assets/icons/user-avatar.png'}" alt="${user.name}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
             </div>
             <div class="user-info">
                 <h3 class="user-name">${user.name}</h3>
@@ -256,7 +401,22 @@ async function sendFriendRequest(userId) {
 
 async function initiateCall(userId) {
     try {
+        console.log('🔵 Initiating call to user:', userId);
+        
+        // Disable button to prevent double-clicks
+        const callButtons = document.querySelectorAll(`[onclick="initiateCall('${userId}')"]`);
+        callButtons.forEach(btn => {
+            btn.disabled = true;
+            btn.textContent = '⏳ Connecting...';
+        });
+        
+        showMessage('📞 Creating call...', 'info');
+        
         const token = localStorage.getItem('token');
+        console.log('🔵 Token exists:', !!token);
+        console.log('🔵 API Endpoint:', API_ENDPOINTS.inviteCall);
+        console.log('🔵 Request payload:', { receiver_id: userId });
+        
         const response = await fetch(API_ENDPOINTS.inviteCall, {
             method: 'POST',
             headers: {
@@ -266,17 +426,67 @@ async function initiateCall(userId) {
             body: JSON.stringify({ receiver_id: userId })
         });
         
+        console.log('🔵 Response status:', response.status);
+        console.log('🔵 Response ok:', response.ok);
+        
         if (response.ok) {
             const call = await response.json();
-            // Redirect to call page
-            window.location.href = `call.html?callId=${call.id}`;
+            console.log('✅ Call created:', call);
+            
+            // Validate call response
+            if (!call.id || !call.jitsi_room_id) {
+                throw new Error('Invalid call response from server');
+            }
+            
+            showMessage('✅ Call created! Redirecting...', 'success');
+            
+            // Notify via WebSocket if connected
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('🔵 Sending WebSocket notification');
+                ws.send(JSON.stringify({
+                    type: 'call_invite',
+                    to_user_id: userId,
+                    call_id: call.id
+                }));
+            } else {
+                console.warn('⚠️ WebSocket not connected');
+            }
+            
+            // Short delay to show success message
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Redirect to call page with call ID
+            const callUrl = `call.html?callId=${call.id}`;
+            console.log('🔵 Redirecting to:', callUrl);
+            window.location.href = callUrl;
         } else {
             const error = await response.json();
+            console.error('❌ API Error:', error);
+            
+            // Re-enable button
+            callButtons.forEach(btn => {
+                btn.disabled = false;
+                btn.textContent = '📞 Call';
+            });
+            
             showMessage(`❌ ${error.detail || 'Failed to start call'}`, 'error');
         }
     } catch (error) {
-        console.error('Error initiating call:', error);
-        showMessage('❌ Network error', 'error');
+        console.error('❌ Network Error:', error);
+        console.error('❌ Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack
+        });
+        
+        // Re-enable button
+        const callButtons = document.querySelectorAll(`[onclick="initiateCall('${userId}')"]`);
+        callButtons.forEach(btn => {
+            btn.disabled = false;
+            btn.textContent = '📞 Call';
+        });
+        
+        showMessage(`❌ Network error: ${error.message}. Make sure backend is running on http://localhost:8000`, 'error');
     }
 }
 
@@ -309,34 +519,75 @@ function filterUsers(query) {
 
 function setupWebSocket() {
     const token = localStorage.getItem('token');
-    ws = new WebSocket(`ws://localhost:8000/ws/connect?token=${token}`);
+    const userId = currentUser ? currentUser.id : null;
+    
+    if (!userId) {
+        console.error('❌ No user ID for WebSocket connection');
+        return;
+    }
+    
+    // Close existing connection if any
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+    
+    const wsUrl = `ws://localhost:8000/ws/${userId}`;
+    console.log('🔌 Connecting to WebSocket:', wsUrl);
+    console.log('👤 User ID:', userId);
+    console.log('👤 User Name:', currentUser.name);
+    
+    ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('✅ WebSocket connected successfully');
+        console.log('📡 Ready to receive call notifications');
     };
     
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
+        console.log('📨 *** INCOMING WEBSOCKET MESSAGE ***', data);
         handleWebSocketMessage(data);
     };
     
     ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('❌ WebSocket error:', error);
     };
     
     ws.onclose = () => {
-        console.log('WebSocket closed, reconnecting in 5s...');
+        console.log('⚠️ WebSocket closed, reconnecting in 5s...');
         setTimeout(setupWebSocket, 5000);
     };
 }
 
 function handleWebSocketMessage(data) {
-    if (data.type === 'user_status_changed') {
+    console.log('📨 WebSocket message:', data);
+    
+    if (data.type === 'user_online') {
+        console.log(`✅ User ${data.user_id} is now ONLINE`);
+        updateUserStatus(data.user_id, true);
+        // Reload user lists to reflect online status
+        loadAllUsers();
+        loadFriends();
+    } else if (data.type === 'user_offline') {
+        console.log(`⚫ User ${data.user_id} is now OFFLINE`);
+        updateUserStatus(data.user_id, false);
+        // Reload user lists to reflect offline status
+        loadAllUsers();
+        loadFriends();
+    } else if (data.type === 'user_status_changed') {
+        console.log(`🔄 User ${data.user_id} status changed: ${data.is_online ? 'ONLINE' : 'OFFLINE'}`);
         updateUserStatus(data.user_id, data.is_online);
     } else if (data.type === 'friend_request') {
         showMessage(`🔔 New friend request from ${data.sender_name}`, 'info');
-        // Reload friends list
-        loadFriends();
+        loadPendingRequests();
+    } else if (data.type === 'call_invite') {
+        console.log('📞 Incoming call:', data);
+        
+        const callerName = data.caller_name || 'Someone';
+        const callId = data.call_id;
+        
+        // Show a more prominent notification
+        showIncomingCallNotification(callerName, callId);
     }
 }
 
@@ -392,9 +643,120 @@ function showMessage(text, type = 'info') {
     }, 3000);
 }
 
+function showIncomingCallNotification(callerName, callId) {
+    // Remove any existing call notification
+    const existing = document.getElementById('incoming-call-notification');
+    if (existing) {
+        existing.remove();
+    }
+    
+    // Create notification overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'incoming-call-notification';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+        animation: fadeIn 0.3s;
+    `;
+    
+    // Create notification content
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        background: white;
+        padding: 40px;
+        border-radius: 20px;
+        text-align: center;
+        max-width: 400px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        animation: slideIn 0.3s;
+    `;
+    
+    notification.innerHTML = `
+        <div style="font-size: 80px; margin-bottom: 20px;">📞</div>
+        <h2 style="margin: 0 0 10px 0; color: #667eea;">Incoming Call</h2>
+        <p style="font-size: 20px; margin: 20px 0; font-weight: 600;">${callerName}</p>
+        <p style="color: #666; margin-bottom: 30px;">wants to practice English with you</p>
+        <div style="display: flex; gap: 15px; justify-content: center;">
+            <button id="accept-call-btn" style="
+                background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                color: white;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 10px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+            ">
+                ✓ Accept
+            </button>
+            <button id="reject-call-btn" style="
+                background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                color: white;
+                border: none;
+                padding: 15px 40px;
+                border-radius: 10px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+            ">
+                ✗ Decline
+            </button>
+        </div>
+    `;
+    
+    overlay.appendChild(notification);
+    document.body.appendChild(overlay);
+    
+    // Play notification sound (if you have one)
+    try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIGWS45+mjUAwPVqzn77BdGAk+ltryy3krBSl+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsIHGy96+mmUhEJTKXh8bllGgg2jdXxxn0pBSh+zPLaizsI');
+        audio.play().catch(e => console.log('Could not play sound'));
+    } catch (e) {
+        console.log('Audio not supported');
+    }
+    
+    // Handle accept
+    document.getElementById('accept-call-btn').onclick = () => {
+        overlay.remove();
+        window.location.href = `call.html?callId=${callId}`;
+    };
+    
+    // Handle reject
+    document.getElementById('reject-call-btn').onclick = () => {
+        overlay.remove();
+        showMessage('Call declined', 'info');
+        // Optionally notify backend about rejection
+    };
+    
+    // Auto-dismiss after 30 seconds
+    setTimeout(() => {
+        if (document.getElementById('incoming-call-notification')) {
+            overlay.remove();
+            showMessage('Missed call from ' + callerName, 'info');
+        }
+    }, 30000);
+}
+
 // Initialize on page load
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initUsersPage);
 } else {
     initUsersPage();
 }
+
+// Handle page unload - close WebSocket connection
+window.addEventListener('beforeunload', () => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.close();
+    }
+});

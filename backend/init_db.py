@@ -3,8 +3,8 @@ import sys
 import os
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent
+# Add parent directory to path
+project_root = Path(__file__).parent.parent
 sys.path.append(str(project_root))
 
 from backend.app.database import Database
@@ -45,10 +45,10 @@ def initialize_database():
     users = [
         {
             "email": "john@example.com",
-            "password_hash": hashed_password,
+            "hashed_password": hashed_password,
             "name": "John Doe",
             "avatar_url": None,
-            "is_online": True,
+            "is_online": False,
             "last_seen": datetime.utcnow(),
             "ai_score": 85.5,
             "total_calls": 12,
@@ -61,7 +61,7 @@ def initialize_database():
         },
         {
             "email": "jane@example.com",
-            "password_hash": hashed_password,
+            "hashed_password": hashed_password,
             "name": "Jane Smith",
             "avatar_url": None,
             "is_online": False,
@@ -77,10 +77,10 @@ def initialize_database():
         },
         {
             "email": "bob@example.com",
-            "password_hash": hashed_password,
+            "hashed_password": hashed_password,
             "name": "Bob Wilson",
             "avatar_url": None,
-            "is_online": True,
+            "is_online": False,
             "last_seen": datetime.utcnow(),
             "ai_score": 67.8,
             "total_calls": 8,

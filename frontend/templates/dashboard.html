@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - ImproveCommunication</title>
     <link rel="stylesheet" href="../css/style.css">
+    <script src="../js/config.js"></script>
+    <script src="../js/utils.js"></script>
     <style>
         .dashboard {
             padding: 20px;
@@ -288,15 +290,7 @@
                 window.location.href = 'login.html';
             }
         }
-        
-        // Initialize dashboard
-        window.onload = async function() {
-            const user = await checkAuth();
-            if (user) {
-                await loadUserData();
-                await loadTopLearners();
-            }
-        };
     </script>
+    <script src="../js/dashboard.js"></script>
 </body>
 </html>

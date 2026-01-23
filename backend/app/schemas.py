@@ -23,6 +23,15 @@ class CallEndRequest(BaseModel):
     duration_seconds: int
     audio_file: Optional[str] = None
 
+class RatePartnerRequest(BaseModel):
+    call_id: str
+    rating: float  # 1-5 stars
+    feedback: Optional[str] = None
+
+class UploadAudioRequest(BaseModel):
+    call_id: str
+    user_id: str
+
 # Response schemas
 class UserResponse(BaseModel):
     id: str
@@ -46,6 +55,25 @@ class CallResponse(BaseModel):
     start_time: Optional[datetime]
     end_time: Optional[datetime]
     duration_seconds: Optional[int]
+    
+    # Individual recordings
+    caller_audio_url: Optional[str] = None
+    receiver_audio_url: Optional[str] = None
+    
+    # Ratings
+    caller_ai_rating: Optional[float] = None
+    receiver_ai_rating: Optional[float] = None
+    caller_peer_rating: Optional[float] = None
+    receiver_peer_rating: Optional[float] = None
+    
+    # Feedback
+    caller_ai_feedback: Optional[str] = None
+    receiver_ai_feedback: Optional[str] = None
+    
+    # Weaknesses
+    caller_weaknesses: List[str] = []
+    receiver_weaknesses: List[str] = []
+    
     created_at: datetime
 
 class AnalysisResponse(BaseModel):

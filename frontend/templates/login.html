@@ -34,13 +34,18 @@
                 <form id="login-form" class="auth-form">
                     <div class="form-group">
                         <label for="email">Email Address</label>
-                        <input type="email" id="email" placeholder="Enter your email" required>
+                        <input type="email" id="email" placeholder="Enter your email" required pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
                         <div class="form-hint">Use test account: john@example.com</div>
                     </div>
                     
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" id="password" placeholder="Enter your password" required>
+                        <div style="position: relative;">
+                            <input type="password" id="password" placeholder="Enter your password" required>
+                            <button type="button" onclick="togglePassword('password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;" title="Show/Hide Password">
+                                <span id="password-toggle-icon">👁️</span>
+                            </button>
+                        </div>
                         <div class="form-hint">Test password: password123</div>
                     </div>
                     
@@ -120,26 +125,31 @@
                         <li>📚 Receive personalized learning materials</li>
                         <li>⚡ Track your progress over time</li>
                     </ul>
-                    <div class="stats">
-                        <div class="stat">
-                            <h3>500+</h3>
-                            <p>Active Learners</p>
-                        </div>
-                        <div class="stat">
-                            <h3>10k+</h3>
-                            <p>Practice Hours</p>
-                        </div>
-                        <div class="stat">
-                            <h3>95%</h3>
-                            <p>Satisfaction Rate</p>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(inputId + '-toggle-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                icon.textContent = '👁️';
+            }
+        }
+        
+        // Validate email format
+        function validateEmail(email) {
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return emailRegex.test(email);
+        }
+        
         // Fill credentials with test accounts
         function fillCredentials(email, password) {
             document.getElementById('email').value = email;
@@ -166,6 +176,12 @@
             
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            
+            // Validate email format
+            if (!validateEmail(email)) {
+                showMessage('❌ Please enter a valid email address (e.g., user@gmail.com, user@domain.ac.in)');
+                return;
+            }
             const loginBtn = document.getElementById('login-btn');
             const btnText = loginBtn.querySelector('.btn-text');
             const btnLoader = loginBtn.querySelector('.btn-loader');
@@ -184,6 +200,12 @@
                     body: JSON.stringify({ email, password })
                 });
                 
+                // Check if response is JSON before parsing
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Backend server is not responding correctly. Make sure backend is running (python main.py)');
+                }
+                
                 const data = await response.json();
                 
                 if (response.ok) {
@@ -195,7 +217,7 @@
                     
                     // Redirect after delay
                     setTimeout(() => {
-                        window.location.href = 'dashboard.html';
+                        window.location.href = '/frontend/templates/dashboard.html';
                     }, 1500);
                     
                 } else {
@@ -214,17 +236,6 @@
                 loginBtn.disabled = false;
             }
         });
-        
-        // Check if user is already logged in
-        window.onload = function() {
-            const token = localStorage.getItem('token');
-            if (token) {
-                showMessage('You are already logged in. Redirecting...', 'success');
-                setTimeout(() => {
-                    window.location.href = 'dashboard.html';
-                }, 1000);
-            }
-        };
     </script>
 </body>
 </html>

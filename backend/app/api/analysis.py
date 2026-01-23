@@ -232,6 +232,41 @@ async def submit_quiz(
             detail=f"Error submitting quiz: {str(e)}"
         )
 
+@router.get("/quiz/{quiz_id}")
+async def get_quiz(
+    quiz_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get quiz by ID"""
+    db = Database.get_db()
+    
+    try:
+        quiz_data = db.quizzes.find_one({
+            "_id": ObjectId(quiz_id),
+            "user_id": current_user.id
+        })
+        
+        if not quiz_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Quiz not found"
+            )
+        
+        return {
+            "id": str(quiz_data["_id"]),
+            "weaknesses": quiz_data.get("weaknesses", []),
+            "questions": quiz_data.get("questions", []),
+            "completed": quiz_data.get("completed", False),
+            "score": quiz_data.get("score"),
+            "created_at": quiz_data.get("created_at")
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving quiz: {str(e)}"
+        )
+
 async def process_call_analysis_background(call_id: str):
     """Background task to process call analysis"""
     # This would be triggered by a background worker

@@ -39,13 +39,18 @@
                     
                     <div class="form-group">
                         <label for="email">Email Address</label>
-                        <input type="email" id="email" placeholder="Enter your email" required>
-                        <div class="form-hint">We'll never share your email with anyone</div>
+                        <input type="email" id="email" placeholder="Enter your email" required pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
+                        <div class="form-hint">Must be a valid email (e.g., user@gmail.com, user@domain.ac.in)</div>
                     </div>
                     
                     <div class="form-group">
                         <label for="password">Password</label>
-                        <input type="password" id="password" placeholder="Create a password" required>
+                        <div style="position: relative;">
+                            <input type="password" id="password" placeholder="Create a password" required minlength="8">
+                            <button type="button" onclick="togglePassword('password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Show/Hide Password">
+                                <span id="password-toggle-icon">👁️</span>
+                            </button>
+                        </div>
                         <div class="password-strength">
                             <div class="strength-bar">
                                 <div class="strength-fill" id="strength-fill"></div>
@@ -57,14 +62,19 @@
                     
                     <div class="form-group">
                         <label for="confirm-password">Confirm Password</label>
-                        <input type="password" id="confirm-password" placeholder="Confirm your password" required>
+                        <div style="position: relative;">
+                            <input type="password" id="confirm-password" placeholder="Confirm your password" required>
+                            <button type="button" onclick="togglePassword('confirm-password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Show/Hide Password">
+                                <span id="confirm-password-toggle-icon">👁️</span>
+                            </button>
+                        </div>
                         <div class="form-hint" id="password-match">Passwords must match</div>
                     </div>
                     
                     <div class="form-options">
                         <label class="checkbox">
                             <input type="checkbox" id="terms" required>
-                            <span>I agree to the <a href="#" class="link">Terms of Service</a> and <a href="#" class="link">Privacy Policy</a></span>
+                            <span>I agree to the <a href="#" class="link" onclick="showTermsModal(event)">Terms of Service</a> and <a href="#" class="link" onclick="showPrivacyModal(event)">Privacy Policy</a></span>
                         </label>
                     </div>
                     
@@ -114,19 +124,7 @@
                         <div class="author">- Adaptive Learning for Every Student</div>
                     </div>
                     
-                    <div class="stats">
-                        <div class="stat">
-                            <h3>100%</h3>
-                            <p>Free to Start</p>
-                        </div>
-                        <div class="stat">
-                            <h3>24/7</h3>
-                            <p>Practice Partners</p>
-                        </div>
-                        <div class="stat">
-                            <h3>4.8★</h3>
-                            <p>User Rating</p>
-                        </div>
+                    
                     </div>
                 </div>
             </div>
@@ -194,6 +192,25 @@
             }
         }
         
+        // Toggle password visibility
+        function togglePassword(inputId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(inputId + '-toggle-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.textContent = '🙈';
+            } else {
+                input.type = 'password';
+                icon.textContent = '👁️';
+            }
+        }
+        
+        // Validate email format
+        function validateEmail(email) {
+            const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+            return emailRegex.test(email);
+        }
+        
         // Show message
         function showMessage(text, type = 'error') {
             const messageDiv = document.getElementById('message');
@@ -211,6 +228,22 @@
         document.getElementById('register-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
+            const name = document.getElementById('name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const password = passwordInput.value;
+            
+            // Validate email format
+            if (!validateEmail(email)) {
+                showMessage('❌ Please enter a valid email address (e.g., user@gmail.com, user@domain.ac.in)');
+                return;
+            }
+            
+            // Validate password length
+            if (password.length < 8) {
+                showMessage('❌ Password must be at least 8 characters long');
+                return;
+            }
+            
             // Validate passwords match
             if (passwordInput.value !== confirmInput.value) {
                 showMessage('Passwords do not match');
@@ -222,10 +255,6 @@
                 showMessage('You must agree to the Terms of Service');
                 return;
             }
-            
-            const name = document.getElementById('name').value;
-            const email = document.getElementById('email').value;
-            const password = passwordInput.value;
             const registerBtn = document.getElementById('register-btn');
             const btnText = registerBtn.querySelector('.btn-text');
             const btnLoader = registerBtn.querySelector('.btn-loader');
@@ -247,6 +276,12 @@
                         password 
                     })
                 });
+                
+                // Check if response is JSON before parsing
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    throw new Error('Backend server is not responding correctly. Make sure backend is running (python main.py)');
+                }
                 
                 const data = await response.json();
                 
@@ -294,17 +329,142 @@
             }
         });
         
-        // Check if user is already logged in
-        window.onload = function() {
-            const token = localStorage.getItem('token');
-            if (token) {
-                showMessage('You are already logged in. Redirecting to dashboard...', 'success');
-                setTimeout(() => {
-                    window.location.href = 'dashboard.html';
-                }, 1000);
-            }
-        };
+        // Allow users to access registration page even if logged in
+        // (They might want to create a second account or view the page)
     </script>
+    
+    <!-- Terms and Conditions Modal -->
+    <div id="termsModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📋 Terms of Service</h2>
+                <span class="close-modal" onclick="closeModal('termsModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>1. Service Description</h3>
+                <p>ImproveCommunication is an AI-powered English language learning platform that provides real-time conversation practice, analysis, and personalized feedback.</p>
+                
+                <h3>2. Language Requirements</h3>
+                <p><strong>English-Only Communication:</strong> All conversations, practice sessions, and communications on this platform must be conducted exclusively in English. This is essential for:</p>
+                <ul>
+                    <li>Accurate AI analysis and feedback</li>
+                    <li>Consistent learning experience</li>
+                    <li>Fair leaderboard competition</li>
+                    <li>Proper grammar and fluency assessment</li>
+                </ul>
+                
+                <h3>3. Data Collection and Storage</h3>
+                <p><strong>What We Collect:</strong></p>
+                <ul>
+                    <li><strong>Audio Recordings:</strong> All your voice conversations and practice sessions are recorded and stored</li>
+                    <li><strong>Text Transcripts:</strong> Audio is transcribed for analysis purposes</li>
+                    <li><strong>Performance Metrics:</strong> Grammar scores, fluency ratings, vocabulary usage, pronunciation data</li>
+                    <li><strong>User Activity:</strong> Session duration, practice frequency, quiz results</li>
+                </ul>
+                
+                <h3>4. Data Usage</h3>
+                <p><strong>How We Use Your Data:</strong></p>
+                <ul>
+                    <li><strong>AI Analysis:</strong> Your conversations are analyzed by AI to provide grammar, fluency, and pronunciation feedback</li>
+                    <li><strong>Personalized Recommendations:</strong> Your data is used to generate customized learning paths and targeted quizzes</li>
+                    <li><strong>Performance Tracking:</strong> Historical data helps track your improvement over time</li>
+                    <li><strong>Platform Improvement:</strong> Aggregated, anonymized data may be used to enhance our AI models</li>
+                </ul>
+                
+                <h3>5. User Responsibilities</h3>
+                <p>By using this platform, you agree to:</p>
+                <ul>
+                    <li>Speak only in English during all sessions</li>
+                    <li>Provide accurate personal information</li>
+                    <li>Respect other users in peer-to-peer practice sessions</li>
+                    <li>Not use offensive, discriminatory, or inappropriate language</li>
+                    <li>Not share your account credentials with others</li>
+                </ul>
+                
+                <h3>6. Leaderboard and Gamification</h3>
+                <p>Your performance scores, practice time, and achievements may be displayed on public leaderboards. You can opt out of leaderboard participation in your profile settings.</p>
+                
+                <h3>7. AI-Powered Features</h3>
+                <p>Our platform uses artificial intelligence for:</p>
+                <ul>
+                    <li>Speech-to-text transcription</li>
+                    <li>Grammar and syntax checking</li>
+                    <li>Fluency and pronunciation analysis</li>
+                    <li>Personalized quiz generation</li>
+                    <li>Improvement suggestions</li>
+                </ul>
+                <p>AI analysis may not be 100% accurate and should be used as a learning aid, not absolute truth.</p>
+                
+                <h3>8. Data Retention</h3>
+                <p>Your data is retained for the duration of your active account plus 90 days. You may request data deletion at any time by contacting support.</p>
+                
+                <h3>9. Account Termination</h3>
+                <p>We reserve the right to suspend or terminate accounts that violate these terms, including but not limited to: using languages other than English, sharing inappropriate content, or attempting to manipulate the system.</p>
+                
+                <h3>10. Changes to Terms</h3>
+                <p>We may update these terms periodically. Continued use of the platform constitutes acceptance of updated terms.</p>
+                
+                <p class="modal-footer-text"><em>Last Updated: January 2026</em></p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="acceptTerms()" class="btn btn-primary">I Understand and Agree</button>
+                <button onclick="closeModal('termsModal')" class="btn">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Privacy Policy Modal -->
+    <div id="privacyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>🔒 Privacy Policy</h2>
+                <span class="close-modal" onclick="closeModal('privacyModal')">&times;</span>
+            </div>
+            <div class="modal-body">
+                <h3>1. Information We Collect</h3>
+                <p><strong>Personal Information:</strong> Name, email address, profile picture</p>
+                <p><strong>Audio Data:</strong> Voice recordings from practice sessions and calls</p>
+                <p><strong>Usage Data:</strong> Login times, session duration, feature usage, device information</p>
+                
+                <h3>2. How We Protect Your Data</h3>
+                <ul>
+                    <li>All data is encrypted in transit and at rest</li>
+                    <li>Secure authentication with JWT tokens</li>
+                    <li>Regular security audits and updates</li>
+                    <li>Access controls and user authentication</li>
+                </ul>
+                
+                <h3>3. Data Sharing</h3>
+                <p>We do NOT sell your personal data. Your data may be shared only:</p>
+                <ul>
+                    <li>With AI services for analysis (transcription, grammar checking)</li>
+                    <li>In aggregated, anonymized form for research</li>
+                    <li>When required by law</li>
+                </ul>
+                
+                <h3>4. Your Rights</h3>
+                <p>You have the right to:</p>
+                <ul>
+                    <li>Access your personal data</li>
+                    <li>Request data correction or deletion</li>
+                    <li>Opt out of leaderboards</li>
+                    <li>Export your data</li>
+                    <li>Close your account at any time</li>
+                </ul>
+                
+                <h3>5. Cookies and Tracking</h3>
+                <p>We use local storage for authentication tokens and user preferences. No third-party tracking cookies are used.</p>
+                
+                <h3>6. Contact</h3>
+                <p>For privacy concerns or data requests, contact us through the platform support.</p>
+                
+                <p class="modal-footer-text"><em>Last Updated: January 2026</em></p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeModal('privacyModal')" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
     
     <style>
         .password-strength {
@@ -354,6 +514,156 @@
             font-size: 14px;
             opacity: 0.9;
         }
+        
+        /* Modal Styles */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.6);
+            animation: fadeIn 0.3s;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .modal-content {
+            background-color: #fff;
+            margin: 50px auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+        }
+        
+        .modal-header {
+            padding: 24px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+        
+        .close-modal {
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+            transition: transform 0.2s;
+        }
+        
+        .close-modal:hover {
+            transform: scale(1.2);
+        }
+        
+        .modal-body {
+            padding: 30px;
+            overflow-y: auto;
+            flex: 1;
+        }
+        
+        .modal-body h3 {
+            color: #667eea;
+            margin-top: 24px;
+            margin-bottom: 12px;
+            font-size: 18px;
+        }
+        
+        .modal-body h3:first-child {
+            margin-top: 0;
+        }
+        
+        .modal-body p {
+            margin: 12px 0;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        .modal-body ul {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+        
+        .modal-body li {
+            margin: 8px 0;
+            line-height: 1.6;
+            color: #555;
+        }
+        
+        .modal-body strong {
+            color: #667eea;
+        }
+        
+        .modal-footer {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-radius: 0 0 12px 12px;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .modal-footer-text {
+            color: #888;
+            font-size: 13px;
+            margin-top: 20px;
+            text-align: center;
+        }
     </style>
+    
+    <script>
+        // Modal functions
+        function showTermsModal(event) {
+            event.preventDefault();
+            document.getElementById('termsModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function showPrivacyModal(event) {
+            event.preventDefault();
+            document.getElementById('privacyModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+            document.body.style.overflow = 'auto';
+        }
+        
+        function acceptTerms() {
+            document.getElementById('terms').checked = true;
+            closeModal('termsModal');
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const termsModal = document.getElementById('termsModal');
+            const privacyModal = document.getElementById('privacyModal');
+            if (event.target === termsModal) {
+                closeModal('termsModal');
+            }
+            if (event.target === privacyModal) {
+                closeModal('privacyModal');
+            }
+        }
+    </script>
 </body>
 </html>

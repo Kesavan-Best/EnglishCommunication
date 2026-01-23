@@ -3,11 +3,12 @@ from bson import ObjectId
 from datetime import datetime
 import uuid
 import os
+import traceback
 
 from backend.app.auth import AuthHandler
 from backend.app.database import Database
-from backend.app.models import UserInDB
-from backend.app.schemas import CallResponse, CallInviteRequest, CallAcceptRequest, CallEndRequest
+from backend.app.models import UserInDB, CallInDB
+from backend.app.schemas import CallResponse, CallInviteRequest, CallAcceptRequest, CallEndRequest, RatePartnerRequest
 from backend.app.core.config import settings
 
 router = APIRouter()
@@ -18,63 +19,118 @@ async def invite_to_call(
     current_user: UserInDB = Depends(AuthHandler.get_current_user)
 ):
     """Invite a user to a call"""
-    db = Database.get_db()
-    
     try:
-        receiver_id = ObjectId(invite_data.receiver_id)
-    except:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user ID"
+        db = Database.get_db()
+        
+        try:
+            receiver_id = ObjectId(invite_data.receiver_id)
+        except:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid user ID"
+            )
+        
+        # Check if receiver exists and is online
+        receiver = db.users.find_one({"_id": receiver_id})
+        if not receiver:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        if not receiver.get("is_online", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User is offline"
+            )
+        
+        # Convert current_user.id to ObjectId for database query
+        caller_id = ObjectId(str(current_user.id)) if not isinstance(current_user.id, ObjectId) else current_user.id
+        
+        # Check for existing pending/active call and clean up old ones
+        existing_call = db.calls.find_one({
+            "$or": [
+                {"caller_id": caller_id, "receiver_id": receiver_id},
+                {"caller_id": receiver_id, "receiver_id": caller_id}
+            ],
+            "status": {"$in": ["pending", "active"]}
+        })
+        
+        if existing_call:
+            # Check if call is more than 5 minutes old, if so, mark as failed and create new one
+            call_age = (datetime.utcnow() - existing_call["created_at"]).total_seconds()
+            if call_age > 300:  # 5 minutes
+                db.calls.update_one(
+                    {"_id": existing_call["_id"]},
+                    {"$set": {"status": "failed", "end_time": datetime.utcnow()}}
+                )
+            else:
+                # Return existing call if it's recent
+                return CallResponse(
+                    id=str(existing_call["_id"]),
+                    caller_id=str(existing_call["caller_id"]),
+                    receiver_id=str(existing_call["receiver_id"]),
+                    status=existing_call["status"],
+                    jitsi_room_id=existing_call["jitsi_room_id"],
+                    start_time=existing_call.get("start_time"),
+                    end_time=existing_call.get("end_time"),
+                    duration_seconds=existing_call.get("duration_seconds"),
+                    created_at=existing_call["created_at"]
+                )
+        
+        # Generate Jitsi room ID immediately
+        jitsi_room_id = f"english-comm-{uuid.uuid4().hex}"
+        
+        # Create call record with 'active' status so both users can join immediately
+        call_dict = {
+            "caller_id": caller_id,
+            "receiver_id": receiver_id,
+            "jitsi_room_id": jitsi_room_id,
+            "status": "active",
+            "start_time": datetime.utcnow(),
+            "end_time": None,
+            "duration_seconds": None,
+            "audio_url": None,
+            "transcript_id": None,
+            "analysis_id": None,
+            "created_at": datetime.utcnow()
+        }
+        
+        result = db.calls.insert_one(call_dict)
+        call_id = result.inserted_id
+        
+        # Send WebSocket notification to receiver
+        try:
+            from backend.app.api.websocket import manager
+            await manager.send_call_invite(
+                from_user_id=str(caller_id),
+                to_user_id=str(receiver_id),
+                call_id=str(call_id)
+            )
+            print(f"📞 Sent call invite notification to user {receiver_id}")
+        except Exception as ws_error:
+            print(f"⚠️ Failed to send WebSocket notification: {ws_error}")
+        
+        return CallResponse(
+            id=str(call_id),
+            caller_id=str(caller_id),
+            receiver_id=str(receiver_id),
+            status="active",
+            jitsi_room_id=jitsi_room_id,
+            start_time=call_dict["start_time"],
+            end_time=None,
+            duration_seconds=None,
+            created_at=call_dict["created_at"]
         )
-    
-    # Check if receiver exists and is online
-    receiver = db.users.find_one({"_id": receiver_id})
-    if not receiver:
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in invite_to_call: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create call: {str(e)}"
         )
-    
-    if not receiver.get("is_online", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User is offline"
-        )
-    
-    # Check for existing pending call
-    existing_call = db.calls.find_one({
-        "caller_id": current_user.id,
-        "receiver_id": receiver_id,
-        "status": "pending"
-    })
-    
-    if existing_call:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Already have a pending call with this user"
-        )
-    
-    # Create call record
-    call_data = CallInDB(
-        caller_id=current_user.id,
-        receiver_id=receiver_id
-    )
-    
-    result = db.calls.insert_one(call_data.dict(by_alias=True))
-    call_data.id = result.inserted_id
-    
-    return CallResponse(
-        id=str(call_data.id),
-        caller_id=str(call_data.caller_id),
-        receiver_id=str(call_data.receiver_id),
-        status=call_data.status,
-        jitsi_room_id=call_data.jitsi_room_id,
-        start_time=call_data.start_time,
-        end_time=call_data.end_time,
-        duration_seconds=call_data.duration_seconds,
-        created_at=call_data.created_at
-    )
 
 @router.post("/accept", response_model=CallResponse)
 async def accept_call(
@@ -109,31 +165,22 @@ async def accept_call(
             detail="Not authorized to accept this call"
         )
     
-    # Check call status
-    if call.status != "pending":
+    # Since calls are now created with 'active' status, just return the call details
+    # No need to update status - both users can join immediately
+    if call.status not in ["active", "pending"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Call is already {call.status}"
         )
     
-    # Generate Jitsi room ID
-    jitsi_room_id = f"english-comm-{uuid.uuid4().hex}"
-    
-    # Update call
-    update_data = {
-        "status": "accepted",
-        "jitsi_room_id": jitsi_room_id,
-        "start_time": datetime.utcnow()
-    }
-    
-    db.calls.update_one(
-        {"_id": call_id},
-        {"$set": update_data}
-    )
-    
-    call.jitsi_room_id = jitsi_room_id
-    call.status = "accepted"
-    call.start_time = datetime.utcnow()
+    # If call is still pending, update to active
+    if call.status == "pending":
+        db.calls.update_one(
+            {"_id": call_id},
+            {"$set": {"status": "active", "start_time": datetime.utcnow()}}
+        )
+        call.status = "active"
+        call.start_time = datetime.utcnow()
     
     return CallResponse(
         id=str(call.id),
@@ -199,17 +246,24 @@ async def end_call(
         {"$set": update_data}
     )
     
-    # Update user statistics
-    for user_id in [call.caller_id, call.receiver_id]:
-        db.users.update_one(
-            {"_id": user_id},
-            {
-                "$inc": {
-                    "total_calls": 1,
-                    "total_call_duration": duration
+    # Update user statistics ONLY if BOTH users actually connected
+    call_data = db.calls.find_one({"_id": call_id})
+    both_connected = call_data.get("both_users_connected", False)
+    
+    if both_connected and duration >= 10:
+        # Only count as valid call if both users connected AND spoke for 10+ seconds
+        for user_id in [call.caller_id, call.receiver_id]:
+            db.users.update_one(
+                {"_id": user_id},
+                {
+                    "$inc": {
+                        "total_calls": 1,
+                        "total_call_duration": duration
+                    }
                 }
-            }
-        )
+            )
+    else:
+        print(f"⚠️ Call not counted - both_connected: {both_connected}, duration: {duration}")
     
     # Trigger AI processing in background
     if end_data.audio_file:
@@ -294,3 +348,268 @@ async def upload_audio(
     )
     
     return {"filename": filename, "url": f"/static/audio/{filename}"}
+
+@router.post("/mark-joined")
+async def mark_user_joined(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Mark that a user has actually joined the Jitsi call"""
+    db = Database.get_db()
+    
+    try:
+        call_id_obj = ObjectId(call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    call_data = db.calls.find_one({"_id": call_id_obj})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Determine if caller or receiver
+    is_caller = str(call_data["caller_id"]) == str(current_user.id)
+    is_receiver = str(call_data["receiver_id"]) == str(current_user.id)
+    
+    if not is_caller and not is_receiver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not part of this call"
+        )
+    
+    # Update joined status
+    update_fields = {}
+    if is_caller:
+        update_fields["caller_joined"] = True
+    else:
+        update_fields["receiver_joined"] = True
+    
+    # Check if both have now joined
+    caller_joined = call_data.get("caller_joined", False) or is_caller
+    receiver_joined = call_data.get("receiver_joined", False) or is_receiver
+    
+    if caller_joined and receiver_joined:
+        update_fields["both_users_connected"] = True
+        print(f"✅ Both users connected to call {call_id}")
+    
+    db.calls.update_one(
+        {"_id": call_id_obj},
+        {"$set": update_fields}
+    )
+    
+    return {
+        "message": "Joined status updated",
+        "both_connected": update_fields.get("both_users_connected", False)
+    }
+
+@router.post("/rate-partner")
+async def rate_partner(
+    rate_data: RatePartnerRequest,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Rate your conversation partner after a call"""
+    db = Database.get_db()
+    
+    try:
+        call_id = ObjectId(rate_data.call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    # Get call
+    call_data = db.calls.find_one({"_id": call_id})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Determine who is rating whom
+    is_caller = str(call_data["caller_id"]) == str(current_user.id)
+    is_receiver = str(call_data["receiver_id"]) == str(current_user.id)
+    
+    if not is_caller and not is_receiver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to rate this call"
+        )
+    
+    # Update the appropriate rating
+    if is_caller:
+        # Caller rates receiver
+        db.calls.update_one(
+            {"_id": call_id},
+            {
+                "$set": {
+                    "receiver_peer_rating": rate_data.rating,
+                    "receiver_peer_feedback": rate_data.feedback
+                }
+            }
+        )
+    else:
+        # Receiver rates caller
+        db.calls.update_one(
+            {"_id": call_id},
+            {
+                "$set": {
+                    "caller_peer_rating": rate_data.rating,
+                    "caller_peer_feedback": rate_data.feedback
+                }
+            }
+        )
+    
+    return {"message": "Rating submitted successfully"}
+
+@router.get("/{call_id}/results")
+async def get_call_results(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get call results including ratings and weaknesses"""
+    db = Database.get_db()
+    
+    try:
+        call_id_obj = ObjectId(call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    # Get call
+    call_data = db.calls.find_one({"_id": call_id_obj})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Check authorization
+    is_caller = str(call_data["caller_id"]) == str(current_user.id)
+    is_receiver = str(call_data["receiver_id"]) == str(current_user.id)
+    
+    if not is_caller and not is_receiver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to view this call"
+        )
+    
+    # Check if call actually had a meaningful conversation
+    if not call_data.get("duration_seconds") or call_data.get("duration_seconds", 0) < 10:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Call was too short for analysis. Minimum 10 seconds required."
+        )
+    
+    # Check if BOTH users actually connected
+    if not call_data.get("both_users_connected", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Call did not connect properly. Both users must join the call. Please try again."
+        )
+    
+    # Check if AI analysis has been completed
+    if not call_data.get("caller_ai_rating") or not call_data.get("receiver_ai_rating"):
+        raise HTTPException(
+            status_code=status.HTTP_202_ACCEPTED,
+            detail="Analysis not ready yet. Audio processing is in progress. Please check back in a few minutes."
+        )
+    
+    return CallResponse(
+        id=str(call_data["_id"]),
+        caller_id=str(call_data["caller_id"]),
+        receiver_id=str(call_data["receiver_id"]),
+        status=call_data["status"],
+        jitsi_room_id=call_data.get("jitsi_room_id"),
+        start_time=call_data.get("start_time"),
+        end_time=call_data.get("end_time"),
+        duration_seconds=call_data.get("duration_seconds"),
+        caller_audio_url=call_data.get("caller_audio_url"),
+        receiver_audio_url=call_data.get("receiver_audio_url"),
+        caller_ai_rating=call_data.get("caller_ai_rating"),
+        receiver_ai_rating=call_data.get("receiver_ai_rating"),
+        caller_peer_rating=call_data.get("caller_peer_rating"),
+        receiver_peer_rating=call_data.get("receiver_peer_rating"),
+        caller_ai_feedback=call_data.get("caller_ai_feedback"),
+        receiver_ai_feedback=call_data.get("receiver_ai_feedback"),
+        caller_weaknesses=call_data.get("caller_weaknesses", []),
+        receiver_weaknesses=call_data.get("receiver_weaknesses", []),
+        created_at=call_data["created_at"]
+    )
+
+@router.post("/{call_id}/generate-quiz")
+async def generate_quiz(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Generate a personalized quiz based on call weaknesses"""
+    db = Database.get_db()
+    
+    try:
+        call_id_obj = ObjectId(call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    # Get call
+    call_data = db.calls.find_one({"_id": call_id_obj})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Determine user's weaknesses
+    is_caller = str(call_data["caller_id"]) == str(current_user.id)
+    weaknesses = call_data.get("caller_weaknesses" if is_caller else "receiver_weaknesses", [])
+    
+    if not weaknesses:
+        weaknesses = ["General English grammar", "Vocabulary building", "Sentence structure"]
+    
+    # Generate quiz from quiz generator
+    from backend.app.ai_processing.quiz_generator import QuizGenerator
+    
+    quiz_generator = QuizGenerator()
+    try:
+        quiz_data = await quiz_generator.generate_quiz_from_topics(
+            topics=weaknesses,
+            num_questions=10
+        )
+        
+        # Store quiz in database
+        quiz_doc = {
+            "user_id": current_user.id,
+            "call_id": call_id_obj,
+            "weaknesses": weaknesses,
+            "questions": quiz_data["questions"],
+            "completed": False,
+            "score": None,
+            "created_at": datetime.utcnow()
+        }
+        
+        result = db.quizzes.insert_one(quiz_doc)
+        quiz_doc["_id"] = result.inserted_id
+        
+        return {
+            "id": str(result.inserted_id),
+            "weaknesses": weaknesses,
+            "questions": quiz_data["questions"],
+            "completed": False,
+            "score": None,
+            "created_at": quiz_doc["created_at"]
+        }
+    except Exception as e:
+        print(f"Error generating quiz: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate quiz: {str(e)}"
+        )

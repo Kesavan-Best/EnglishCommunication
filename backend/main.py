@@ -45,20 +45,24 @@ app.add_middleware(
 )
 
 # Mount static files for audio storage
-os.makedirs("static/audio", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+static_path = os.path.join(os.path.dirname(__file__), "..", "static")
+os.makedirs(os.path.join(static_path, "audio"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Mount frontend files
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
+frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 if os.path.exists(frontend_path):
+    print(f"Mounting frontend from: {frontend_path}")
     app.mount("/frontend", StaticFiles(directory=frontend_path, html=True), name="frontend")
+else:
+    print(f"WARNING: Frontend path not found: {frontend_path}")
 
 # Include routers
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
-app.include_router(websocket.router, prefix="/ws", tags=["websocket"])
+app.include_router(websocket.router, tags=["websocket"])
 
 @app.get("/")
 async def root():
