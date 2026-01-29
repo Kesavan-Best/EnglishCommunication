@@ -128,6 +128,11 @@ class CallInDB(CallBase):
     caller_transcript_id: Optional[PyObjectId] = None
     receiver_transcript_id: Optional[PyObjectId] = None
     
+    # Real-time conversation data
+    caller_transcript: Optional[str] = None  # Full text of what caller said
+    receiver_transcript: Optional[str] = None  # Full text of what receiver said
+    conversation: List[dict] = []  # [{speaker: "caller/receiver", text: "...", timestamp: "..."}]
+    
     # Analysis IDs
     analysis_id: Optional[PyObjectId] = None
     caller_analysis_id: Optional[PyObjectId] = None
@@ -146,10 +151,17 @@ class CallInDB(CallBase):
     receiver_peer_feedback: Optional[str] = None
     
     # Weaknesses and quiz status
-    caller_weaknesses: List[str] = []
-    receiver_weaknesses: List[str] = []
+    caller_weaknesses: List[Any] = []  # Changed from List[str] to List[Any] to accept dicts
+    receiver_weaknesses: List[Any] = []  # Changed from List[str] to List[Any] to accept dicts
     caller_quiz_generated: bool = False
     receiver_quiz_generated: bool = False
+    
+    # Additional fields for instant AI feedback
+    caller_strengths: Optional[List[str]] = None
+    receiver_strengths: Optional[List[str]] = None
+    caller_recommended_topics: Optional[List[Any]] = None
+    receiver_recommended_topics: Optional[List[Any]] = None
+    analysis_completed_at: Optional[datetime] = None
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
     

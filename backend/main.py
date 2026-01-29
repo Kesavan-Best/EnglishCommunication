@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 from contextlib import asynccontextmanager
 import uvicorn
 import os
@@ -13,7 +14,7 @@ parent_dir = current_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from backend.app.api import users, calls, analysis, leaderboard, websocket
+from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth
 from backend.app.database import init_db
 from backend.app.core.config import settings
 
@@ -62,15 +63,44 @@ app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
-app.include_router(websocket.router, tags=["websocket"])
+app.include_router(websocket.router, prefix="/api", tags=["websocket"])  # FIXED: Added prefix
+app.include_router(oauth.router, tags=["oauth"])  # OAuth routes
 
 @app.get("/")
 async def root():
-    return {"message": "English Communication Platform API", "frontend": "Access frontend at /frontend/index.html"}
+    """Redirect to frontend"""
+    return RedirectResponse(url="/frontend/index.html")
 
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Add WebSocket endpoint directly
+@app.websocket("/api/ws/{user_id}")
+async def websocket_route(websocket: WebSocket, user_id: str):
+    """Direct WebSocket endpoint for compatibility"""
+    from backend.app.api.websocket import manager
+    await manager.connect(websocket, user_id)
+    
+    try:
+        while True:
+            data = await websocket.receive_json()
+            message_type = data.get("type")
+            
+            if message_type == "ping":
+                await manager.send_personal_message({
+                    "type": "pong",
+                    "timestamp": "now"
+                }, user_id)
+            elif message_type == "webrtc-signal":
+                signal_data = data.get("signal", {})
+                await manager.handle_webrtc_signal(user_id, signal_data)
+                
+    except WebSocketDisconnect:
+        manager.disconnect(user_id)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        manager.disconnect(user_id)
 
 if __name__ == "__main__":
     uvicorn.run(

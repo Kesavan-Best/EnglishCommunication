@@ -8,23 +8,42 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        /* Light Theme Variables */
+        :root {
+            --light-bg: #f8f9fa;
+            --light-card: #ffffff;
+            --light-border: #dee2e6;
+            --light-text: #1a202c;
+            --light-text-secondary: #4a5568;
+            --light-hover: #f0f2ff;
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --primary-light: rgba(102, 126, 234, 0.1);
+        }
+
+        body {
+            background-color: var(--light-bg);
+            color: var(--light-text);
+        }
+
         /* Profile Page Specific Styles */
         .profile-container {
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
+            background-color: var(--light-bg);
         }
         
         /* Navigation for Profile Page */
         .profile-nav {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 20px;
             margin-bottom: 30px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            border: 1px solid var(--light-border);
         }
         
         .nav-tabs {
@@ -35,31 +54,35 @@
         .nav-tab {
             padding: 10px 20px;
             text-decoration: none;
-            color: #666;
+            color: var(--light-text-secondary);
             font-weight: 600;
             border-radius: 10px;
             transition: all 0.3s;
+            background: transparent;
+            border: none;
+            cursor: pointer;
         }
         
         .nav-tab.active {
-            background: #667eea;
+            background: var(--primary-gradient);
             color: white;
         }
         
         .nav-tab:hover:not(.active) {
-            background: #f0f2ff;
+            background: var(--primary-light);
             color: #667eea;
         }
         
         /* Profile Header */
         .profile-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--primary-gradient);
             border-radius: 20px;
             padding: 40px;
             color: white;
             margin-bottom: 30px;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
         }
         
         .profile-header::before {
@@ -90,7 +113,7 @@
             border-radius: 50%;
             border: 4px solid white;
             object-fit: cover;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--primary-gradient);
         }
         
         .online-status {
@@ -102,17 +125,20 @@
             background: #38ef7d;
             border: 3px solid white;
             border-radius: 50%;
+            box-shadow: 0 0 10px rgba(56, 239, 125, 0.5);
         }
         
         .profile-details h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
+            color: white;
         }
         
         .profile-details .email {
             font-size: 1.1em;
             opacity: 0.9;
             margin-bottom: 15px;
+            color: rgba(255,255,255,0.9);
         }
         
         .member-since {
@@ -121,6 +147,7 @@
             gap: 10px;
             font-size: 0.9em;
             opacity: 0.8;
+            color: rgba(255,255,255,0.8);
         }
         
         /* Stats Grid */
@@ -132,16 +159,18 @@
         }
         
         .stat-card {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             text-align: center;
-            transition: transform 0.3s;
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: 1px solid var(--light-border);
         }
         
         .stat-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.15);
         }
         
         .stat-icon {
@@ -153,12 +182,11 @@
         .stat-value {
             font-size: 2.2em;
             font-weight: 700;
-            color: #333;
             margin-bottom: 10px;
         }
         
         .stat-label {
-            color: #666;
+            color: var(--light-text-secondary);
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -171,16 +199,17 @@
         
         /* Progress Bars */
         .progress-container {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             margin-bottom: 40px;
+            border: 1px solid var(--light-border);
         }
         
         .progress-title {
             font-size: 1.3em;
-            color: #333;
+            color: var(--light-text);
             margin-bottom: 25px;
             display: flex;
             justify-content: space-between;
@@ -199,7 +228,7 @@
         
         .progress-label {
             font-weight: 600;
-            color: #333;
+            color: var(--light-text);
         }
         
         .progress-percent {
@@ -209,26 +238,73 @@
         
         .progress-bar {
             height: 10px;
-            background: #eef2ff;
+            background: #e9ecef;
             border-radius: 5px;
             overflow: hidden;
         }
         
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: var(--primary-gradient);
             border-radius: 5px;
             width: 0%;
             transition: width 1s ease-in-out;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+        
+        /* Buttons */
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f0f2ff;
+            color: #667eea;
+            border: 1px solid #d0d7ff;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e7ff;
+        }
+        
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.9em;
         }
         
         /* Weaknesses Section */
         .weaknesses-container {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             margin-bottom: 40px;
+            border: 1px solid var(--light-border);
+        }
+        
+        .weaknesses-container h2 {
+            color: var(--light-text);
+            margin-bottom: 10px;
+        }
+        
+        .weaknesses-container p {
+            color: var(--light-text-secondary);
+            margin-bottom: 20px;
         }
         
         .weaknesses-list {
@@ -239,7 +315,7 @@
         }
         
         .weakness-tag {
-            background: #ffeaea;
+            background: rgba(231, 76, 60, 0.2);
             color: #e74c3c;
             padding: 8px 16px;
             border-radius: 20px;
@@ -248,20 +324,33 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
+            border: 1px solid rgba(231, 76, 60, 0.3);
         }
         
         .weakness-tag.improving {
-            background: #e8f6f3;
+            background: rgba(26, 188, 156, 0.2);
             color: #1abc9c;
+            border: 1px solid rgba(26, 188, 156, 0.3);
         }
         
         /* Performance Chart */
         .performance-container {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             margin-bottom: 40px;
+            border: 1px solid var(--light-border);
+        }
+        
+        .performance-container h2 {
+            color: var(--light-text);
+            margin-bottom: 10px;
+        }
+        
+        .performance-container p {
+            color: var(--light-text-secondary);
+            margin-bottom: 20px;
         }
         
         .chart-container {
@@ -275,17 +364,18 @@
         
         .chart-bar {
             flex: 1;
-            background: linear-gradient(to top, #667eea, #764ba2);
+            background: var(--primary-gradient);
             border-radius: 8px 8px 0 0;
             position: relative;
             min-height: 20px;
             transition: height 1s ease-in-out;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);
         }
         
         .chart-label {
             text-align: center;
             font-size: 0.85em;
-            color: #666;
+            color: var(--light-text-secondary);
             margin-top: 10px;
         }
         
@@ -301,10 +391,21 @@
         
         /* Recent Activity */
         .activity-container {
-            background: white;
+            background: var(--light-card);
             border-radius: 15px;
             padding: 25px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 1px solid var(--light-border);
+        }
+        
+        .activity-container h2 {
+            color: var(--light-text);
+            margin-bottom: 10px;
+        }
+        
+        .activity-container p {
+            color: var(--light-text-secondary);
+            margin-bottom: 20px;
         }
         
         .activity-list {
@@ -315,8 +416,14 @@
             display: flex;
             align-items: center;
             padding: 15px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--light-border);
             gap: 15px;
+            transition: background-color 0.3s;
+        }
+        
+        .activity-item:hover {
+            background-color: var(--light-hover);
+            border-radius: 10px;
         }
         
         .activity-item:last-child {
@@ -327,7 +434,7 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: #f0f2ff;
+            background: var(--primary-light);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -341,13 +448,13 @@
         
         .activity-title {
             font-weight: 600;
-            color: #333;
+            color: var(--light-text);
             margin-bottom: 5px;
         }
         
         .activity-time {
             font-size: 0.85em;
-            color: #999;
+            color: var(--light-text-secondary);
         }
         
         .activity-score {
@@ -360,19 +467,85 @@
         .empty-state {
             text-align: center;
             padding: 50px 20px;
-            color: #999;
+            color: var(--light-text-secondary);
         }
         
         .empty-state i {
             font-size: 3em;
             margin-bottom: 20px;
             opacity: 0.5;
+            color: var(--light-text-secondary);
+        }
+        
+        .empty-state h3 {
+            color: var(--light-text);
+            margin-bottom: 10px;
         }
         
         /* Loading Spinner */
         .loading-spinner {
             text-align: center;
             padding: 50px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 5px solid var(--light-border);
+            border-top: 5px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Navigation Bar */
+        .navbar {
+            background: var(--light-card);
+            padding: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-bottom: 1px solid var(--light-border);
+            margin-bottom: 30px;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-brand h2 {
+            color: var(--light-text);
+            margin: 0;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .logout-btn {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+        
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.3);
+            transform: translateY(-2px);
         }
         
         /* Responsive */
@@ -385,6 +558,11 @@
             .nav-tabs {
                 flex-wrap: wrap;
                 justify-content: center;
+            }
+            
+            .nav-container {
+                flex-direction: column;
+                gap: 15px;
             }
             
             .stats-grid {
@@ -408,6 +586,32 @@
                 top: 50%;
                 transform: translateY(-50%);
             }
+            
+            .profile-header {
+                padding: 30px 20px;
+            }
+            
+            .profile-details h1 {
+                font-size: 2em;
+            }
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: var(--light-border);
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e0;
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #667eea;
         }
     </style>
 </head>
@@ -536,10 +740,10 @@
 
         <!-- Weaknesses Section -->
         <div class="weaknesses-container">
-            <h2 style="color: #333; margin-bottom: 10px;">
+            <h2 style="color: var(--dark-text); margin-bottom: 10px;">
                 <i class="fas fa-exclamation-triangle"></i> Areas to Improve
             </h2>
-            <p style="color: #666; margin-bottom: 20px;">Focus on these areas to boost your English skills</p>
+            <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Focus on these areas to boost your English skills</p>
             
             <div class="weaknesses-list" id="weaknesses-list">
                 <!-- Weaknesses will be loaded here -->
@@ -556,10 +760,10 @@
 
         <!-- Performance Chart -->
         <div class="performance-container">
-            <h2 style="color: #333; margin-bottom: 10px;">
+            <h2 style="color: var(--dark-text); margin-bottom: 10px;">
                 <i class="fas fa-chart-line"></i> Performance Trend
             </h2>
-            <p style="color: #666; margin-bottom: 20px;">Your improvement over the last 6 months</p>
+            <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Your improvement over the last 6 months</p>
             
             <div class="chart-container" id="performance-chart">
                 <!-- Chart will be loaded here -->
@@ -576,10 +780,10 @@
 
         <!-- Recent Activity -->
         <div class="activity-container">
-            <h2 style="color: #333; margin-bottom: 10px;">
+            <h2 style="color: var(--dark-text); margin-bottom: 10px;">
                 <i class="fas fa-history"></i> Recent Activity
             </h2>
-            <p style="color: #666; margin-bottom: 20px;">Your recent calls and practice sessions</p>
+            <p style="color: var(--dark-text-secondary); margin-bottom: 20px;">Your recent calls and practice sessions</p>
             
             <div class="activity-list" id="recent-calls">
                 <!-- Recent calls will be loaded here -->
@@ -611,10 +815,136 @@
         document.addEventListener('DOMContentLoaded', function() {
             checkAuth();
             initProfilePage();
+            
+            // Add theme class to body
+            document.body.classList.add('dark-theme');
         });
         
         function toggleEditMode() {
             alert('Edit goals feature coming soon!');
+        }
+        
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to logout?')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                window.location.href = '../index.html';
+            }
+        }
+        
+        // Check authentication
+        function checkAuth() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '../index.html';
+            }
+        }
+        
+        // Initialize profile page (mock data for demonstration)
+        function initProfilePage() {
+            // Simulate loading
+            setTimeout(() => {
+                // Set profile data
+                document.getElementById('profile-name').textContent = 'Kesavan Karnan';
+                document.getElementById('member-since').textContent = 'Member since January 2024';
+                
+                // Set stats
+                document.getElementById('ai-score').textContent = '8.7';
+                document.getElementById('global-rank').textContent = '#42';
+                document.getElementById('total-calls').textContent = '128';
+                document.getElementById('practice-time').textContent = '42h 15m';
+                document.getElementById('avg-fluency').textContent = '87.5%';
+                document.getElementById('accuracy').textContent = '92.3%';
+                
+                // Set progress bars
+                const progressData = {
+                    grammar: 85,
+                    fluency: 75,
+                    vocab: 90,
+                    pronunciation: 65
+                };
+                
+                Object.keys(progressData).forEach(key => {
+                    const percent = progressData[key];
+                    document.getElementById(`${key}-percent`).textContent = `${percent}%`;
+                    document.getElementById(`${key}-progress`).style.width = `${percent}%`;
+                });
+                
+                // Add weaknesses
+                const weaknesses = [
+                    { text: 'Complex Sentence Structures', improving: false },
+                    { text: 'Idiomatic Expressions', improving: true },
+                    { text: 'Business Vocabulary', improving: false },
+                    { text: 'Accent Neutralization', improving: true }
+                ];
+                
+                const weaknessesList = document.getElementById('weaknesses-list');
+                weaknesses.forEach(weakness => {
+                    const tag = document.createElement('div');
+                    tag.className = `weakness-tag ${weakness.improving ? 'improving' : ''}`;
+                    tag.innerHTML = `<i class="fas ${weakness.improving ? 'fa-arrow-up' : 'fa-exclamation-circle'}"></i> ${weakness.text}`;
+                    weaknessesList.appendChild(tag);
+                });
+                
+                // Create performance chart
+                const performanceData = [
+                    { month: 'Jan', score: 65 },
+                    { month: 'Feb', score: 70 },
+                    { month: 'Mar', score: 75 },
+                    { month: 'Apr', score: 80 },
+                    { month: 'May', score: 85 },
+                    { month: 'Jun', score: 87 }
+                ];
+                
+                const chartContainer = document.getElementById('performance-chart');
+                performanceData.forEach(data => {
+                    const bar = document.createElement('div');
+                    bar.className = 'chart-bar';
+                    bar.style.height = `${(data.score / 100) * 180}px`;
+                    
+                    const value = document.createElement('div');
+                    value.className = 'chart-value';
+                    value.textContent = data.score;
+                    
+                    const label = document.createElement('div');
+                    label.className = 'chart-label';
+                    label.textContent = data.month;
+                    
+                    bar.appendChild(value);
+                    chartContainer.appendChild(bar);
+                    chartContainer.appendChild(label);
+                });
+                
+                // Add recent activity
+                const activities = [
+                    { title: 'Conversation with Alex Johnson', time: '2 hours ago', score: '8.5' },
+                    { title: 'Business English Practice', time: 'Yesterday', score: '9.0' },
+                    { title: 'Group Discussion: Technology', time: '2 days ago', score: '8.2' },
+                    { title: 'Pronunciation Practice', time: '3 days ago', score: '7.8' }
+                ];
+                
+                const activityList = document.getElementById('recent-calls');
+                activities.forEach(activity => {
+                    const item = document.createElement('div');
+                    item.className = 'activity-item';
+                    item.innerHTML = `
+                        <div class="activity-icon">
+                            <i class="fas fa-phone-alt"></i>
+                        </div>
+                        <div class="activity-details">
+                            <div class="activity-title">${activity.title}</div>
+                            <div class="activity-time">${activity.time}</div>
+                        </div>
+                        <div class="activity-score">${activity.score}</div>
+                    `;
+                    activityList.appendChild(item);
+                });
+                
+                // Show online status
+                document.getElementById('online-status').style.display = 'block';
+                
+            }, 1000);
         }
     </script>
 </body>

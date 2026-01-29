@@ -102,10 +102,15 @@ async def invite_to_call(
         # Send WebSocket notification to receiver
         try:
             from backend.app.api.websocket import manager
+            
+            # Get caller name for notification
+            caller_name = current_user.name if hasattr(current_user, 'name') else current_user.username
+            
             await manager.send_call_invite(
                 from_user_id=str(caller_id),
                 to_user_id=str(receiver_id),
-                call_id=str(call_id)
+                call_id=str(call_id),
+                caller_name=caller_name
             )
             print(f"📞 Sent call invite notification to user {receiver_id}")
         except Exception as ws_error:
@@ -262,14 +267,70 @@ async def end_call(
                     }
                 }
             )
+        
+        # Generate INSTANT AI feedback for both users using stored conversation
+        from backend.app.ai_processing.instant_analyzer import instant_analyzer
+        
+        # Get the stored transcripts and conversation
+        caller_transcript = call_data.get("caller_transcript", "")
+        receiver_transcript = call_data.get("receiver_transcript", "")
+        conversation = call_data.get("conversation", [])
+        
+        # Generate feedback for caller based on their transcript
+        caller_feedback = instant_analyzer.generate_instant_feedback(
+            duration_seconds=duration,
+            user_id=str(call.caller_id),
+            transcript=caller_transcript if caller_transcript else None,
+            conversation=conversation if conversation else None
+        )
+        
+        # Generate feedback for receiver based on their transcript
+        receiver_feedback = instant_analyzer.generate_instant_feedback(
+            duration_seconds=duration,
+            user_id=str(call.receiver_id),
+            transcript=receiver_transcript if receiver_transcript else None,
+            conversation=conversation if conversation else None
+        )
+        
+        # Save AI feedback to database
+        db.calls.update_one(
+            {"_id": call_id},
+            {
+                "$set": {
+                    "caller_ai_rating": caller_feedback["ai_rating"],
+                    "caller_ai_feedback": caller_feedback["overall_message"],
+                    "caller_strengths": caller_feedback["strengths"],
+                    "caller_weaknesses": [
+                        {
+                            "category": w["category"],
+                            "title": w["title"],
+                            "description": w["description"],
+                            "tip": w["tip"]
+                        }
+                        for w in caller_feedback["weaknesses"]
+                    ],
+                    "caller_recommended_topics": caller_feedback["recommended_topics"],
+                    "receiver_ai_rating": receiver_feedback["ai_rating"],
+                    "receiver_ai_feedback": receiver_feedback["overall_message"],
+                    "receiver_strengths": receiver_feedback["strengths"],
+                    "receiver_weaknesses": [
+                        {
+                            "category": w["category"],
+                            "title": w["title"],
+                            "description": w["description"],
+                            "tip": w["tip"]
+                        }
+                        for w in receiver_feedback["weaknesses"]
+                    ],
+                    "receiver_recommended_topics": receiver_feedback["recommended_topics"],
+                    "analysis_completed_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        print(f"✅ Instant AI feedback generated for call {call_id}")
     else:
         print(f"⚠️ Call not counted - both_connected: {both_connected}, duration: {duration}")
-    
-    # Trigger AI processing in background
-    if end_data.audio_file:
-        # This would trigger Whisper processing
-        # For now, we'll create a placeholder
-        pass
     
     call.status = "completed"
     call.end_time = end_time
@@ -515,34 +576,76 @@ async def get_call_results(
             detail="Call did not connect properly. Both users must join the call. Please try again."
         )
     
-    # Check if AI analysis has been completed
+    # Check if AI analysis has been completed (should be instant now)
     if not call_data.get("caller_ai_rating") or not call_data.get("receiver_ai_rating"):
         raise HTTPException(
             status_code=status.HTTP_202_ACCEPTED,
-            detail="Analysis not ready yet. Audio processing is in progress. Please check back in a few minutes."
+            detail="Analysis is being generated. Please wait a moment."
         )
     
-    return CallResponse(
-        id=str(call_data["_id"]),
-        caller_id=str(call_data["caller_id"]),
-        receiver_id=str(call_data["receiver_id"]),
-        status=call_data["status"],
-        jitsi_room_id=call_data.get("jitsi_room_id"),
-        start_time=call_data.get("start_time"),
-        end_time=call_data.get("end_time"),
-        duration_seconds=call_data.get("duration_seconds"),
-        caller_audio_url=call_data.get("caller_audio_url"),
-        receiver_audio_url=call_data.get("receiver_audio_url"),
-        caller_ai_rating=call_data.get("caller_ai_rating"),
-        receiver_ai_rating=call_data.get("receiver_ai_rating"),
-        caller_peer_rating=call_data.get("caller_peer_rating"),
-        receiver_peer_rating=call_data.get("receiver_peer_rating"),
-        caller_ai_feedback=call_data.get("caller_ai_feedback"),
-        receiver_ai_feedback=call_data.get("receiver_ai_feedback"),
-        caller_weaknesses=call_data.get("caller_weaknesses", []),
-        receiver_weaknesses=call_data.get("receiver_weaknesses", []),
-        created_at=call_data["created_at"]
-    )
+    # Determine which feedback to show based on current user
+    my_feedback = {}
+    partner_feedback = {}
+    
+    if is_caller:
+        my_feedback = {
+            "ai_rating": call_data.get("caller_ai_rating"),
+            "ai_feedback": call_data.get("caller_ai_feedback"),
+            "strengths": call_data.get("caller_strengths", []),
+            "weaknesses": call_data.get("caller_weaknesses", []),
+            "recommended_topics": call_data.get("caller_recommended_topics", []),
+            "peer_rating": call_data.get("receiver_peer_rating")
+        }
+        partner_feedback = {
+            "peer_rating": call_data.get("caller_peer_rating")
+        }
+    else:
+        my_feedback = {
+            "ai_rating": call_data.get("receiver_ai_rating"),
+            "ai_feedback": call_data.get("receiver_ai_feedback"),
+            "strengths": call_data.get("receiver_strengths", []),
+            "weaknesses": call_data.get("receiver_weaknesses", []),
+            "recommended_topics": call_data.get("receiver_recommended_topics", []),
+            "peer_rating": call_data.get("caller_peer_rating")
+        }
+        partner_feedback = {
+            "peer_rating": call_data.get("receiver_peer_rating")
+        }
+    
+    return {
+        "call_id": str(call_data["_id"]),
+        "duration_seconds": call_data.get("duration_seconds"),
+        "start_time": call_data.get("start_time"),
+        "end_time": call_data.get("end_time"),
+        "my_feedback": my_feedback,
+        "partner_feedback": partner_feedback,
+        "call_status": call_data["status"]
+    }
+
+@router.get("/topics/all")
+async def get_all_topics(
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get all available learning topics"""
+    from backend.app.ai_processing.instant_analyzer import instant_analyzer
+    return {"topics": instant_analyzer.get_all_topics()}
+
+@router.get("/topics/{topic_key}")
+async def get_topic_details(
+    topic_key: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get detailed content for a specific topic including reading and quiz"""
+    from backend.app.ai_processing.instant_analyzer import instant_analyzer
+    
+    topic_data = instant_analyzer.get_topic_details(topic_key)
+    if not topic_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Topic not found"
+        )
+    
+    return topic_data
 
 @router.post("/{call_id}/generate-quiz")
 async def generate_quiz(
@@ -613,3 +716,107 @@ async def generate_quiz(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate quiz: {str(e)}"
         )
+
+from backend.app.api.websocket import manager as ws_manager
+
+@router.post("/save-transcription")
+async def save_transcription(
+    call_id: str,
+    text: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Save real-time transcription from a user during a call"""
+    db = Database.get_db()
+    
+    try:
+        call_id_obj = ObjectId(call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    call_data = db.calls.find_one({"_id": call_id_obj})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Determine if caller or receiver
+    is_caller = str(call_data["caller_id"]) == str(current_user.id)
+    is_receiver = str(call_data["receiver_id"]) == str(current_user.id)
+    
+    if not is_caller and not is_receiver:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not part of this call"
+        )
+    
+    # Determine role
+    speaker_role = "caller" if is_caller else "receiver"
+    transcript_field = "caller_transcript" if is_caller else "receiver_transcript"
+    
+    # Append to existing transcript or create new
+    existing_transcript = call_data.get(transcript_field, "")
+    updated_transcript = existing_transcript + " " + text if existing_transcript else text
+    
+    # Add to conversation array
+    conversation = call_data.get("conversation", [])
+    conversation.append({
+        "speaker": speaker_role,
+        "text": text,
+        "timestamp": datetime.utcnow().isoformat()
+    })
+    
+    # Update in database
+    db.calls.update_one(
+        {"_id": call_id_obj},
+        {
+            "$set": {
+                transcript_field: updated_transcript.strip(),
+                "conversation": conversation
+            }
+        }
+    )
+    
+    # Broadcast transcription to all participants via WebSocket
+    try:
+        await ws_manager.broadcast_transcription(
+            call_id=call_id,
+            speaker_id=str(current_user.id),
+            speaker_role=speaker_role,
+            text=text
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to broadcast transcription: {e}")
+    
+    return {
+        "success": True,
+        "message": "Transcription saved",
+        "transcript_length": len(updated_transcript)
+    }
+
+# In your invite_to_call function, add after creating the call:
+async def send_call_notification(call_id: str, receiver_id: str, caller_id: str, jitsi_room_id: str):
+    """Send WebSocket call notification"""
+    try:
+        call_data = {
+            "call_id": call_id,
+            "caller_id": caller_id,
+            "jitsi_room_id": jitsi_room_id,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        await ws_manager.send_call_invitation(
+            from_user=str(caller_id),
+            to_user=str(receiver_id),
+            call_id=call_id,
+            call_data=call_data
+        )
+        
+        print(f"📞 Call notification sent to {receiver_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to send notification: {e}")
+        return False

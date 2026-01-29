@@ -349,6 +349,9 @@ async def get_all_users(
     """Get all registered users excluding test accounts and current user"""
     db = Database.get_db()
     
+    # Get WebSocket manager to check real online status
+    from backend.app.api.websocket import manager
+    
     # Filter out test email addresses and current user
     test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
     
@@ -359,13 +362,18 @@ async def get_all_users(
     
     result = []
     for user in users:
-        rank = await calculate_user_rank(str(user["_id"]))
+        user_id_str = str(user["_id"])
+        
+        # Check ACTUAL online status from WebSocket connections
+        is_actually_online = user_id_str in manager.active_connections
+        
+        rank = await calculate_user_rank(user_id_str)
         result.append(UserResponse(
-            id=str(user["_id"]),
+            id=user_id_str,
             email=user["email"],
             name=user["name"],
             avatar_url=user.get("avatar_url"),
-            is_online=user.get("is_online", False),
+            is_online=is_actually_online,  # Use WebSocket status, not DB status
             ai_score=user.get("ai_score", 0.0),
             total_calls=user.get("total_calls", 0),
             total_call_duration=user.get("total_call_duration", 0),

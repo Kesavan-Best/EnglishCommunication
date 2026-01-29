@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Results - AI Feedback</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+
+        .duration {
+            color: #666;
+            font-size: 18px;
+        }
+
+        .score-card {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+
+        .ai-rating {
+            font-size: 72px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 20px 0;
+        }
+
+        .rating-label {
+            font-size: 24px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+
+        .feedback-message {
+            background: #f0f7ff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .strengths-list, .weaknesses-list {
+            list-style: none;
+        }
+
+        .strength-item {
+            background: #e8f5e9;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4caf50;
+        }
+
+        .weakness-item {
+            background: #fff3e0;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #ff9800;
+        }
+
+        .weakness-title {
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .weakness-desc {
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .weakness-tip {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        .tip-label {
+            font-weight: 600;
+            color: #ff9800;
+            margin-right: 5px;
+        }
+
+        .topics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .topic-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 25px;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .topic-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .topic-name {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .topic-desc {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .topic-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .btn-primary:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .action-buttons {
+            text-align: center;
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 100px 20px;
+            color: white;
+            font-size: 24px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 15px;
+            padding: 30px;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 30px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .reading-content {
+            line-height: 1.8;
+            color: #333;
+        }
+
+        .reading-content h2 {
+            color: #667eea;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+
+        .reading-content h3 {
+            color: #764ba2;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .reading-content ul {
+            margin: 15px 0;
+            padding-left: 30px;
+        }
+
+        .reading-content li {
+            margin: 8px 0;
+        }
+
+        .quiz-container {
+            margin-top: 30px;
+        }
+
+        .quiz-question {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .question-text {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .quiz-options {
+            list-style: none;
+        }
+
+        .quiz-option {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .quiz-option:hover {
+            border-color: #667eea;
+        }
+
+        .quiz-option.selected {
+            background: #e3f2fd;
+            border-color: #667eea;
+        }
+
+        .quiz-option.correct {
+            background: #e8f5e9;
+            border-color: #4caf50;
+        }
+
+        .quiz-option.incorrect {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+
+        .explanation {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            display: none;
+        }
+
+        .explanation.show {
+            display: block;
+        }
+
+        .quiz-score {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Loading your results...</p>
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- Header -->
+            <div class="header">
+                <h1>📊 Your Call Results</h1>
+                <div class="duration" id="duration"></div>
+            </div>
+
+            <!-- AI Rating Score -->
+            <div class="score-card">
+                <div class="rating-label">AI Performance Rating</div>
+                <div class="ai-rating" id="aiRating">-</div>
+                <div style="color: #999;">Out of 10</div>
+                <div class="feedback-message" id="feedbackMessage"></div>
+            </div>
+
+            <!-- Strengths -->
+            <div class="section" id="strengthsSection">
+                <h2>💪 Your Strengths</h2>
+                <ul class="strengths-list" id="strengthsList"></ul>
+            </div>
+
+            <!-- Weaknesses -->
+            <div class="section" id="weaknessesSection">
+                <h2>🎯 Areas for Improvement</h2>
+                <ul class="weaknesses-list" id="weaknessesList"></ul>
+            </div>
+
+            <!-- Recommended Topics -->
+            <div class="section" id="topicsSection">
+                <h2>📚 Recommended Learning Topics</h2>
+                <p>Based on your performance, we recommend these topics to help you improve:</p>
+                <div class="topics-grid" id="topicsGrid"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="action-buttons">
+                <button class="btn btn-primary" onclick="window.location.href='dashboard.html'">
+                    🏠 Back to Dashboard
+                </button>
+                <button class="btn btn-primary" onclick="window.location.href='users.html'">
+                    📞 Make Another Call
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Topic Modal -->
+    <div id="topicModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <h1 id="modalTitle"></h1>
+            <div id="modalReading" class="reading-content"></div>
+            
+            <div class="quiz-container" id="quizContainer">
+                <h2>📝 Test Your Knowledge</h2>
+                <div id="quizQuestions"></div>
+                <div class="quiz-score" id="quizScore" style="display: none;"></div>
+                <button class="btn btn-primary" id="submitQuiz" onclick="submitQuiz()">Submit Answers</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const callId = urlParams.get('callId');
+        let currentTopicData = null;
+        let quizAnswers = {};
+
+        async function loadResults() {
+            if (!callId) {
+                showError('No call ID provided');
+                return;
+            }
+
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = 'login.html';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/${callId}/results`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 202) {
+                        // Analysis still processing
+                        setTimeout(loadResults, 2000); // Retry in 2 seconds
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                console.error('Error loading results:', error);
+                showError('Failed to load results: ' + error.message);
+            }
+        }
+
+        function displayResults(data) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            // Duration
+            const minutes = Math.floor(data.duration_seconds / 60);
+            const seconds = data.duration_seconds % 60;
+            document.getElementById('duration').textContent = 
+                `Call Duration: ${minutes}m ${seconds}s`;
+
+            // AI Rating
+            const feedback = data.my_feedback;
+            document.getElementById('aiRating').textContent = feedback.ai_rating;
+            document.getElementById('feedbackMessage').textContent = feedback.ai_feedback;
+
+            // Strengths
+            const strengthsList = document.getElementById('strengthsList');
+            strengthsList.innerHTML = '';
+            feedback.strengths.forEach(strength => {
+                const li = document.createElement('li');
+                li.className = 'strength-item';
+                li.innerHTML = `✅ ${strength}`;
+                strengthsList.appendChild(li);
+            });
+
+            // Weaknesses
+            const weaknessesList = document.getElementById('weaknessesList');
+            weaknessesList.innerHTML = '';
+            feedback.weaknesses.forEach(weakness => {
+                const li = document.createElement('li');
+                li.className = 'weakness-item';
+                li.innerHTML = `
+                    <div class="weakness-title">${weakness.title}</div>
+                    <div class="weakness-desc">${weakness.description}</div>
+                    <div class="weakness-tip">
+                        <span class="tip-label">💡 Tip:</span>
+                        ${weakness.tip}
+                    </div>
+                `;
+                weaknessesList.appendChild(li);
+            });
+
+            // Topics
+            const topicsGrid = document.getElementById('topicsGrid');
+            topicsGrid.innerHTML = '';
+            feedback.recommended_topics.forEach(topic => {
+                const card = document.createElement('div');
+                card.className = 'topic-card';
+                card.innerHTML = `
+                    <div class="topic-name">${topic.name}</div>
+                    <div class="topic-desc">${topic.description}</div>
+                    <div class="topic-actions">
+                        <button class="btn btn-primary" onclick='openTopic(${JSON.stringify(topic)})'>
+                            📖 Read & Quiz
+                        </button>
+                    </div>
+                `;
+                topicsGrid.appendChild(card);
+            });
+        }
+
+        function openTopic(topic) {
+            currentTopicData = topic;
+            document.getElementById('modalTitle').textContent = topic.name;
+            
+            // Convert markdown-style content to HTML
+            const readingHTML = topic.reading_content
+                .replace(/## /g, '<h2>')
+                .replace(/### /g, '<h3>')
+                .replace(/\n/g, '<br>');
+            
+            document.getElementById('modalReading').innerHTML = readingHTML;
+            
+            // Load quiz
+            loadQuiz(topic.quiz);
+            
+            document.getElementById('topicModal').classList.add('active');
+        }
+
+        function loadQuiz(quiz) {
+            quizAnswers = {};
+            const container = document.getElementById('quizQuestions');
+            container.innerHTML = '';
+            
+            quiz.forEach((q, index) => {
+                const questionDiv = document.createElement('div');
+                questionDiv.className = 'quiz-question';
+                questionDiv.innerHTML = `
+                    <div class="question-text">Question ${index + 1}: ${q.question}</div>
+                    <ul class="quiz-options" id="options-${index}">
+                        ${q.options.map((opt, optIndex) => `
+                            <li class="quiz-option" onclick="selectOption(${index}, ${optIndex})">
+                                ${String.fromCharCode(65 + optIndex)}. ${opt}
+                            </li>
+                        `).join('')}
+                    </ul>
+                    <div class="explanation" id="explanation-${index}">
+                        <strong>Explanation:</strong> ${q.explanation}
+                    </div>
+                `;
+                container.appendChild(questionDiv);
+            });
+            
+            document.getElementById('quizScore').style.display = 'none';
+            document.getElementById('submitQuiz').style.display = 'block';
+        }
+
+        function selectOption(questionIndex, optionIndex) {
+            quizAnswers[questionIndex] = optionIndex;
+            
+            // Visual feedback
+            const options = document.querySelectorAll(`#options-${questionIndex} .quiz-option`);
+            options.forEach((opt, idx) => {
+                opt.classList.remove('selected');
+                if (idx === optionIndex) {
+                    opt.classList.add('selected');
+                }
+            });
+        }
+
+        function submitQuiz() {
+            if (!currentTopicData) return;
+            
+            const quiz = currentTopicData.quiz;
+            let correctCount = 0;
+            
+            quiz.forEach((q, index) => {
+                const userAnswer = quizAnswers[index];
+                const correctAnswer = q.correct;
+                const options = document.querySelectorAll(`#options-${index} .quiz-option`);
+                
+                options.forEach((opt, idx) => {
+                    opt.classList.remove('selected');
+                    if (idx === correctAnswer) {
+                        opt.classList.add('correct');
+                    } else if (idx === userAnswer && idx !== correctAnswer) {
+                        opt.classList.add('incorrect');
+                    }
+                });
+                
+                if (userAnswer === correctAnswer) {
+                    correctCount++;
+                }
+                
+                // Show explanation
+                document.getElementById(`explanation-${index}`).classList.add('show');
+            });
+            
+            const score = Math.round((correctCount / quiz.length) * 100);
+            document.getElementById('quizScore').innerHTML = 
+                `You scored ${correctCount} out of ${quiz.length} (${score}%)`;
+            document.getElementById('quizScore').style.display = 'block';
+            document.getElementById('submitQuiz').style.display = 'none';
+        }
+
+        function closeModal() {
+            document.getElementById('topicModal').classList.remove('active');
+        }
+
+        function showError(message) {
+            document.getElementById('loading').innerHTML = 
+                `<div class="error">❌ ${message}</div>
+                 <button class="btn btn-primary" onclick="window.location.href='dashboard.html'">
+                    Back to Dashboard
+                 </button>`;
+        }
+
+        // Load results on page load
+        loadResults();
+
+        // Close modal on outside click
+        document.getElementById('topicModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

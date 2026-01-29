@@ -7,201 +7,293 @@
     <link rel="stylesheet" href="../css/style.css">
     <link rel="stylesheet" href="../css/auth.css">
     <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <!-- Navigation -->
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">
-                <h2>🗣️ ImproveCommunication</h2>
+                <div class="brand-logo">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h2>ImproveCommunication</h2>
             </div>
             <div class="nav-links">
-                <a href="../index.html">Home</a>
-                <a href="login.html">Login</a>
+                <a href="../index.html" class="nav-link">
+                    <i class="fas fa-home"></i> Home
+                </a>
+                <a href="login.html" class="nav-link btn-outline">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
             </div>
         </div>
     </nav>
 
-    <!-- Registration Form -->
+    <!-- Register Form -->
     <div class="auth-page">
         <div class="auth-container">
             <div class="auth-card">
                 <div class="auth-header">
-                    <h1>🚀 Join ImproveCommunication</h1>
-                    <p>Create your free account and start improving today</p>
+                    <div class="auth-icon">
+                        <i class="fas fa-user-plus"></i>
+                    </div>
+                    <h1>Create Account</h1>
+                    <p>Join ImproveCommunication and start your journey</p>
                 </div>
                 
                 <form id="register-form" class="auth-form">
-                    <div class="form-group">
-                        <label for="name">Full Name</label>
-                        <input type="text" id="name" placeholder="Enter your full name" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="first_name" class="form-label">
+                                <i class="fas fa-user"></i> First Name
+                            </label>
+                            <input type="text" id="first_name" class="form-input" placeholder="Enter your first name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="last_name" class="form-label">
+                                <i class="fas fa-user"></i> Last Name
+                            </label>
+                            <input type="text" id="last_name" class="form-input" placeholder="Enter your last name" required>
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="email">Email Address</label>
-                        <input type="email" id="email" placeholder="Enter your email" required pattern="[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$">
-                        <div class="form-hint">Must be a valid email (e.g., user@gmail.com, user@domain.ac.in)</div>
+                        <label for="email" class="form-label">
+                            <i class="fas fa-envelope"></i> Email Address
+                        </label>
+                        <input type="email" id="email" class="form-input" placeholder="Enter your email" required>
+                        <div class="form-hint">
+                            <i class="fas fa-info-circle"></i> We'll never share your email
+                        </div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="password">Password</label>
-                        <div style="position: relative;">
-                            <input type="password" id="password" placeholder="Create a password" required minlength="8">
-                            <button type="button" onclick="togglePassword('password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Show/Hide Password">
-                                <span id="password-toggle-icon">👁️</span>
+                        <label for="password" class="form-label">
+                            <i class="fas fa-key"></i> Password
+                        </label>
+                        <div class="password-container">
+                            <input type="password" id="password" class="form-input" placeholder="Create a strong password" required>
+                            <button type="button" class="password-toggle" onclick="togglePassword('password')">
+                                <i class="fas fa-eye" id="password-toggle-icon"></i>
                             </button>
                         </div>
                         <div class="password-strength">
                             <div class="strength-bar">
                                 <div class="strength-fill" id="strength-fill"></div>
                             </div>
-                            <span class="strength-text" id="strength-text">Weak</span>
+                            <span class="strength-text" id="strength-text">Password strength</span>
                         </div>
-                        <div class="form-hint">Minimum 8 characters with letters and numbers</div>
                     </div>
                     
                     <div class="form-group">
-                        <label for="confirm-password">Confirm Password</label>
-                        <div style="position: relative;">
-                            <input type="password" id="confirm-password" placeholder="Confirm your password" required>
-                            <button type="button" onclick="togglePassword('confirm-password')" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 20px; color: #666; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; z-index: 10;" title="Show/Hide Password">
-                                <span id="confirm-password-toggle-icon">👁️</span>
+                        <label for="confirm_password" class="form-label">
+                            <i class="fas fa-key"></i> Confirm Password
+                        </label>
+                        <div class="password-container">
+                            <input type="password" id="confirm_password" class="form-input" placeholder="Confirm your password" required>
+                            <button type="button" class="password-toggle" onclick="togglePassword('confirm_password')">
+                                <i class="fas fa-eye" id="confirm_password-toggle-icon"></i>
                             </button>
                         </div>
-                        <div class="form-hint" id="password-match">Passwords must match</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="english_level" class="form-label">
+                            <i class="fas fa-language"></i> English Level
+                        </label>
+                        <select id="english_level" class="form-select" required>
+                            <option value="">Select your English level</option>
+                            <option value="beginner">Beginner (A1)</option>
+                            <option value="elementary">Elementary (A2)</option>
+                            <option value="intermediate">Intermediate (B1)</option>
+                            <option value="upper_intermediate">Upper Intermediate (B2)</option>
+                            <option value="advanced">Advanced (C1)</option>
+                            <option value="proficient">Proficient (C2)</option>
+                        </select>
                     </div>
                     
                     <div class="form-options">
                         <label class="checkbox">
                             <input type="checkbox" id="terms" required>
-                            <span>I agree to the <a href="#" class="link" onclick="showTermsModal(event)">Terms of Service</a> and <a href="#" class="link" onclick="showPrivacyModal(event)">Privacy Policy</a></span>
-                        </label>
-                    </div>
-                    
-                    <div class="form-options">
-                        <label class="checkbox">
-                            <input type="checkbox" id="newsletter" checked>
-                            <span>Send me learning tips and updates</span>
+                            <span class="checkmark"></span>
+                            <span>I agree to the <a href="#" class="link">Terms of Service</a> and <a href="#" class="link">Privacy Policy</a></span>
                         </label>
                     </div>
                     
                     <button type="submit" class="btn btn-primary btn-block" id="register-btn">
-                        <span class="btn-text">Create Free Account</span>
-                        <span class="btn-loader" style="display: none;">⏳ Creating account...</span>
+                        <span class="btn-content">
+                            <span class="btn-text">
+                                <i class="fas fa-user-plus"></i> Create Account
+                            </span>
+                            <span class="btn-loader" style="display: none;">
+                                <i class="fas fa-spinner fa-spin"></i> Creating account...
+                            </span>
+                        </span>
                     </button>
                     
                     <div class="auth-divider">
-                        <span>Already have an account?</span>
+                        <span>or sign up with</span>
                     </div>
                     
-                    <a href="login.html" class="btn btn-block" style="background: #f8f9fa; color: #333;">
-                        Login to Existing Account
-                    </a>
+                    <div class="social-login">
+                        <button type="button" class="btn btn-google" onclick="loginWithGoogle()">
+                            <i class="fab fa-google"></i> Google
+                        </button>
+                        <button type="button" class="btn btn-github" onclick="loginWithGitHub()">
+                            <i class="fab fa-github"></i> GitHub
+                        </button>
+                    </div>
                 </form>
                 
                 <div class="auth-footer">
-                    <p>By registering, you agree to our learning community guidelines</p>
+                    <p>Already have an account? <a href="login.html" class="link">
+                        <i class="fas fa-sign-in-alt"></i> Login here
+                    </a></p>
                 </div>
                 
                 <!-- Message Container -->
                 <div id="message" class="message-container"></div>
+                
+                <!-- Benefits Section -->
+                <div class="benefits-section">
+                    <div class="section-header">
+                        <i class="fas fa-gift"></i>
+                        <h3>Why Join Us?</h3>
+                    </div>
+                    <div class="benefits-grid">
+                        <div class="benefit-card">
+                            <div class="benefit-icon">
+                                <i class="fas fa-comments"></i>
+                            </div>
+                            <h4>Practice Speaking</h4>
+                            <p>Connect with native speakers and practice real conversations</p>
+                        </div>
+                        
+                        <div class="benefit-card">
+                            <div class="benefit-icon">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <h4>Track Progress</h4>
+                            <p>Monitor your improvement with detailed analytics</p>
+                        </div>
+                        
+                        <div class="benefit-card">
+                            <div class="benefit-icon">
+                                <i class="fas fa-trophy"></i>
+                            </div>
+                            <h4>Earn Rewards</h4>
+                            <p>Complete challenges and earn badges</p>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="auth-side">
                 <div class="side-content">
-                    <h2>Why Join Our Application?</h2>
+                    <div class="side-icon">
+                        <i class="fas fa-globe-americas"></i>
+                    </div>
+                    <h2>Join Our Global Community</h2>
+                    <div class="stats-grid">
+                        <div class="stat">
+                            <i class="fas fa-users"></i>
+                            <div>
+                                <h3>10,000+</h3>
+                                <p>Active Learners</p>
+                            </div>
+                        </div>
+                        <div class="stat">
+                            <i class="fas fa-language"></i>
+                            <div>
+                                <h3>50+</h3>
+                                <p>Countries</p>
+                            </div>
+                        </div>
+                        <div class="stat">
+                            <i class="fas fa-comment-dots"></i>
+                            <div>
+                                <h3>500,000+</h3>
+                                <p>Conversations</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <ul class="features-list">
-                        <li>🎤 <strong>Real-Time Practice</strong> - Connect with learners worldwide for live English conversations</li>
-                        <li>🤖 <strong>AI-Powered Analysis</strong> - Get instant feedback on grammar, fluency, vocabulary, and pronunciation</li>
-                        <li>📊 <strong>Detailed Performance Insights</strong> - Identify weaknesses and track improvement over time</li>
-                        <li>🎯 <strong>Personalized Learning Path</strong> - Receive targeted quizzes based on your specific needs</li>
-                        <li>🏆 <strong>Gamified Progress</strong> - Earn scores, compete on leaderboards, and stay motivated</li>
-                        <li>💡 <strong>Smart Suggestions</strong> - Get AI-generated tips to improve your communication skills</li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <span>Free 7-day trial with full access</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <span>Personalized learning path</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <span>24/7 AI conversation partner</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <span>Weekly progress reports</span>
+                        </li>
+                        <li>
+                            <i class="fas fa-check-circle"></i>
+                            <span>Certificate upon completion</span>
+                        </li>
                     </ul>
-                    
-                    <div class="testimonial">
-                        <div class="quote">"Practice with real people, get AI feedback, and see actual improvement - all in one platform!"</div>
-                        <div class="author">- Adaptive Learning for Every Student</div>
-                    </div>
-                    
-                    
-                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Password strength checker
-        const passwordInput = document.getElementById('password');
-        const strengthFill = document.getElementById('strength-fill');
-        const strengthText = document.getElementById('strength-text');
-        const confirmInput = document.getElementById('confirm-password');
-        const passwordMatch = document.getElementById('password-match');
-        
-        passwordInput.addEventListener('input', function() {
-            const password = this.value;
-            let strength = 0;
-            
-            // Length check
-            if (password.length >= 8) strength += 25;
-            if (password.length >= 12) strength += 10;
-            
-            // Character type checks
-            if (/[A-Z]/.test(password)) strength += 25;
-            if (/[0-9]/.test(password)) strength += 25;
-            if (/[^A-Za-z0-9]/.test(password)) strength += 15;
-            
-            // Update strength bar
-            strengthFill.style.width = `${strength}%`;
-            
-            // Update text
-            if (strength < 50) {
-                strengthFill.style.background = '#e74c3c';
-                strengthText.textContent = 'Weak';
-            } else if (strength < 75) {
-                strengthFill.style.background = '#f39c12';
-                strengthText.textContent = 'Fair';
-            } else {
-                strengthFill.style.background = '#2ecc71';
-                strengthText.textContent = 'Strong';
-            }
-            
-            // Check password match
-            checkPasswordMatch();
-        });
-        
-        confirmInput.addEventListener('input', checkPasswordMatch);
-        
-        function checkPasswordMatch() {
-            const password = passwordInput.value;
-            const confirm = confirmInput.value;
-            
-            if (confirm === '') {
-                passwordMatch.textContent = 'Passwords must match';
-                passwordMatch.style.color = '#888';
-                return;
-            }
-            
-            if (password === confirm) {
-                passwordMatch.textContent = '✓ Passwords match';
-                passwordMatch.style.color = '#2ecc71';
-            } else {
-                passwordMatch.textContent = '✗ Passwords do not match';
-                passwordMatch.style.color = '#e74c3c';
-            }
-        }
-        
         // Toggle password visibility
         function togglePassword(inputId) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById(inputId + '-toggle-icon');
             if (input.type === 'password') {
                 input.type = 'text';
-                icon.textContent = '🙈';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
             } else {
                 input.type = 'password';
-                icon.textContent = '👁️';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+        
+        // Check password strength
+        function checkPasswordStrength(password) {
+            let strength = 0;
+            if (password.length >= 8) strength++;
+            if (/[A-Z]/.test(password)) strength++;
+            if (/[0-9]/.test(password)) strength++;
+            if (/[^A-Za-z0-9]/.test(password)) strength++;
+            
+            const fill = document.getElementById('strength-fill');
+            const text = document.getElementById('strength-text');
+            
+            fill.style.width = (strength * 25) + '%';
+            
+            switch(strength) {
+                case 0:
+                case 1:
+                    fill.style.backgroundColor = '#ff4757';
+                    text.textContent = 'Weak';
+                    break;
+                case 2:
+                    fill.style.backgroundColor = '#ffa502';
+                    text.textContent = 'Fair';
+                    break;
+                case 3:
+                    fill.style.backgroundColor = '#2ed573';
+                    text.textContent = 'Good';
+                    break;
+                case 4:
+                    fill.style.backgroundColor = '#1e90ff';
+                    text.textContent = 'Strong';
+                    break;
             }
         }
         
@@ -214,7 +306,7 @@
         // Show message
         function showMessage(text, type = 'error') {
             const messageDiv = document.getElementById('message');
-            messageDiv.innerHTML = `<div class="${type}">${text}</div>`;
+            messageDiv.innerHTML = `<div class="message ${type}"><i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${text}</div>`;
             messageDiv.style.display = 'block';
             
             if (type === 'success') {
@@ -224,37 +316,43 @@
             }
         }
         
+        // Password strength checker
+        document.getElementById('password').addEventListener('input', function(e) {
+            checkPasswordStrength(e.target.value);
+        });
+        
         // Handle form submission
         document.getElementById('register-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const name = document.getElementById('name').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const password = passwordInput.value;
+            const firstName = document.getElementById('first_name').value;
+            const lastName = document.getElementById('last_name').value;
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            const englishLevel = document.getElementById('english_level').value;
             
-            // Validate email format
+            // Validation
             if (!validateEmail(email)) {
-                showMessage('❌ Please enter a valid email address (e.g., user@gmail.com, user@domain.ac.in)');
+                showMessage('Please enter a valid email address');
                 return;
             }
             
-            // Validate password length
-            if (password.length < 8) {
-                showMessage('❌ Password must be at least 8 characters long');
-                return;
-            }
-            
-            // Validate passwords match
-            if (passwordInput.value !== confirmInput.value) {
+            if (password !== confirmPassword) {
                 showMessage('Passwords do not match');
                 return;
             }
             
-            // Validate terms
-            if (!document.getElementById('terms').checked) {
-                showMessage('You must agree to the Terms of Service');
+            if (password.length < 6) {
+                showMessage('Password must be at least 6 characters long');
                 return;
             }
+            
+            if (!englishLevel) {
+                showMessage('Please select your English level');
+                return;
+            }
+            
             const registerBtn = document.getElementById('register-btn');
             const btnText = registerBtn.querySelector('.btn-text');
             const btnLoader = registerBtn.querySelector('.btn-loader');
@@ -270,14 +368,15 @@
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ 
-                        name, 
-                        email, 
-                        password 
+                    body: JSON.stringify({
+                        first_name: firstName,
+                        last_name: lastName,
+                        email: email,
+                        password: password,
+                        english_level: englishLevel
                     })
                 });
                 
-                // Check if response is JSON before parsing
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     throw new Error('Backend server is not responding correctly. Make sure backend is running (python main.py)');
@@ -286,34 +385,15 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    showMessage('✅ Account created successfully! Redirecting to login...', 'success');
+                    showMessage('Account created successfully! Redirecting to login...', 'success');
                     
-                    // Auto login after registration
-                    setTimeout(async () => {
-                        try {
-                            const loginResponse = await fetch(API_ENDPOINTS.login, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({ email, password })
-                            });
-                            
-                            if (loginResponse.ok) {
-                                const loginData = await loginResponse.json();
-                                localStorage.setItem('token', loginData.access_token);
-                                localStorage.setItem('user', JSON.stringify(loginData.user));
-                                window.location.href = 'dashboard.html';
-                            } else {
-                                window.location.href = 'login.html?registered=true';
-                            }
-                        } catch (error) {
-                            window.location.href = 'login.html?registered=true';
-                        }
+                    // Redirect to login after delay
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
                     }, 2000);
                     
                 } else {
-                    showMessage(`❌ ${data.detail || 'Registration failed'}`);
+                    showMessage(data.detail || 'Registration failed. Please try again.');
                     // Reset button
                     btnText.style.display = 'inline';
                     btnLoader.style.display = 'none';
@@ -321,7 +401,7 @@
                 }
                 
             } catch (error) {
-                showMessage(`❌ Network error: ${error.message}`);
+                showMessage(`Network error: ${error.message}`);
                 // Reset button
                 btnText.style.display = 'inline';
                 btnLoader.style.display = 'none';
@@ -329,340 +409,17 @@
             }
         });
         
-        // Allow users to access registration page even if logged in
-        // (They might want to create a second account or view the page)
-    </script>
-    
-    <!-- Terms and Conditions Modal -->
-    <div id="termsModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>📋 Terms of Service</h2>
-                <span class="close-modal" onclick="closeModal('termsModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <h3>1. Service Description</h3>
-                <p>ImproveCommunication is an AI-powered English language learning platform that provides real-time conversation practice, analysis, and personalized feedback.</p>
-                
-                <h3>2. Language Requirements</h3>
-                <p><strong>English-Only Communication:</strong> All conversations, practice sessions, and communications on this platform must be conducted exclusively in English. This is essential for:</p>
-                <ul>
-                    <li>Accurate AI analysis and feedback</li>
-                    <li>Consistent learning experience</li>
-                    <li>Fair leaderboard competition</li>
-                    <li>Proper grammar and fluency assessment</li>
-                </ul>
-                
-                <h3>3. Data Collection and Storage</h3>
-                <p><strong>What We Collect:</strong></p>
-                <ul>
-                    <li><strong>Audio Recordings:</strong> All your voice conversations and practice sessions are recorded and stored</li>
-                    <li><strong>Text Transcripts:</strong> Audio is transcribed for analysis purposes</li>
-                    <li><strong>Performance Metrics:</strong> Grammar scores, fluency ratings, vocabulary usage, pronunciation data</li>
-                    <li><strong>User Activity:</strong> Session duration, practice frequency, quiz results</li>
-                </ul>
-                
-                <h3>4. Data Usage</h3>
-                <p><strong>How We Use Your Data:</strong></p>
-                <ul>
-                    <li><strong>AI Analysis:</strong> Your conversations are analyzed by AI to provide grammar, fluency, and pronunciation feedback</li>
-                    <li><strong>Personalized Recommendations:</strong> Your data is used to generate customized learning paths and targeted quizzes</li>
-                    <li><strong>Performance Tracking:</strong> Historical data helps track your improvement over time</li>
-                    <li><strong>Platform Improvement:</strong> Aggregated, anonymized data may be used to enhance our AI models</li>
-                </ul>
-                
-                <h3>5. User Responsibilities</h3>
-                <p>By using this platform, you agree to:</p>
-                <ul>
-                    <li>Speak only in English during all sessions</li>
-                    <li>Provide accurate personal information</li>
-                    <li>Respect other users in peer-to-peer practice sessions</li>
-                    <li>Not use offensive, discriminatory, or inappropriate language</li>
-                    <li>Not share your account credentials with others</li>
-                </ul>
-                
-                <h3>6. Leaderboard and Gamification</h3>
-                <p>Your performance scores, practice time, and achievements may be displayed on public leaderboards. You can opt out of leaderboard participation in your profile settings.</p>
-                
-                <h3>7. AI-Powered Features</h3>
-                <p>Our platform uses artificial intelligence for:</p>
-                <ul>
-                    <li>Speech-to-text transcription</li>
-                    <li>Grammar and syntax checking</li>
-                    <li>Fluency and pronunciation analysis</li>
-                    <li>Personalized quiz generation</li>
-                    <li>Improvement suggestions</li>
-                </ul>
-                <p>AI analysis may not be 100% accurate and should be used as a learning aid, not absolute truth.</p>
-                
-                <h3>8. Data Retention</h3>
-                <p>Your data is retained for the duration of your active account plus 90 days. You may request data deletion at any time by contacting support.</p>
-                
-                <h3>9. Account Termination</h3>
-                <p>We reserve the right to suspend or terminate accounts that violate these terms, including but not limited to: using languages other than English, sharing inappropriate content, or attempting to manipulate the system.</p>
-                
-                <h3>10. Changes to Terms</h3>
-                <p>We may update these terms periodically. Continued use of the platform constitutes acceptance of updated terms.</p>
-                
-                <p class="modal-footer-text"><em>Last Updated: January 2026</em></p>
-            </div>
-            <div class="modal-footer">
-                <button onclick="acceptTerms()" class="btn btn-primary">I Understand and Agree</button>
-                <button onclick="closeModal('termsModal')" class="btn">Close</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Privacy Policy Modal -->
-    <div id="privacyModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>🔒 Privacy Policy</h2>
-                <span class="close-modal" onclick="closeModal('privacyModal')">&times;</span>
-            </div>
-            <div class="modal-body">
-                <h3>1. Information We Collect</h3>
-                <p><strong>Personal Information:</strong> Name, email address, profile picture</p>
-                <p><strong>Audio Data:</strong> Voice recordings from practice sessions and calls</p>
-                <p><strong>Usage Data:</strong> Login times, session duration, feature usage, device information</p>
-                
-                <h3>2. How We Protect Your Data</h3>
-                <ul>
-                    <li>All data is encrypted in transit and at rest</li>
-                    <li>Secure authentication with JWT tokens</li>
-                    <li>Regular security audits and updates</li>
-                    <li>Access controls and user authentication</li>
-                </ul>
-                
-                <h3>3. Data Sharing</h3>
-                <p>We do NOT sell your personal data. Your data may be shared only:</p>
-                <ul>
-                    <li>With AI services for analysis (transcription, grammar checking)</li>
-                    <li>In aggregated, anonymized form for research</li>
-                    <li>When required by law</li>
-                </ul>
-                
-                <h3>4. Your Rights</h3>
-                <p>You have the right to:</p>
-                <ul>
-                    <li>Access your personal data</li>
-                    <li>Request data correction or deletion</li>
-                    <li>Opt out of leaderboards</li>
-                    <li>Export your data</li>
-                    <li>Close your account at any time</li>
-                </ul>
-                
-                <h3>5. Cookies and Tracking</h3>
-                <p>We use local storage for authentication tokens and user preferences. No third-party tracking cookies are used.</p>
-                
-                <h3>6. Contact</h3>
-                <p>For privacy concerns or data requests, contact us through the platform support.</p>
-                
-                <p class="modal-footer-text"><em>Last Updated: January 2026</em></p>
-            </div>
-            <div class="modal-footer">
-                <button onclick="closeModal('privacyModal')" class="btn btn-primary">Close</button>
-            </div>
-        </div>
-    </div>
-    
-    <style>
-        .password-strength {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 8px;
+        // OAuth Functions
+        function loginWithGoogle() {
+            showMessage('Redirecting to Google signup...', 'info');
+            // Redirect to Google OAuth for registration
+            window.location.href = `${API_BASE_URL}/auth/google/login`;
         }
         
-        .strength-bar {
-            flex: 1;
-            height: 6px;
-            background: #e1e5e9;
-            border-radius: 3px;
-            overflow: hidden;
-        }
-        
-        .strength-fill {
-            height: 100%;
-            width: 0%;
-            border-radius: 3px;
-            transition: all 0.3s;
-        }
-        
-        .strength-text {
-            font-size: 12px;
-            font-weight: 600;
-            min-width: 40px;
-        }
-        
-        .testimonial {
-            margin: 40px 0;
-            padding: 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-            border-left: 4px solid #4ade80;
-        }
-        
-        .quote {
-            font-style: italic;
-            margin-bottom: 10px;
-            font-size: 16px;
-            line-height: 1.5;
-        }
-        
-        .author {
-            font-size: 14px;
-            opacity: 0.9;
-        }
-        
-        /* Modal Styles */
-        .modal {
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0, 0, 0, 0.6);
-            animation: fadeIn 0.3s;
-        }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .modal-content {
-            background-color: #fff;
-            margin: 50px auto;
-            padding: 0;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 800px;
-            max-height: 85vh;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-        }
-        
-        .modal-header {
-            padding: 24px 30px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 12px 12px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .modal-header h2 {
-            margin: 0;
-            font-size: 24px;
-        }
-        
-        .close-modal {
-            color: white;
-            font-size: 32px;
-            font-weight: bold;
-            cursor: pointer;
-            line-height: 1;
-            transition: transform 0.2s;
-        }
-        
-        .close-modal:hover {
-            transform: scale(1.2);
-        }
-        
-        .modal-body {
-            padding: 30px;
-            overflow-y: auto;
-            flex: 1;
-        }
-        
-        .modal-body h3 {
-            color: #667eea;
-            margin-top: 24px;
-            margin-bottom: 12px;
-            font-size: 18px;
-        }
-        
-        .modal-body h3:first-child {
-            margin-top: 0;
-        }
-        
-        .modal-body p {
-            margin: 12px 0;
-            line-height: 1.6;
-            color: #333;
-        }
-        
-        .modal-body ul {
-            margin: 12px 0;
-            padding-left: 24px;
-        }
-        
-        .modal-body li {
-            margin: 8px 0;
-            line-height: 1.6;
-            color: #555;
-        }
-        
-        .modal-body strong {
-            color: #667eea;
-        }
-        
-        .modal-footer {
-            padding: 20px 30px;
-            background: #f8f9fa;
-            border-radius: 0 0 12px 12px;
-            display: flex;
-            gap: 12px;
-            justify-content: flex-end;
-        }
-        
-        .modal-footer-text {
-            color: #888;
-            font-size: 13px;
-            margin-top: 20px;
-            text-align: center;
-        }
-    </style>
-    
-    <script>
-        // Modal functions
-        function showTermsModal(event) {
-            event.preventDefault();
-            document.getElementById('termsModal').style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        }
-        
-        function showPrivacyModal(event) {
-            event.preventDefault();
-            document.getElementById('privacyModal').style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        }
-        
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-            document.body.style.overflow = 'auto';
-        }
-        
-        function acceptTerms() {
-            document.getElementById('terms').checked = true;
-            closeModal('termsModal');
-        }
-        
-        // Close modal when clicking outside
-        window.onclick = function(event) {
-            const termsModal = document.getElementById('termsModal');
-            const privacyModal = document.getElementById('privacyModal');
-            if (event.target === termsModal) {
-                closeModal('termsModal');
-            }
-            if (event.target === privacyModal) {
-                closeModal('privacyModal');
-            }
+        function loginWithGitHub() {
+            showMessage('Redirecting to GitHub signup...', 'info');
+            // Redirect to GitHub OAuth for registration
+            window.location.href = `${API_BASE_URL}/auth/github/login`;
         }
     </script>
 </body>

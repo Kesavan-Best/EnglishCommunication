@@ -335,6 +335,10 @@ function handleWebSocketMessage(data) {
         case 'call_invite':
             handleCallInvitation(data);
             break;
+        case 'call_rejected':
+            // Handle call rejection notification
+            showToast(`❌ ${data.rejected_by_name || 'User'} declined your call`, 'error');
+            break;
         default:
             // Refresh dashboard data for other updates
             loadDashboardData();

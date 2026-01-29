@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,7 +12,7 @@
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         .page-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -20,12 +21,12 @@
             margin-bottom: 30px;
             text-align: center;
         }
-        
+
         .page-header h1 {
             font-size: 32px;
             margin-bottom: 10px;
         }
-        
+
         .tabs {
             display: flex;
             gap: 10px;
@@ -33,9 +34,9 @@
             background: white;
             padding: 10px;
             border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
-        
+
         .tab-btn {
             padding: 12px 25px;
             border: none;
@@ -46,28 +47,28 @@
             cursor: pointer;
             transition: all 0.3s;
         }
-        
+
         .tab-btn.active {
             background: #667eea;
             color: white;
         }
-        
+
         .tab-content {
             display: none;
         }
-        
+
         .tab-content.active {
             display: block;
         }
-        
+
         .search-box {
             background: white;
             padding: 20px;
             border-radius: 12px;
             margin-bottom: 30px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
         }
-        
+
         .search-box input {
             width: 100%;
             padding: 15px;
@@ -76,32 +77,32 @@
             font-size: 16px;
             transition: all 0.3s;
         }
-        
+
         .search-box input:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
         .users-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
             gap: 25px;
         }
-        
+
         .user-card {
             background: white;
             padding: 25px;
             border-radius: 15px;
-            box-shadow: 0 3px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 3px 20px rgba(0, 0, 0, 0.08);
             transition: all 0.3s ease;
             position: relative;
         }
-        
+
         .user-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 6px 30px rgba(0,0,0,0.12);
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.12);
         }
-        
+
         .user-avatar {
             width: 80px;
             height: 80px;
@@ -115,25 +116,25 @@
             margin: 0 auto 15px;
             font-weight: bold;
         }
-        
+
         .user-info {
             text-align: center;
             margin-bottom: 20px;
         }
-        
+
         .user-name {
             font-size: 20px;
             font-weight: 600;
             color: #333;
             margin-bottom: 5px;
         }
-        
+
         .user-email {
             color: #666;
             font-size: 14px;
             margin-bottom: 10px;
         }
-        
+
         .user-stats {
             display: flex;
             justify-content: space-around;
@@ -142,22 +143,22 @@
             border-top: 1px solid #eee;
             border-bottom: 1px solid #eee;
         }
-        
+
         .stat-item {
             text-align: center;
         }
-        
+
         .stat-value {
             font-size: 20px;
             font-weight: bold;
             color: #667eea;
         }
-        
+
         .stat-label {
             font-size: 12px;
             color: #666;
         }
-        
+
         .online-status {
             position: absolute;
             top: 15px;
@@ -173,18 +174,25 @@
             align-items: center;
             gap: 5px;
         }
-        
+
         .online-status::before {
             content: '●';
             font-size: 14px;
             animation: pulse 2s infinite;
         }
-        
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
-        
+
         .offline-status {
             position: absolute;
             top: 15px;
@@ -200,13 +208,13 @@
             align-items: center;
             gap: 5px;
         }
-        
+
         .offline-status::before {
             content: '●';
             font-size: 14px;
             animation: none;
         }
-        
+
         .btn {
             width: 100%;
             padding: 12px 20px;
@@ -217,14 +225,14 @@
             transition: all 0.3s;
             margin-top: 10px;
             font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
-        
+
         .btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
-        
+
         .btn-action {
             width: 100%;
             padding: 10px;
@@ -236,57 +244,57 @@
             margin-top: 8px;
             font-size: 14px;
         }
-        
+
         .btn-call {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
         }
-        
+
         .btn-call:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
-        
+
         .btn-disabled {
             background: #e0e0e0;
             color: #999;
             cursor: not-allowed;
             box-shadow: none;
         }
-        
+
         .btn-add-friend {
             background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
             color: white;
             box-shadow: 0 2px 10px rgba(56, 239, 125, 0.3);
         }
-        
+
         .btn-add-friend:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(56, 239, 125, 0.4);
         }
-        
+
         .btn-profile {
             background: #f0f2ff;
             color: #667eea;
             border: 2px solid #667eea;
         }
-        
+
         .btn-profile:hover {
             background: #667eea;
             color: white;
         }
-        
+
         .random-match-box {
             background: white;
             padding: 40px;
             border-radius: 15px;
             text-align: center;
-            box-shadow: 0 3px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 3px 20px rgba(0, 0, 0, 0.08);
             max-width: 500px;
             margin: 50px auto;
         }
-        
+
         .random-match-btn {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -299,40 +307,40 @@
             transition: all 0.3s;
             margin-top: 20px;
         }
-        
+
         .random-match-btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
-        
+
         .empty-state {
             text-align: center;
             padding: 60px 20px;
             color: #666;
         }
-        
+
         .friend-request-card {
             background: white;
             padding: 20px;
             border-radius: 12px;
             margin-bottom: 15px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
+
         .friend-request-info {
             display: flex;
             align-items: center;
             gap: 15px;
         }
-        
+
         .friend-request-actions {
             display: flex;
             gap: 10px;
         }
-        
+
         .accept-btn {
             padding: 8px 20px;
             background: #38ef7d;
@@ -341,7 +349,7 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        
+
         .reject-btn {
             padding: 8px 20px;
             background: #e74c3c;
@@ -350,7 +358,7 @@
             border-radius: 6px;
             cursor: pointer;
         }
-        
+
         .user-status-badge {
             position: absolute;
             top: 10px;
@@ -363,17 +371,17 @@
             align-items: center;
             gap: 5px;
         }
-        
+
         .user-status-badge.online {
             background: #d4edda;
             color: #155724;
         }
-        
+
         .user-status-badge.offline {
             background: #f8d7da;
             color: #721c24;
         }
-        
+
         .user-avatar img {
             width: 80px;
             height: 80px;
@@ -381,7 +389,7 @@
             object-fit: cover;
             border: 3px solid #667eea;
         }
-        
+
         .user-stats-mini {
             display: flex;
             justify-content: space-around;
@@ -389,30 +397,30 @@
             padding: 10px 0;
             border-top: 1px solid #eee;
         }
-        
+
         .stat-mini {
             text-align: center;
         }
-        
+
         .stat-mini .stat-label {
             font-size: 11px;
             color: #999;
             display: block;
             margin-bottom: 5px;
         }
-        
+
         .stat-mini .stat-value {
             font-size: 18px;
             font-weight: bold;
             color: #667eea;
         }
-        
+
         .user-actions {
             display: flex;
             flex-direction: column;
             gap: 8px;
         }
-        
+
         .btn-action {
             padding: 10px 15px;
             border: none;
@@ -426,41 +434,41 @@
             justify-content: center;
             gap: 5px;
         }
-        
+
         .btn-call {
             background: #667eea;
             color: white;
         }
-        
+
         .btn-call:hover {
             background: #5a67d8;
         }
-        
+
         .btn-add-friend {
             background: #38ef7d;
             color: white;
         }
-        
+
         .btn-add-friend:hover {
             background: #2dd46f;
         }
-        
+
         .btn-profile {
             background: #f0f2ff;
             color: #667eea;
         }
-        
+
         .btn-profile:hover {
             background: #667eea;
             color: white;
         }
-        
+
         .btn-disabled {
             background: #ccc;
             color: #666;
             cursor: not-allowed;
         }
-        
+
         .toast-message {
             position: fixed;
             bottom: 20px;
@@ -472,26 +480,27 @@
             z-index: 10000;
             transform: translateX(400px);
             transition: transform 0.3s;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
-        
+
         .toast-message.show {
             transform: translateX(0);
         }
-        
+
         .toast-message.success {
             background: #38ef7d;
         }
-        
+
         .toast-message.error {
             background: #e74c3c;
         }
-        
+
         .toast-message.info {
             background: #667eea;
         }
     </style>
 </head>
+
 <body>
     <!-- Navigation -->
     <nav class="navbar">
@@ -515,40 +524,41 @@
             <h1>👥 Find Practice Partners</h1>
             <p>Connect with other learners and practice your English speaking skills</p>
         </div>
-        
+
         <!-- Tabs -->
         <div class="tabs">
             <button class="tab-btn active" data-tab="all">All Users</button>
             <button class="tab-btn" data-tab="friends">My Friends</button>
-            <button class="tab-btn" data-tab="requests">Friend Requests <span id="request-count" style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px; display: none;"></span></button>
+            <button class="tab-btn" data-tab="requests">Friend Requests <span id="request-count"
+                    style="background: #e74c3c; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 5px; display: none;"></span></button>
             <button class="tab-btn" data-tab="random">Random Match</button>
         </div>
-        
+
         <!-- All Users Tab -->
         <div id="all-tab" class="tab-content active">
             <div class="search-box">
                 <input type="text" id="search-input" placeholder="🔍 Search by name or email...">
             </div>
-            
+
             <div class="users-grid" id="all-users-grid">
                 <!-- Users will be loaded here -->
             </div>
         </div>
-        
+
         <!-- Friends Tab -->
         <div id="friends-tab" class="tab-content">
             <div class="users-grid" id="friends-grid">
                 <!-- Friends will be loaded here -->
             </div>
         </div>
-        
+
         <!-- Friend Requests Tab -->
         <div id="requests-tab" class="tab-content">
             <div id="requests-container">
                 <!-- Friend requests will be loaded here -->
             </div>
         </div>
-        
+
         <!-- Random Match Tab -->
         <div id="random-tab" class="tab-content">
             <div class="random-match-box">
@@ -568,4 +578,5 @@
     <script src="../js/utils.js"></script>
     <script src="../js/users.js"></script>
 </body>
+
 </html>
