@@ -323,15 +323,28 @@ function createUserCard(user, isFriend) {
             ➕ Add Friend
         </button>`;
     
+    // Get user initials for avatar
+    const getInitials = (name) => {
+        if (!name) return '?';
+        const parts = name.trim().split(' ');
+        if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+        return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+    };
+    
+    const initials = getInitials(user.name);
+    
     return `
         <div class="user-card" data-user-id="${user.id}">
             <div class="${onlineClass}">${onlineText}</div>
-            <div class="user-avatar">
-                <img src="${user.avatar_url || '../assets/icons/user-avatar.png'}" alt="${user.name}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+            <div class="user-avatar" title="${user.name}">
+                ${user.avatar_url ? 
+                    `<img src="${user.avatar_url}" alt="${user.name}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">` :
+                    `<div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px; font-weight: 700;">${initials}</div>`
+                }
             </div>
             <div class="user-info">
-                <h3 class="user-name">${user.name}</h3>
-                <p class="user-email">${user.email}</p>
+                <h3 class="user-name" title="${user.name}">${user.name}</h3>
+                <p class="user-email" title="${user.email}">${user.email}</p>
             </div>
             <div class="user-stats-mini">
                 <div class="stat-mini">
