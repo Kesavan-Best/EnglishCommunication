@@ -13,16 +13,31 @@ class Database:
     def connect(cls):
         """Connect to MongoDB"""
         try:
-            cls.client = MongoClient(
-                os.getenv("MONGODB_URL", "mongodb://localhost:27017"),
-                serverSelectionTimeoutMS=5000
-            )
+            mongodb_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+            
+            # Configure connection with SSL/TLS for Atlas
+            connection_params = {
+                "serverSelectionTimeoutMS": 30000,  # Increased timeout
+                "connectTimeoutMS": 30000,
+                "socketTimeoutMS": 30000,
+            }
+            
+            # Add TLS settings for Atlas connections
+            if "mongodb+srv://" in mongodb_url or "mongodb.net" in mongodb_url:
+                connection_params.update({
+                    "tls": True,
+                    "tlsAllowInvalidCertificates": False,
+                    "retryWrites": True,
+                })
+            
+            cls.client = MongoClient(mongodb_url, **connection_params)
+            
             # Test connection
             cls.client.admin.command('ping')
             cls.db = cls.client[os.getenv("DB_NAME", "english_comm")]
-            print("Connected to MongoDB successfully")
+            print("✅ Connected to MongoDB successfully")
         except ConnectionFailure as e:
-            print(f"MongoDB connection failed: {e}")
+            print(f"❌ MongoDB connection failed: {e}")
             raise
     
     @classmethod
