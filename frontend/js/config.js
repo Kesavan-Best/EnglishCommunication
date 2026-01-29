@@ -1,6 +1,14 @@
 // config.js - API Configuration (Updated for Consistency)
 
-const API_BASE_URL = 'http://localhost:8000';
+// Auto-detect environment
+const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const API_BASE_URL = isProduction 
+    ? 'https://english-communication-backend.onrender.com' 
+    : 'http://localhost:8000';
+
+const WS_BASE_URL = isProduction
+    ? 'wss://english-communication-backend.onrender.com'
+    : 'ws://localhost:8000';
 
 const API_ENDPOINTS = {
     // User endpoints
@@ -25,7 +33,7 @@ const API_ENDPOINTS = {
     leaderboardTop: `${API_BASE_URL}/api/leaderboard/top`,
     
     // WebSocket
-    ws: `ws://localhost:8000/ws`
+    ws: `${WS_BASE_URL}/ws`
 };
 
 // Auth checker for protected routes
