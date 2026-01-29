@@ -39,6 +39,8 @@ async function loadDashboardData() {
     try {
         const token = localStorage.getItem('token');
         
+        console.log('🔄 Loading dashboard data from:', API_ENDPOINTS.me);
+        
         // Load user profile with stats - always fetch fresh from API
         const userResponse = await fetch(API_ENDPOINTS.me, {
             headers: {
@@ -46,8 +48,15 @@ async function loadDashboardData() {
             }
         });
         
+        if (!userResponse.ok) {
+            console.error('❌ Failed to load user data:', userResponse.status);
+            showConnectionError();
+            return;
+        }
+        
         if (userResponse.ok) {
             userData = await userResponse.json();
+            console.log('✅ User data loaded:', userData);
             
             // Update localStorage with fresh user data
             localStorage.setItem('user', JSON.stringify(userData));
@@ -493,6 +502,37 @@ window.addEventListener('beforeunload', () => {
     if (ws) ws.close();
     if (statsRefreshInterval) clearInterval(statsRefreshInterval);
 });
+
+// Show connection error
+function showConnectionError() {
+    const main = document.querySelector('.dashboard-container');
+    if (main) {
+        const errorDiv = document.createElement('div');
+        errorDiv.style.cssText = 'background: #fff3cd; border: 2px solid #ffc107; border-radius: 15px; padding: 30px; text-align: center; margin: 20px 0;';
+        errorDiv.innerHTML = `
+            <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+            <h3 style="color: #856404; margin-bottom: 15px;">Backend Connection Error</h3>
+            <p style="color: #856404; margin-bottom: 20px;">
+                ${window.location.hostname === 'localhost' ? 
+                    'Local backend is not running. Please start the backend server or use the live URL.' : 
+                    'Unable to connect to the server. Please check your internet connection.'}
+            </p>
+            <button onclick="location.reload()" style="padding: 12px 30px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px;">
+                Retry
+            </button>
+            ${window.location.hostname === 'localhost' ? 
+                `<div style="margin-top: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
+                    <strong>To start backend:</strong><br>
+                    <code style="background: #fff; padding: 5px 10px; border-radius: 5px; display: inline-block; margin-top: 10px;">cd backend && uvicorn main:app --reload</code>
+                    <br><br>
+                    <strong>Or use live URL:</strong><br>
+                    <a href="https://english-communication-backend.onrender.com/templates/dashboard.html" style="color: #667eea; text-decoration: underline;">Go to Live Site</a>
+                </div>` : ''
+            }
+        `;
+        main.prepend(errorDiv);
+    }
+}
 
 // Initialize on page load
 if (document.readyState === 'loading') {
