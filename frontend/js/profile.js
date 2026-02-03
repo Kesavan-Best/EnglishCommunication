@@ -1,5 +1,5 @@
 // js/profile.js - Fixed version
-const API_BASE_URL = 'http://localhost:8000'; // Update with your backend URL
+// API_BASE_URL is loaded from config.js
 
 // Initialize profile page
 async function initProfilePage() {
@@ -43,8 +43,8 @@ async function loadUserData(token, userId) {
     try {
         // Use specific user endpoint if userId is provided, otherwise use /me for current user
         const endpoint = userId 
-            ? `${API_BASE_URL}/api/users/${userId}`
-            : `${API_BASE_URL}/api/users/me`;
+            ? API_ENDPOINTS.userProfile(userId)
+            : API_ENDPOINTS.me;
         
         console.log('Loading user from:', endpoint);
             
@@ -81,7 +81,7 @@ async function loadUserStats(token, userId) {
             return;
         }
         
-        const response = await fetch(`${API_BASE_URL}/api/users/stats`, {
+        const response = await fetch(API_ENDPOINTS.userStats, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
@@ -115,7 +115,7 @@ async function loadRecentActivity(token, userId) {
             return;
         }
         
-        const response = await fetch(`${API_BASE_URL}/api/calls/recent`, {
+        const response = await fetch(API_ENDPOINTS.recentCalls, {
             headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
@@ -200,13 +200,18 @@ function updateProfileUI(user) {
 
 // Update statistics UI
 function updateStatsUI(stats) {
-    // Update progress bars
+    // Update progress bars - ALL START AT ZERO until real data exists
     const analysisStats = stats.analysis_stats || {};
     
-    const grammarPercent = Math.min(100, 100 - (analysisStats.avg_grammar_errors || 0) * 5);
+    // Only show real data when it exists, otherwise keep at 0
+    const grammarPercent = analysisStats.avg_grammar_errors !== undefined 
+        ? Math.min(100, 100 - analysisStats.avg_grammar_errors * 5) 
+        : 0;
     const fluencyPercent = analysisStats.avg_fluency || 0;
-    const vocabPercent = Math.min(100, 100 - (analysisStats.vocabulary_repetition || 0) * 100);
-    const pronunciationPercent = analysisStats.pronunciation_score || 75; // Default
+    const vocabPercent = analysisStats.vocabulary_repetition !== undefined
+        ? Math.min(100, 100 - analysisStats.vocabulary_repetition * 100)
+        : 0;
+    const pronunciationPercent = analysisStats.pronunciation_score || 0; // NO DEFAULT - start at 0
     
     // Animate progress bars
     setTimeout(() => {

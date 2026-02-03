@@ -2,7 +2,7 @@
 function checkAuth() {
     const token = localStorage.getItem('token');
     if (!token) {
-        window.location.href = '../templates/login.html';
+        window.location.href = '/frontend/templates/login.html';
         return null;
     }
     
@@ -21,8 +21,21 @@ function checkAuth() {
 
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
+        // Call backend logout API to update online status
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetch(API_ENDPOINTS.logout, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }).catch(err => console.error('Logout API error:', err));
+        }
+        
+        // Clear local storage and redirect
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = '../index.html';
+        window.location.href = '/frontend/index.html';
     }
 }

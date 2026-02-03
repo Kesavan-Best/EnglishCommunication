@@ -6,7 +6,7 @@ function checkAuth() {
     const user = localStorage.getItem('user');
     
     if (!token || !user) {
-        window.location.href = 'login.html';
+        window.location.href = '/frontend/templates/login.html';
         return null;
     }
     
@@ -38,7 +38,7 @@ async function logout() {
     } finally {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        window.location.href = 'login.html';
+        window.location.href = '/frontend/templates/login.html';
     }
 }
 

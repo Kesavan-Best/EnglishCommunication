@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call System Debug</title>
+    <script src="../js/config.js"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #0f0; }
+        .section { background: #000; padding: 20px; margin: 10px 0; border: 1px solid #0f0; border-radius: 5px; }
+        button { background: #0f0; color: #000; border: none; padding: 10px 20px; margin: 5px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0a0; }
+        .log { background: #111; padding: 10px; margin: 10px 0; max-height: 400px; overflow-y: auto; border: 1px solid #333; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .info { color: #0ff; }
+        input { background: #222; color: #0f0; border: 1px solid #0f0; padding: 8px; margin: 5px; width: 300px; }
+    </style>
+</head>
+<body>
+    <h1>🐛 Call System Debug Tool</h1>
+    
+    <div class="section">
+        <h2>Step 1: Login</h2>
+        <input type="email" id="login-email" placeholder="Email" value="john@example.com">
+        <input type="password" id="login-password" placeholder="Password" value="password123">
+        <button onclick="testLogin()">Login</button>
+        <div id="login-result" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 2: Get Users</h2>
+        <button onclick="getUsers()">Get All Users</button>
+        <div id="users-result" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 3: Test Call Invite</h2>
+        <input type="text" id="receiver-id" placeholder="Receiver User ID">
+        <button onclick="testCallInvite()">Send Call Invite</button>
+        <div id="call-result" class="log"></div>
+    </div>
+    
+    <div class="section">
+        <h2>Step 4: Full Call Flow Test</h2>
+        <button onclick="fullCallTest()">Run Full Test</button>
+        <div id="full-test-result" class="log"></div>
+    </div>
+    
+    <script>
+        let authToken = null;
+        let currentUserId = null;
+        let testUsers = [];
+        
+        function log(elementId, message, type = 'info') {
+            const el = document.getElementById(elementId);
+            const timestamp = new Date().toLocaleTimeString();
+            el.innerHTML += `<div class="${type}">[${timestamp}] ${message}</div>`;
+            el.scrollTop = el.scrollHeight;
+        }
+        
+        async function testLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const resultEl = document.getElementById('login-result');
+            resultEl.innerHTML = '';
+            
+            log('login-result', `Attempting login: ${email}...`, 'info');
+            
+            try {
+                const response = await fetch(API_ENDPOINTS.login, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                log('login-result', `Response status: ${response.status}`, 'info');
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    currentUserId = data.user.id;
+                    log('login-result', `✅ Login successful!`, 'success');
+                    log('login-result', `Token: ${authToken.substring(0, 50)}...`, 'success');
+                    log('login-result', `User: ${data.user.name} (ID: ${currentUserId})`, 'success');
+                    localStorage.setItem('test_token', authToken);
+                } else {
+                    const error = await response.json();
+                    log('login-result', `❌ Login failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log('login-result', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getUsers() {
+            if (!authToken) {
+                log('users-result', '❌ Please login first!', 'error');
+                return;
+            }
+            
+            const resultEl = document.getElementById('users-result');
+            resultEl.innerHTML = '';
+            log('users-result', 'Fetching users...', 'info');
+            
+            try {
+                const response = await fetch(API_ENDPOINTS.allUsers, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                log('users-result', `Response status: ${response.status}`, 'info');
+                
+                if (response.ok) {
+                    testUsers = await response.json();
+                    log('users-result', `✅ Got ${testUsers.length} users`, 'success');
+                    testUsers.forEach((user, index) => {
+                        const online = user.is_online ? '🟢 ONLINE' : '⚫ OFFLINE';
+                        log('users-result', `${index + 1}. ${user.name} (ID: ${user.id}) - ${online}`, 'info');
+                    });
+                    
+                    // Auto-fill receiver ID with first different user
+                    const otherUser = testUsers.find(u => u.id !== currentUserId);
+                    if (otherUser) {
+                        document.getElementById('receiver-id').value = otherUser.id;
+                        log('users-result', `💡 Auto-filled receiver ID: ${otherUser.name}`, 'info');
+                    }
+                } else {
+                    const error = await response.json();
+                    log('users-result', `❌ Failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log('users-result', `❌ Network error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testCallInvite() {
+            if (!authToken) {
+                log('call-result', '❌ Please login first!', 'error');
+                return;
+            }
+            
+            const receiverId = document.getElementById('receiver-id').value;
+            if (!receiverId) {
+                log('call-result', '❌ Please enter receiver ID!', 'error');
+                return;
+            }
+            
+            const resultEl = document.getElementById('call-result');
+            resultEl.innerHTML = '';
+            log('call-result', `Sending call invite to: ${receiverId}...`, 'info');
+            log('call-result', `API Endpoint: ${API_ENDPOINTS.inviteCall}`, 'info');
+            
+            try {
+                const response = await fetch(API_ENDPOINTS.inviteCall, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ receiver_id: receiverId })
+                });
+                
+                log('call-result', `Response status: ${response.status}`, 'info');
+                log('call-result', `Response headers: ${JSON.stringify([...response.headers.entries()])}`, 'info');
+                
+                const responseText = await response.text();
+                log('call-result', `Response body: ${responseText}`, 'info');
+                
+                if (response.ok) {
+                    const call = JSON.parse(responseText);
+                    log('call-result', `✅ Call created successfully!`, 'success');
+                    log('call-result', `Call ID: ${call.id}`, 'success');
+                    log('call-result', `Jitsi Room: ${call.jitsi_room_id}`, 'success');
+                    log('call-result', `Status: ${call.status}`, 'success');
+                    log('call-result', `💡 Now open call page: call.html?callId=${call.id}`, 'info');
+                } else {
+                    const error = JSON.parse(responseText);
+                    log('call-result', `❌ Failed: ${error.detail}`, 'error');
+                }
+            } catch (error) {
+                log('call-result', `❌ Error: ${error.message}`, 'error');
+                log('call-result', `Error stack: ${error.stack}`, 'error');
+            }
+        }
+        
+        async function fullCallTest() {
+            const resultEl = document.getElementById('full-test-result');
+            resultEl.innerHTML = '';
+            log('full-test-result', '🚀 Starting full call flow test...', 'info');
+            
+            // Step 1: Login
+            log('full-test-result', 'Step 1: Logging in...', 'info');
+            await testLogin();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (!authToken) {
+                log('full-test-result', '❌ Test failed: Could not login', 'error');
+                return;
+            }
+            
+            // Step 2: Get users
+            log('full-test-result', 'Step 2: Getting users...', 'info');
+            await getUsers();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            if (testUsers.length === 0) {
+                log('full-test-result', '❌ Test failed: No users found', 'error');
+                return;
+            }
+            
+            // Step 3: Create call
+            const otherUser = testUsers.find(u => u.id !== currentUserId);
+            if (!otherUser) {
+                log('full-test-result', '❌ Test failed: No other user found', 'error');
+                return;
+            }
+            
+            log('full-test-result', `Step 3: Creating call to ${otherUser.name}...`, 'info');
+            document.getElementById('receiver-id').value = otherUser.id;
+            await testCallInvite();
+            
+            log('full-test-result', '✅ Full test completed! Check results above.', 'success');
+        }
+        
+        // Auto-load token if exists
+        window.onload = function() {
+            const savedToken = localStorage.getItem('test_token');
+            if (savedToken) {
+                authToken = savedToken;
+                console.log('Loaded saved token');
+            }
+        };
+    </script>
+</body>
+</html>

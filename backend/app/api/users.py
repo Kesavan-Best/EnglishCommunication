@@ -24,50 +24,60 @@ async def calculate_user_rank(user_id: str) -> int:
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegisterRequest):
     """Register a new user"""
-    db = Database.get_db()
-    
-    # Check if user already exists
-    if db.users.find_one({"email": user_data.email}):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
+    try:
+        db = Database.get_db()
+        
+        # Check if user already exists
+        existing_user = db.users.find_one({"email": user_data.email})
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        
+        # Hash password
+        hashed_password = AuthHandler.hash_password(user_data.password)
+        
+        # Create user document
+        user_doc = {
+            "email": user_data.email,
+            "name": user_data.name,
+            "hashed_password": hashed_password,
+            "avatar_url": None,
+            "is_online": False,
+            "ai_score": 0.0,
+            "total_calls": 0,
+            "total_call_duration": 0,
+            "avg_fluency_score": 0.0,
+            "weaknesses": [],
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        result = db.users.insert_one(user_doc)
+        user_doc["_id"] = result.inserted_id
+        
+        return UserResponse(
+            id=str(result.inserted_id),
+            email=user_data.email,
+            name=user_data.name,
+            avatar_url=None,
+            is_online=False,
+            ai_score=0.0,
+            total_calls=0,
+            total_call_duration=0,
+            avg_fluency_score=0.0,
+            weaknesses=[],
+            rank=None
         )
-    
-    # Hash password
-    hashed_password = AuthHandler.hash_password(user_data.password)
-    
-    # Create user document
-    user_doc = {
-        "email": user_data.email,
-        "name": user_data.name,
-        "hashed_password": hashed_password,
-        "avatar_url": None,
-        "is_online": False,
-        "ai_score": 0.0,
-        "total_calls": 0,
-        "total_call_duration": 0,
-        "avg_fluency_score": 0.0,
-        "weaknesses": [],
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow()
-    }
-    
-    result = db.users.insert_one(user_doc)
-    user_doc["_id"] = result.inserted_id
-    
-    return UserResponse(
-        id=str(result.inserted_id),
-        email=user_data.email,
-        name=user_data.name,
-        avatar_url=None,
-        is_online=False,
-        ai_score=0.0,
-        total_calls=0,
-        total_call_duration=0,
-        avg_fluency_score=0.0,
-        weaknesses=[],
-        rank=None
-    )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 @router.post("/login")
 async def login(user_data: UserLoginRequest):
@@ -406,6 +416,13 @@ async def send_friend_request(
 ):
     """Send a friend request to another user"""
     db = Database.get_db()
+    
+    # Prevent sending friend request to yourself
+    if str(current_user.id) == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot send friend request to yourself"
+        )
     
     # Check if user exists
     target_user = db.users.find_one({"_id": ObjectId(user_id)})

@@ -4,10 +4,91 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - ImproveCommunication</title>
-    <link rel="stylesheet" href="../css/style.css">
-    <link rel="stylesheet" href="../css/auth.css">
-    <script src="../js/config.js"></script>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <link rel="stylesheet" href="/frontend/css/auth.css">
+    <script src="/frontend/js/config.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: #f5f5f5;
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #e5e5e5;
+            padding: 15px 0;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .nav-brand h2 {
+            font-size: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-link {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-outline {
+            border: 1px solid #667eea;
+            color: #667eea;
+            padding: 8px 20px;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+    </style>
 </head>
 <body>
     <!-- Navigation -->
@@ -20,10 +101,10 @@
                 <h2>ImproveCommunication</h2>
             </div>
             <div class="nav-links">
-                <a href="../index.html" class="nav-link">
+                <a href="/frontend/index.html" class="nav-link">
                     <i class="fas fa-home"></i> Home
                 </a>
-                <a href="register.html" class="nav-link btn-outline">
+                <a href="/frontend/templates/register.html" class="nav-link btn-outline">
                     <i class="fas fa-user-plus"></i> Register
                 </a>
             </div>
@@ -211,10 +292,7 @@
                             <span>Track your progress over time</span>
                         </li>
                     </ul>
-                    <div class="side-footer">
-                        <i class="fas fa-star"></i>
-                        <span>Join 10,000+ satisfied learners</span>
-                    </div>
+                
                 </div>
             </div>
         </div>

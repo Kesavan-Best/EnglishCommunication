@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz - ImproveCommunication</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <script src="../js/config.js"></script>
+    <style>
+        .quiz-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+        }
+        
+        .quiz-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .quiz-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .quiz-header h1 {
+            color: #667eea;
+            margin: 0 0 10px 0;
+        }
+        
+        .quiz-progress {
+            background: #e0e0e0;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+        
+        .quiz-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+        
+        .question-card {
+            margin: 30px 0;
+        }
+        
+        .question-number {
+            color: #667eea;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .question-text {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            line-height: 1.5;
+        }
+        
+        .options-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .option-item {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .option-item:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+        
+        .option-item.selected {
+            background: #e7f3ff;
+            border-color: #667eea;
+        }
+        
+        .option-item.correct {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+        
+        .option-item.incorrect {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+        
+        .option-letter {
+            width: 32px;
+            height: 32px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+        
+        .explanation {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #ffc107;
+        }
+        
+        .explanation-title {
+            font-weight: 600;
+            color: #856404;
+            margin-bottom: 5px;
+        }
+        
+        .quiz-actions {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .quiz-results {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .score-circle {
+            width: 200px;
+            height: 200px;
+            margin: 30px auto;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .score-circle .score {
+            font-size: 60px;
+            font-weight: bold;
+        }
+        
+        .score-circle .label {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .result-message {
+            font-size: 24px;
+            color: #333;
+            margin: 20px 0;
+        }
+        
+        .result-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="quiz-page">
+        <div class="quiz-container">
+            <!-- Quiz Header -->
+            <div class="quiz-header">
+                <h1>📚 Personalized Quiz</h1>
+                <p id="weakness-topics">Based on your conversation weaknesses</p>
+                <div class="quiz-progress">
+                    <div class="quiz-progress-bar" id="progress-bar" style="width: 0%"></div>
+                </div>
+                <p id="progress-text">Question <span id="current-q">1</span> of <span id="total-q">10</span></p>
+            </div>
+            
+            <!-- Quiz Content -->
+            <div id="quiz-content">
+                <div class="question-card">
+                    <div class="question-number" id="question-number">Question 1</div>
+                    <div class="question-text" id="question-text">Loading...</div>
+                    <ul class="options-list" id="options-list">
+                        <!-- Options will be inserted here -->
+                    </ul>
+                    <div id="explanation-container" style="display: none;">
+                        <div class="explanation">
+                            <div class="explanation-title">💡 Explanation</div>
+                            <div id="explanation-text"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="quiz-actions">
+                    <button class="btn btn-secondary" onclick="previousQuestion()" id="prev-btn" disabled>
+                        ← Previous
+                    </button>
+                    <button class="btn btn-primary" onclick="nextQuestion()" id="next-btn" disabled>
+                        Next →
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Results Screen -->
+            <div id="quiz-results" style="display: none;">
+                <div class="quiz-results">
+                    <h2>🎉 Quiz Completed!</h2>
+                    <div class="score-circle">
+                        <div class="score" id="final-score">0%</div>
+                        <div class="label">Score</div>
+                    </div>
+                    <div class="result-message" id="result-message"></div>
+                    <p id="correct-count"></p>
+                    
+                    <div class="result-actions">
+                        <button class="btn btn-primary" onclick="window.location.href='dashboard.html'">
+                            🏠 Back to Dashboard
+                        </button>
+                        <button class="btn btn-secondary" onclick="window.location.href='users.html'">
+                            👥 Find Practice Partner
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let quizId = null;
+        let quizData = null;
+        let currentQuestionIndex = 0;
+        let userAnswers = [];
+        let showingExplanation = false;
+        
+        // Check authentication
+        async function checkAuth() {
+            const token = localStorage.getItem('token');
+            const user = localStorage.getItem('user');
+            
+            if (!token || !user) {
+                window.location.href = 'login.html';
+                return null;
+            }
+            
+            return JSON.parse(user);
+        }
+        
+        // Load quiz data
+        async function loadQuiz() {
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/analysis/quiz/${quizId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load quiz');
+                }
+                
+                quizData = await response.json();
+                userAnswers = new Array(quizData.questions.length).fill(null);
+                
+                // Display weaknesses
+                if (quizData.weaknesses && quizData.weaknesses.length > 0) {
+                    document.getElementById('weakness-topics').textContent = 
+                        `Focus areas: ${quizData.weaknesses.join(', ')}`;
+                }
+                
+                document.getElementById('total-q').textContent = quizData.questions.length;
+                displayQuestion();
+            } catch (error) {
+                console.error('Error loading quiz:', error);
+                alert('Failed to load quiz. Redirecting to dashboard...');
+                window.location.href = 'dashboard.html';
+            }
+        }
+        
+        // Display question
+        function displayQuestion() {
+            const question = quizData.questions[currentQuestionIndex];
+            
+            // Update progress
+            const progress = ((currentQuestionIndex + 1) / quizData.questions.length) * 100;
+            document.getElementById('progress-bar').style.width = `${progress}%`;
+            document.getElementById('current-q').textContent = currentQuestionIndex + 1;
+            
+            // Display question
+            document.getElementById('question-number').textContent = 
+                `Question ${currentQuestionIndex + 1}`;
+            document.getElementById('question-text').textContent = question.question;
+            
+            // Display options
+            const optionsList = document.getElementById('options-list');
+            optionsList.innerHTML = '';
+            
+            const letters = ['A', 'B', 'C', 'D'];
+            question.options.forEach((option, idx) => {
+                const li = document.createElement('li');
+                li.className = 'option-item';
+                li.innerHTML = `
+                    <div class="option-letter">${letters[idx]}</div>
+                    <div>${option}</div>
+                `;
+                
+                // Check if already answered
+                if (userAnswers[currentQuestionIndex] === idx) {
+                    li.classList.add('selected');
+                }
+                
+                li.onclick = () => selectOption(idx);
+                optionsList.appendChild(li);
+            });
+            
+            // Hide explanation
+            document.getElementById('explanation-container').style.display = 'none';
+            showingExplanation = false;
+            
+            // Update buttons
+            document.getElementById('prev-btn').disabled = currentQuestionIndex === 0;
+            document.getElementById('next-btn').disabled = userAnswers[currentQuestionIndex] === null;
+            document.getElementById('next-btn').textContent = 
+                currentQuestionIndex === quizData.questions.length - 1 ? 'Finish' : 'Next →';
+        }
+        
+        // Select option
+        function selectOption(idx) {
+            if (showingExplanation) return;
+            
+            userAnswers[currentQuestionIndex] = idx;
+            
+            // Update UI
+            const options = document.querySelectorAll('.option-item');
+            options.forEach((opt, i) => {
+                opt.classList.remove('selected');
+                if (i === idx) {
+                    opt.classList.add('selected');
+                }
+            });
+            
+            document.getElementById('next-btn').disabled = false;
+            
+            // Show explanation immediately after selection
+            showExplanation();
+        }
+        
+        // Show explanation
+        function showExplanation() {
+            const question = quizData.questions[currentQuestionIndex];
+            const userAnswer = userAnswers[currentQuestionIndex];
+            const correctIndex = question.options.indexOf(question.correct_answer);
+            
+            // Mark correct/incorrect
+            const options = document.querySelectorAll('.option-item');
+            options.forEach((opt, idx) => {
+                if (idx === correctIndex) {
+                    opt.classList.add('correct');
+                } else if (idx === userAnswer && idx !== correctIndex) {
+                    opt.classList.add('incorrect');
+                }
+            });
+            
+            // Show explanation
+            document.getElementById('explanation-text').textContent = question.explanation;
+            document.getElementById('explanation-container').style.display = 'block';
+            showingExplanation = true;
+        }
+        
+        // Previous question
+        function previousQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                displayQuestion();
+            }
+        }
+        
+        // Next question
+        function nextQuestion() {
+            if (currentQuestionIndex < quizData.questions.length - 1) {
+                currentQuestionIndex++;
+                displayQuestion();
+            } else {
+                submitQuiz();
+            }
+        }
+        
+        // Submit quiz
+        async function submitQuiz() {
+            // Calculate score
+            let correct = 0;
+            quizData.questions.forEach((question, idx) => {
+                const correctIndex = question.options.indexOf(question.correct_answer);
+                if (userAnswers[idx] === correctIndex) {
+                    correct++;
+                }
+            });
+            
+            const score = (correct / quizData.questions.length) * 100;
+            
+            // Submit to backend
+            const token = localStorage.getItem('token');
+            try {
+                await fetch(`${API_BASE_URL}/api/analysis/quiz/${quizId}/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        answers: userAnswers,
+                        score: score
+                    })
+                });
+            } catch (error) {
+                console.error('Error submitting quiz:', error);
+            }
+            
+            // Show results
+            displayResults(score, correct);
+        }
+        
+        // Display results
+        function displayResults(score, correct) {
+            document.getElementById('quiz-content').style.display = 'none';
+            document.getElementById('quiz-results').style.display = 'block';
+            
+            document.getElementById('final-score').textContent = `${Math.round(score)}%`;
+            document.getElementById('correct-count').textContent = 
+                `You got ${correct} out of ${quizData.questions.length} questions correct`;
+            
+            let message = '';
+            if (score >= 90) {
+                message = '🌟 Excellent! You\'ve mastered these concepts!';
+            } else if (score >= 70) {
+                message = '👍 Great job! Keep practicing to perfect your skills!';
+            } else if (score >= 50) {
+                message = '📚 Good effort! Review the explanations and try again!';
+            } else {
+                message = '💪 Keep learning! Practice makes perfect!';
+            }
+            
+            document.getElementById('result-message').textContent = message;
+        }
+        
+        // Initialize
+        window.onload = async function() {
+            currentUser = await checkAuth();
+            
+            if (currentUser) {
+                const urlParams = new URLSearchParams(window.location.search);
+                quizId = urlParams.get('quizId');
+                
+                if (!quizId) {
+                    alert('No quiz ID provided');
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+                
+                await loadQuiz();
+            }
+        };
+    </script>
+</body>
+</html>

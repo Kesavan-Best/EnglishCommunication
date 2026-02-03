@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blog - ImproveCommunication</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <link rel="stylesheet" href="/frontend/css/enhanced-theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .blog-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            margin-bottom: 30px;
+        }
+        .blog-card:hover {
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.2);
+            transform: translateY(-5px);
+        }
+        .blog-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            color: white;
+        }
+        .blog-date {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+        .blog-title {
+            font-size: 24px;
+            font-weight: 700;
+            margin: 0;
+        }
+        .blog-content {
+            padding: 30px;
+        }
+        .blog-excerpt {
+            color: #4a5568;
+            line-height: 1.8;
+            margin-bottom: 20px;
+        }
+        .blog-tags {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        .blog-tag {
+            background: #edf2f7;
+            color: #667eea;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="nav-brand">
+                <i class="fas fa-comments"></i>
+                <h2>ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="/frontend/index.html" class="nav-link">Home</a>
+                <a href="/frontend/templates/about.html" class="nav-link">About</a>
+                <a href="/frontend/templates/faq.html" class="nav-link">FAQ</a>
+                <a href="/frontend/templates/login.html" class="nav-link">Login</a>
+                <a href="/frontend/templates/register.html" class="btn btn-primary btn-sm">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main style="min-height: 80vh; padding: 60px 20px;">
+        <div class="container" style="max-width: 900px;">
+            <h1 style="text-align: center; margin-bottom: 20px; color: #667eea;">Learning Resources & Tips</h1>
+            <p style="text-align: center; color: #666; margin-bottom: 50px;">Expert advice to accelerate your English learning journey</p>
+
+            <!-- Blog Post 1 -->
+            <div class="blog-card">
+                <div class="blog-header">
+                    <div class="blog-date"><i class="fas fa-calendar-alt"></i> January 30, 2026</div>
+                    <h2 class="blog-title">5 Tips to Make the Most of Your Practice Calls</h2>
+                </div>
+                <div class="blog-content">
+                    <p class="blog-excerpt">
+                        Getting the most value from your practice sessions requires more than just talking. Here are five proven 
+                        strategies to maximize your learning during every conversation:
+                    </p>
+                    <ol style="color: #4a5568; line-height: 1.8; padding-left: 20px;">
+                        <li><strong>Prepare topics beforehand:</strong> Think about what you want to discuss before starting a call. 
+                        Having a mental list of topics helps you practice vocabulary naturally.</li>
+                        <li><strong>Focus on fluency over perfection:</strong> Don't stop mid-sentence to correct yourself. Keep the 
+                        conversation flowing, and review your mistakes afterward using the AI feedback.</li>
+                        <li><strong>Ask follow-up questions:</strong> Practice active listening and ask your partner to elaborate. 
+                        This builds conversational skills beyond just speaking.</li>
+                        <li><strong>Record key phrases you struggle with:</strong> After each call, write down expressions that were 
+                        difficult. Practice them before your next session.</li>
+                        <li><strong>Review your feedback immediately:</strong> Don't wait! Read through your AI analysis right after 
+                        the call while the conversation is fresh in your mind.</li>
+                    </ol>
+                    <div class="blog-tags">
+                        <span class="blog-tag">Learning Tips</span>
+                        <span class="blog-tag">Practice</span>
+                        <span class="blog-tag">Improvement</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blog Post 2 -->
+            <div class="blog-card">
+                <div class="blog-header">
+                    <div class="blog-date"><i class="fas fa-calendar-alt"></i> January 28, 2026</div>
+                    <h2 class="blog-title">Why Speaking Practice Matters More Than You Think</h2>
+                </div>
+                <div class="blog-content">
+                    <p class="blog-excerpt">
+                        Many language learners spend years studying grammar and vocabulary but still struggle to hold a basic 
+                        conversation. Here's why regular speaking practice is the missing piece:
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Building muscle memory:</strong> Speaking a language is a physical skill. Your mouth, tongue, and 
+                        vocal cords need practice forming new sounds. The more you speak, the more natural these movements become.
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Thinking in English:</strong> Real conversations force you to think quickly in English rather than 
+                        translating from your native language. This is essential for fluency.
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Confidence building:</strong> The more you practice speaking, the less anxious you feel. Regular 
+                        practice turns nervousness into confidence, which improves your overall communication.
+                    </p>
+                    <div class="blog-tags">
+                        <span class="blog-tag">Fluency</span>
+                        <span class="blog-tag">Confidence</span>
+                        <span class="blog-tag">Speaking Skills</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blog Post 3 -->
+            <div class="blog-card">
+                <div class="blog-header">
+                    <div class="blog-date"><i class="fas fa-calendar-alt"></i> January 25, 2026</div>
+                    <h2 class="blog-title">Understanding Your AI Feedback Report</h2>
+                </div>
+                <div class="blog-content">
+                    <p class="blog-excerpt">
+                        After each call, you receive a detailed AI analysis. Here's how to interpret and use this feedback effectively:
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Grammar Score:</strong> This reflects your grammatical accuracy during the conversation. Focus on 
+                        patterns in your mistakes rather than individual errors.
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Fluency Score:</strong> Measures how smoothly you speak. A lower score might indicate frequent pauses, 
+                        hesitations, or filler words like "um" and "uh."
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Vocabulary Usage:</strong> Tracks the range and appropriateness of words you use. Try to incorporate 
+                        new vocabulary naturally in each call.
+                    </p>
+                    <p style="color: #4a5568; line-height: 1.8;">
+                        <strong>Pronunciation Notes:</strong> Highlights words or sounds you struggled with. Practice these specific 
+                        sounds between calls.
+                    </p>
+                    <div class="blog-tags">
+                        <span class="blog-tag">AI Feedback</span>
+                        <span class="blog-tag">Progress</span>
+                        <span class="blog-tag">Assessment</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blog Post 4 -->
+            <div class="blog-card">
+                <div class="blog-header">
+                    <div class="blog-date"><i class="fas fa-calendar-alt"></i> January 22, 2026</div>
+                    <h2 class="blog-title">Creating a Consistent Learning Schedule</h2>
+                </div>
+                <div class="blog-content">
+                    <p class="blog-excerpt">
+                        Consistency beats intensity when learning a language. Here's how to build a sustainable practice routine:
+                    </p>
+                    <ul style="color: #4a5568; line-height: 1.8; padding-left: 20px;">
+                        <li><strong>Start small:</strong> Three 5-minute calls per week is better than one exhausting hour-long session.</li>
+                        <li><strong>Schedule it:</strong> Treat practice calls like appointments. Set a regular time each week.</li>
+                        <li><strong>Track your streak:</strong> Use your dashboard to monitor consecutive days of practice. Don't break the chain!</li>
+                        <li><strong>Mix partners:</strong> Talk to different people to experience various accents and conversation styles.</li>
+                        <li><strong>Rest when needed:</strong> If you're tired or stressed, it's okay to skip a day. Quality matters more than quantity.</li>
+                    </ul>
+                    <div class="blog-tags">
+                        <span class="blog-tag">Consistency</span>
+                        <span class="blog-tag">Habits</span>
+                        <span class="blog-tag">Motivation</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CTA Section -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; text-align: center; color: white; margin-top: 50px;">
+                <h2 style="margin-bottom: 20px;">Ready to Put These Tips Into Action?</h2>
+                <p style="margin-bottom: 30px; opacity: 0.9;">Start your learning journey today with real conversations!</p>
+                <a href="register.html" class="btn btn-secondary btn-lg" style="background: white; color: #667eea;">
+                    <i class="fas fa-rocket"></i> Join Now
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer style="background: #1a202c; color: white; padding: 40px 0; margin-top: 60px;">
+        <div class="container" style="text-align: center;">
+            <p style="color: #a0aec0;">&copy; 2026 ImproveCommunication. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

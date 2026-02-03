@@ -29,6 +29,18 @@ class ConnectionManager:
         self.user_status[user_id] = {"is_online": True, "current_call": None}
         logger.info(f"✅ User {user_id} connected. Total: {len(self.active_connections)}")
         
+        # Update database to set user online
+        try:
+            from backend.app.database import Database
+            from bson import ObjectId
+            db = Database.get_db()
+            db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
+            )
+        except Exception as e:
+            logger.error(f"Failed to update user online status in DB: {e}")
+        
         # Send welcome message
         await self.send_personal_message({
             "type": "welcome",
@@ -61,6 +73,18 @@ class ConnectionManager:
                 # Remove from active call
                 if user_id in participants:
                     participants.remove(user_id)
+        
+        # Update database to set user offline
+        try:
+            from backend.app.database import Database
+            from bson import ObjectId
+            db = Database.get_db()
+            db.users.update_one(
+                {"_id": ObjectId(user_id)},
+                {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+            )
+        except Exception as e:
+            logger.error(f"Failed to update user offline status in DB: {e}")
         
         logger.info(f"❌ User {user_id} disconnected")
 

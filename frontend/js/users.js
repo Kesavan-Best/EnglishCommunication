@@ -118,6 +118,10 @@ async function loadFriends() {
         
         if (response.ok) {
             friends = await response.json();
+            // Filter out current user from friends list
+            if (currentUser) {
+                friends = friends.filter(f => f.id !== currentUser.id);
+            }
             displayUsers(friends, 'friends-grid');
         }
     } catch (error) {
@@ -528,7 +532,7 @@ async function initiateCall(userId) {
 }
 
 function viewProfile(userId) {
-    window.location.href = `profile.html?userId=${userId}`;
+    window.location.href = `/frontend/templates/profile.html?userId=${userId}`;
 }
 
 function setupSearch() {

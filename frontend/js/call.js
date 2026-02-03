@@ -452,6 +452,7 @@ const CallManager = {
     // Start call timer
     startCallTimer() {
         this.state.callStartTime = Date.now();
+        const MAX_CALL_DURATION = 300; // 5 minutes in seconds
         
         this.state.callTimer = setInterval(() => {
             const elapsed = Math.floor((Date.now() - this.state.callStartTime) / 1000);
@@ -461,6 +462,18 @@ const CallManager = {
             const timerElement = document.getElementById('callTimer');
             if (timerElement) {
                 timerElement.textContent = `${minutes}:${seconds}`;
+                
+                // Warn at 4 minutes (240 seconds)
+                if (elapsed === 240) {
+                    alert('⏰ You have 1 minute remaining! Free users have a 5-minute call limit.');
+                }
+                
+                // End call at 5 minutes (300 seconds)
+                if (elapsed >= MAX_CALL_DURATION) {
+                    clearInterval(this.state.callTimer);
+                    alert('⏱️ Call time limit reached (5 minutes).\n\nUpgrade to Premium for unlimited call duration!');
+                    this.endCall();
+                }
             }
         }, 1000);
     },

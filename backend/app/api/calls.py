@@ -251,12 +251,37 @@ async def end_call(
         {"$set": update_data}
     )
     
-    # Update user statistics ONLY if BOTH users actually connected
+    # Update user statistics ONLY if call is valid:
+    # - Both users actually connected
+    # - Call duration between 60 seconds (1 min) and 300 seconds (5 min)  
+    # - Users actually spoke (transcripts not empty)
     call_data = db.calls.find_one({"_id": call_id})
     both_connected = call_data.get("both_users_connected", False)
+    caller_transcript = call_data.get("caller_transcript", "")
+    receiver_transcript = call_data.get("receiver_transcript", "")
     
-    if both_connected and duration >= 10:
-        # Only count as valid call if both users connected AND spoke for 10+ seconds
+    # Check if users actually spoke (at least 20 characters in transcript)
+    caller_spoke = len(caller_transcript.strip()) > 20
+    receiver_spoke = len(receiver_transcript.strip()) > 20
+    
+    # Enforce 5-minute call limit for free users
+    MAX_CALL_DURATION = 300  # 5 minutes in seconds
+    if duration > MAX_CALL_DURATION:
+        duration = MAX_CALL_DURATION
+        update_data["duration_seconds"] = MAX_CALL_DURATION
+        update_data["call_limit_reached"] = True
+        db.calls.update_one(
+            {"_id": call_id},
+            {"$set": update_data}
+        )
+    
+    # Validate call: both connected, 1-5 minutes, both spoke
+    is_valid_call = (both_connected and 
+                     60 <= duration <= MAX_CALL_DURATION and
+                     caller_spoke and receiver_spoke)
+    
+    if is_valid_call:
+        # Only count as valid call if all conditions met
         for user_id in [call.caller_id, call.receiver_id]:
             db.users.update_one(
                 {"_id": user_id},
@@ -272,8 +297,6 @@ async def end_call(
         from backend.app.ai_processing.instant_analyzer import instant_analyzer
         
         # Get the stored transcripts and conversation
-        caller_transcript = call_data.get("caller_transcript", "")
-        receiver_transcript = call_data.get("receiver_transcript", "")
         conversation = call_data.get("conversation", [])
         
         # Generate feedback for caller based on their transcript
@@ -330,7 +353,24 @@ async def end_call(
         
         print(f"✅ Instant AI feedback generated for call {call_id}")
     else:
-        print(f"⚠️ Call not counted - both_connected: {both_connected}, duration: {duration}")
+        # Log why call was not counted
+        reasons = []
+        if not both_connected:
+            reasons.append("both users did not connect")
+        if not (60 <= duration <= MAX_CALL_DURATION):
+            reasons.append(f"duration {duration}s not between 60-300s")
+        if not caller_spoke:
+            reasons.append("caller did not speak enough")
+        if not receiver_spoke:
+            reasons.append("receiver did not speak enough")
+        
+        print(f"⚠️ Call not counted - Reasons: {', '.join(reasons)}")
+        
+        # Store reason in database
+        db.calls.update_one(
+            {"_id": call_id},
+            {"$set": {"invalid_reason": ", ".join(reasons)}}
+        )
     
     call.status = "completed"
     call.end_time = end_time
