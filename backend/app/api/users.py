@@ -27,9 +27,12 @@ async def register(user_data: UserRegisterRequest):
     try:
         db = Database.get_db()
         
+        print(f"📝 Registration attempt for: {user_data.email}")
+        
         # Check if user already exists
         existing_user = db.users.find_one({"email": user_data.email})
         if existing_user:
+            print(f"❌ Email already registered: {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
@@ -37,6 +40,7 @@ async def register(user_data: UserRegisterRequest):
         
         # Hash password
         hashed_password = AuthHandler.hash_password(user_data.password)
+        print(f"🔐 Password hashed successfully for: {user_data.email}")
         
         # Create user document
         user_doc = {
@@ -56,6 +60,8 @@ async def register(user_data: UserRegisterRequest):
         
         result = db.users.insert_one(user_doc)
         user_doc["_id"] = result.inserted_id
+        
+        print(f"✅ User registered successfully: {user_data.email} (ID: {result.inserted_id})")
         
         return UserResponse(
             id=str(result.inserted_id),
@@ -84,28 +90,39 @@ async def login(user_data: UserLoginRequest):
     """Login user and return access token"""
     db = Database.get_db()
     
+    print(f"🔐 Login attempt for email: {user_data.email}")
+    
     # Find user
     user = db.users.find_one({"email": user_data.email})
     if not user:
+        print(f"❌ User not found: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
     
+    print(f"✅ User found: {user_data.email}")
+    
     # Get password hash (handle both old and new field names)
     password_hash = user.get("hashed_password") or user.get("password_hash")
     if not password_hash:
+        print(f"❌ No password hash found for user: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid user data"
         )
     
+    print(f"🔑 Verifying password for: {user_data.email}")
+    
     # Verify password
     if not AuthHandler.verify_password(user_data.password, password_hash):
+        print(f"❌ Password verification failed for: {user_data.email}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
+    
+    print(f"✅ Password verified successfully for: {user_data.email}")
     
     # Create access token
     token = AuthHandler.create_access_token(str(user["_id"]))
@@ -641,6 +658,36 @@ async def find_random_partner(
             "ai_score": random_partner.get("ai_score", 0.0)
         }
     }
+
+@router.get("/debug/db-status")
+async def debug_db_status():
+    """Debug endpoint to check database status"""
+    try:
+        db = Database.get_db()
+        
+        # Count users
+        user_count = db.users.count_documents({})
+        
+        # Get sample user (without sensitive data)
+        sample_users = list(db.users.find({}, {"email": 1, "_id": 1}).limit(3))
+        
+        # Database info
+        db_info = {
+            "status": "connected",
+            "database_name": db.name,
+            "user_count": user_count,
+            "sample_user_emails": [u.get("email") for u in sample_users],
+            "mongodb_url_configured": os.getenv("MONGODB_URL") is not None,
+            "environment": os.getenv("ENVIRONMENT", "development")
+        }
+        
+        return db_info
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "mongodb_url_configured": os.getenv("MONGODB_URL") is not None
+        }
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user_profile(
