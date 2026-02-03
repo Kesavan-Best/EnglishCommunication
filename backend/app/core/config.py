@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     whisper_model: str = "base"  # base, small, medium, large
     language_tool_url: str = "http://localhost:8081"  # Local LanguageTool server
     
+    # Email Configuration (Gmail SMTP)
+    smtp_host: str = os.getenv("SMTP_HOST", "smtp.gmail.com")
+    smtp_port: int = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user: str = os.getenv("SMTP_USER", "")
+    smtp_password: str = os.getenv("SMTP_PASSWORD", "")
+    from_email: str = os.getenv("FROM_EMAIL", "")
+    from_name: str = os.getenv("FROM_NAME", "ImproveCommunication")
+    
     class Config:
         env_file = ".env"
 
