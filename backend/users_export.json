@@ -1,0 +1,116 @@
+[
+  {
+    "_id": "6970573511c77b1aa107bf21",
+    "email": "jane@example.com",
+    "hashed_password": "$2b$12$0nEULTUnv8Z4OdEzwo4We.X2Y3mvMe0Ygl1oWLoK1yN1yGJowK/ha",
+    "name": "Jane Smith",
+    "avatar_url": null,
+    "is_online": false,
+    "last_seen": "2026-02-02 09:13:26.444000",
+    "ai_score": 0.0,
+    "total_calls": 0,
+    "total_call_duration": 0,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [
+      "vocabulary_repetition"
+    ],
+    "friends": [],
+    "created_at": "2026-01-21 04:33:57.894000",
+    "updated_at": "2026-01-21 04:33:57.894000"
+  },
+  {
+    "_id": "6970573511c77b1aa107bf22",
+    "email": "bob@example.com",
+    "hashed_password": "$2b$12$0nEULTUnv8Z4OdEzwo4We.X2Y3mvMe0Ygl1oWLoK1yN1yGJowK/ha",
+    "name": "Bob Wilson",
+    "avatar_url": null,
+    "is_online": false,
+    "last_seen": "2026-02-02 09:13:26.444000",
+    "ai_score": 0.0,
+    "total_calls": 0,
+    "total_call_duration": 0,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [
+      "grammar",
+      "fluency",
+      "pauses"
+    ],
+    "friends": [],
+    "created_at": "2026-01-21 04:33:57.894000",
+    "updated_at": "2026-01-21 04:33:57.895000"
+  },
+  {
+    "_id": "6970590ca62d1bafb4018d29",
+    "email": "kesavankarnan333@gmail.com",
+    "name": "Kesavan",
+    "hashed_password": "$2b$12$dKgYtBE5XutKR4pNG4HRAuNiTxE3kPj58KCm3nKkDPzPejNuWT5Ce",
+    "avatar_url": null,
+    "is_online": true,
+    "ai_score": 0.0,
+    "total_calls": 33,
+    "total_call_duration": 1832,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [],
+    "created_at": "2026-01-21 04:41:48.070000",
+    "updated_at": "2026-01-21 04:41:48.070000",
+    "last_seen": "2026-02-03 04:54:46.397000",
+    "friends": [
+      "69705958a62d1bafb4018d2a",
+      "6972ee71ea571f82f36a0fd2"
+    ]
+  },
+  {
+    "_id": "69705958a62d1bafb4018d2a",
+    "email": "kesavankarnan2428@gmail.com",
+    "name": "Patrick",
+    "hashed_password": "$2b$12$yjD5fU8QYClteJm1eKiUTuAGLJleg/7BrvSFX/bs0lzWAgXN/.FRK",
+    "avatar_url": null,
+    "is_online": false,
+    "ai_score": 0.0,
+    "total_calls": 23,
+    "total_call_duration": 1129,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [],
+    "created_at": "2026-01-21 04:43:04.772000",
+    "updated_at": "2026-01-21 04:43:04.772000",
+    "last_seen": "2026-02-02 09:13:26.444000",
+    "friends": [
+      "6970590ca62d1bafb4018d29"
+    ]
+  },
+  {
+    "_id": "6972ee71ea571f82f36a0fd2",
+    "email": "kesavan.22ads@sonatech.ac.in",
+    "name": "Kendall Jenner",
+    "hashed_password": "$2b$12$CKa/FdGPe8rnzif9N5UEieiUHtroyGMSwy5qI0KhLjfa2lWp2GEWe",
+    "avatar_url": null,
+    "is_online": false,
+    "ai_score": 0.0,
+    "total_calls": 10,
+    "total_call_duration": 703,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [],
+    "created_at": "2026-01-23 03:43:45.382000",
+    "updated_at": "2026-01-23 03:43:45.382000",
+    "last_seen": "2026-02-02 14:21:55.562000",
+    "friends": [
+      "6970590ca62d1bafb4018d29"
+    ]
+  },
+  {
+    "_id": "6980a71e174c570ab39c8a65",
+    "email": "urkesavan@gmail.com",
+    "name": "kristen",
+    "hashed_password": "$2b$12$3nDDlls8j4CdbMiYL0JhLO1agsCqbpAQli5U2rxV6LanUVcmn1c..",
+    "avatar_url": null,
+    "is_online": false,
+    "ai_score": 0.0,
+    "total_calls": 0,
+    "total_call_duration": 0,
+    "avg_fluency_score": 0.0,
+    "weaknesses": [],
+    "created_at": "2026-02-02 13:31:10.047000",
+    "updated_at": "2026-02-02 13:31:10.047000",
+    "last_seen": "2026-02-02 13:31:47.936000"
+  }
+]

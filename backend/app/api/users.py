@@ -23,7 +23,7 @@ async def calculate_user_rank(user_id: str) -> int:
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegisterRequest):
-    """Register a new user"""
+    """Register a new user - requires email verification"""
     try:
         db = Database.get_db()
         
@@ -36,6 +36,19 @@ async def register(user_data: UserRegisterRequest):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
+            )
+        
+        # Verify OTP was verified (email verification required)
+        otp_record = db.otps.find_one({
+            "email": user_data.email,
+            "verified": True
+        })
+        
+        if not otp_record:
+            print(f"❌ Email not verified: {user_data.email}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Please verify your email with OTP first"
             )
         
         # Hash password
@@ -60,6 +73,16 @@ async def register(user_data: UserRegisterRequest):
         
         result = db.users.insert_one(user_doc)
         user_doc["_id"] = result.inserted_id
+        
+        # Delete used OTP
+        db.otps.delete_many({"email": user_data.email})
+        
+        # Send welcome email (non-blocking)
+        try:
+            from backend.app.email_service import email_service
+            email_service.send_welcome_email(user_data.email, user_data.name)
+        except Exception as e:
+            print(f"Warning: Failed to send welcome email: {e}")
         
         print(f"✅ User registered successfully: {user_data.email} (ID: {result.inserted_id})")
         

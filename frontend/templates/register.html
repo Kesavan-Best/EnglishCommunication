@@ -285,31 +285,58 @@
                 </div>
                 
                 <form id="register-form">
-                    <div class="form-group">
-                        <label class="form-label">Full Name</label>
-                        <input type="text" id="full-name" class="form-input" placeholder="Enter your full name" required>
+                    <!-- Step 1: Email & Name -->
+                    <div id="step-1" class="form-step">
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" id="full-name" class="form-input" placeholder="Enter your full name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" id="email" class="form-input" placeholder="Enter your email" required>
+                            <div class="form-hint">We'll send a verification code to this email</div>
+                        </div>
+                        
+                        <button type="button" id="send-otp-btn" class="btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Verification Code
+                        </button>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">Email Address</label>
-                        <input type="email" id="email" class="form-input" placeholder="Enter your email" required>
-                        <div class="form-hint">We'll never share your email with anyone</div>
+                    <!-- Step 2: OTP Verification -->
+                    <div id="step-2" class="form-step" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Verification Code</label>
+                            <input type="text" id="otp" class="form-input" placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}" required>
+                            <div class="form-hint">Check your email for the verification code (expires in 10 minutes)</div>
+                        </div>
+                        
+                        <button type="button" id="verify-otp-btn" class="btn-primary">
+                            <i class="fas fa-check-circle"></i> Verify Email
+                        </button>
+                        
+                        <button type="button" id="resend-otp-btn" class="btn-outline" style="width: 100%; margin-top: 10px; padding: 10px; border: 2px solid #667eea; background: white; color: #667eea; border-radius: 8px; cursor: pointer;">
+                            <i class="fas fa-redo"></i> Resend Code
+                        </button>
                     </div>
                     
-                    <div class="form-group">
-                        <label class="form-label">Password</label>
-                        <input type="password" id="password" class="form-input" placeholder="Create a password" required>
-                        <div class="password-strength">Minimum 8 characters with letters and numbers</div>
+                    <!-- Step 3: Password & Complete Registration -->
+                    <div id="step-3" class="form-step" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="password" class="form-input" placeholder="Create a password" required>
+                            <div class="password-strength">Minimum 8 characters with letters and numbers</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <input type="password" id="confirm-password" class="form-input" placeholder="Confirm your password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-user-plus"></i> Create Account
+                        </button>
                     </div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">Confirm Password</label>
-                        <input type="password" id="confirm-password" class="form-input" placeholder="Confirm your password" required>
-                    </div>
-                    
-                    <button type="submit" class="btn-primary">
-                        <i class="fas fa-user-plus"></i> Create Account
-                    </button>
                     
                     <div style="margin-top: 15px; text-align: center;">
                         <small style="color: #718096;">
@@ -357,6 +384,10 @@
 
     <script src="/frontend/js/config.js"></script>
     <script>
+        let isEmailVerified = false;
+        let userEmail = '';
+        let userName = '';
+        
         // Test backend connection
         async function checkBackend() {
             const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
@@ -377,11 +408,145 @@
             }
         }
         
+        // Get API Base URL
+        function getApiUrl() {
+            const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            return isProduction 
+                ? 'https://english-communication-backend.onrender.com'
+                : 'http://127.0.0.1:8000';
+        }
+        
+        // Step 1: Send OTP
+        document.getElementById('send-otp-btn').addEventListener('click', async function() {
+            const name = document.getElementById('full-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            if (!name || !email) {
+                alert('Please enter your name and email');
+                return;
+            }
+            
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+            
+            userName = name;
+            userEmail = email;
+            
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending Code...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, name: name })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('✅ Verification code sent to ' + email + '\n\nPlease check your email (and spam folder)');
+                    document.getElementById('step-1').style.display = 'none';
+                    document.getElementById('step-2').style.display = 'block';
+                } else {
+                    alert('❌ Error: ' + (data.detail || 'Failed to send OTP'));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Send OTP error:', error);
+                alert('❌ Error: ' + error.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Step 2: Verify OTP
+        document.getElementById('verify-otp-btn').addEventListener('click', async function() {
+            const otp = document.getElementById('otp').value.trim();
+            
+            if (!otp || otp.length !== 6) {
+                alert('Please enter the 6-digit verification code');
+                return;
+            }
+            
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, otp: otp })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    isEmailVerified = true;
+                    alert('✅ Email verified successfully!\n\nNow create your password to complete registration.');
+                    document.getElementById('step-2').style.display = 'none';
+                    document.getElementById('step-3').style.display = 'block';
+                } else {
+                    alert('❌ ' + (data.detail || 'Invalid verification code'));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Verify OTP error:', error);
+                alert('❌ Error: ' + error.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Resend OTP
+        document.getElementById('resend-otp-btn').addEventListener('click', async function() {
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resending...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, name: userName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('✅ New verification code sent to ' + userEmail);
+                    document.getElementById('otp').value = '';
+                } else {
+                    alert('❌ ' + (data.detail || 'Failed to resend code'));
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Step 3: Complete Registration
         document.getElementById('register-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const fullName = document.getElementById('full-name').value;
-            const email = document.getElementById('email').value;
+            if (!isEmailVerified) {
+                alert('Please verify your email first');
+                return;
+            }
+            
             const password = document.getElementById('password').value;
             const confirmPassword = document.getElementById('confirm-password').value;
             
@@ -408,40 +573,20 @@
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
             
             try {
-                // Build API URL
-                const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-                const apiUrl = isProduction 
-                    ? 'https://english-communication-backend.onrender.com/api/users/register'
-                    : 'http://127.0.0.1:8000/api/users/register';
-                
-                console.log('Registering user with:', { name: fullName, email, password: '***' });
-                console.log('API URL:', apiUrl);
-                
-                const response = await fetch(apiUrl, {
+                const response = await fetch(getApiUrl() + '/api/users/register', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        name: fullName,
-                        email: email,
+                        name: userName,
+                        email: userEmail,
                         password: password
                     })
                 });
                 
-                console.log('Response status:', response.status);
-                
-                // Check if response is JSON
-                const contentType = response.headers.get('content-type');
-                if (!contentType || !contentType.includes('application/json')) {
-                    throw new Error('Backend server is not responding correctly. Make sure the backend is running (python main.py)');
-                }
-                
                 const data = await response.json();
-                console.log('Response data:', data);
                 
                 if (response.ok) {
-                    alert('✅ Registration successful! Please login to continue.');
+                    alert('🎉 Registration successful!\n\nWelcome to ImproveCommunication! Please login to continue.');
                     window.location.href = '/frontend/templates/login.html';
                 } else {
                     alert('❌ Registration failed: ' + (data.detail || 'Unknown error'));
@@ -450,7 +595,7 @@
                 }
             } catch (error) {
                 console.error('Registration error:', error);
-                alert('❌ Error: ' + error.message + '\n\nMake sure the backend is running:\n1. Open terminal\n2. cd backend\n3. python main.py');
+                alert('❌ Error: ' + error.message);
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }

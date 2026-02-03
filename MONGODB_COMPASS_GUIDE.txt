@@ -1,0 +1,32 @@
+MongoDB Compass Connection Guide
+================================
+
+CONNECTION STRING FOR COMPASS:
+mongodb+srv://english_admin:KendallJenner@communication.btgwj0j.mongodb.net/english_comm?retryWrites=true&w=majority
+
+STEPS TO CONNECT:
+
+1. Open MongoDB Compass
+
+2. Paste the connection string above (copy the entire line)
+
+3. Click "Connect"
+
+4. Once connected, you should see:
+   - Left sidebar: "communication" cluster
+   - Under it: "english_comm" database
+   - Under database: "users" collection
+
+5. Click on "users" collection to view all 8 users
+
+TROUBLESHOOTING:
+
+If you don't see data:
+- Click the refresh icon (🔄) in Compass
+- Make sure you clicked on "english_comm" database (not "admin" or "test")
+- Check you're looking at "users" collection (not other collections)
+
+If connection fails:
+- Check your internet connection
+- Make sure the password is correct (no spaces)
+- Verify IP address is whitelisted (0.0.0.0/0 should be in Atlas Network Access)

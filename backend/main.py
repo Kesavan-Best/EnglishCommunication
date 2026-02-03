@@ -14,7 +14,7 @@ parent_dir = current_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth
+from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp
 from backend.app.database import init_db
 from backend.app.core.config import settings
 
@@ -65,6 +65,7 @@ app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 app.include_router(websocket.router, prefix="/api", tags=["websocket"])  # FIXED: Added prefix
 app.include_router(oauth.router, tags=["oauth"])  # OAuth routes
+app.include_router(otp.router, prefix="/api/otp", tags=["otp"])  # OTP verification
 
 @app.get("/")
 async def root():
