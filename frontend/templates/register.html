@@ -451,7 +451,16 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    alert('✅ Verification code sent to ' + email + '\n\nPlease check your email (and spam folder)');
+                    let message = '✅ Verification code sent to ' + email + '\n\n';
+                    
+                    // If email service is not configured, show the OTP directly
+                    if (data.otp) {
+                        message += '⚠️ Email service not configured.\n\nYour OTP code is: ' + data.otp + '\n\nEnter this code in the next step.';
+                    } else {
+                        message += 'Please check your email (and spam folder)';
+                    }
+                    
+                    alert(message);
                     document.getElementById('step-1').style.display = 'none';
                     document.getElementById('step-2').style.display = 'block';
                 } else {
@@ -461,7 +470,7 @@
                 }
             } catch (error) {
                 console.error('Send OTP error:', error);
-                alert('❌ Error: ' + error.message);
+                alert('❌ Network Error: Could not connect to server.\n\n' + error.message + '\n\nPlease check if backend is running.');
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             }

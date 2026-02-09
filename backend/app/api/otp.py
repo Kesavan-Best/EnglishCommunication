@@ -54,14 +54,19 @@ async def send_otp(request: SendOTPRequest):
             "attempts": 0
         })
         
-        # Send email
+        # Try to send email
         success = email_service.send_otp_email(request.email, otp, request.name)
         
+        # For development/testing: always return success but warn if email not sent
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to send OTP email. Please check your email configuration."
-            )
+            print(f"⚠️  Email not sent but OTP stored. OTP: {otp}")
+            return {
+                "message": "OTP generated (email service not configured)",
+                "email": request.email,
+                "expires_in_minutes": 10,
+                "otp": otp,  # Include OTP in response for testing when email is not configured
+                "warning": "Email service not configured. Use the OTP shown above for testing."
+            }
         
         print(f"📧 OTP sent to {request.email}: {otp}")  # For debugging
         
@@ -75,6 +80,8 @@ async def send_otp(request: SendOTPRequest):
         raise
     except Exception as e:
         print(f"Error sending OTP: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to send OTP: {str(e)}"

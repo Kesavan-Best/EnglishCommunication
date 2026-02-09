@@ -17,9 +17,17 @@ class EmailService:
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
         self.from_email = os.getenv("FROM_EMAIL", self.smtp_user)
         self.from_name = os.getenv("FROM_NAME", "ImproveCommunication")
+        self.is_configured = bool(self.smtp_user and self.smtp_password)
+        if not self.is_configured:
+            print("⚠️  WARNING: Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
         
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> bool:
         """Send email using SMTP"""
+        if not self.is_configured:
+            print(f"⚠️  Email service not configured - skipping email to {to_email}")
+            print(f"📧 Would have sent: {subject}")
+            return False
+            
         try:
             # Create message
             message = MIMEMultipart("alternative")
