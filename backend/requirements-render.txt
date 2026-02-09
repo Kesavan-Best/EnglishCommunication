@@ -1,0 +1,20 @@
+# Minimal Requirements for Fast Render Deployment
+# Use this file to deploy quickly without NLP features
+# To use: Rename this to requirements.txt, commit, and push
+
+# Core Backend (All you need for basic app)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+email-validator>=2.1.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+pymongo>=4.5.0
+websockets>=12.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+
+# Deploy time: ~2-3 minutes (vs 15+ minutes with NLP)
+# After app is running, you can add NLP libraries back later
+

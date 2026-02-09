@@ -1,4 +1,4 @@
-# Core Backend
+# Core Backend (Required)
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
@@ -11,7 +11,9 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 
-# NLP/AI Libraries (Lightweight for 6GB RAM)
+# NLP/AI Libraries (Optional - for conversation analysis)
+# WARNING: These take 10-15 minutes to install on Render
+# For faster deployment, temporarily remove these and redeploy
 transformers>=4.30.0
 sentence-transformers>=2.2.0
 torch>=2.0.0
