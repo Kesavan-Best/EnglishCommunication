@@ -9,7 +9,7 @@ class WhisperTranscriber:
         """Initialize Whisper model (stub for now)"""
         self.model_size = model_size
         self.model = None
-        print(f"WhisperTranscriber initialized (stub mode - whisper disabled for Python 3.13)")
+        # Whisper disabled for Python 3.13 - using Web Speech API instead
     
     def load_model(self):
         """Load Whisper model (stub)"""

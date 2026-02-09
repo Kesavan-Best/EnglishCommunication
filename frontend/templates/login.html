@@ -348,15 +348,16 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             
-            // Validate email format
-            if (!validateEmail(email)) {
-                showMessage('Please enter a valid email address (e.g., user@gmail.com, user@domain.ac.in)');
-                return;
-            }
-            
+            // Get button elements
             const loginBtn = document.getElementById('login-btn');
             const btnText = loginBtn.querySelector('.btn-text');
             const btnLoader = loginBtn.querySelector('.btn-loader');
+            
+            // Validate email format
+            if (!validateEmail(email)) {
+                showMessage('Please enter a valid email address');
+                return;
+            }
             
             // Show loading state
             btnText.style.display = 'none';
