@@ -1,24 +1,17 @@
-# import nltk
-# from textblob import TextBlob
-from langdetect import detect
+"""
+Text Analyzer - Lightweight stub for Python 3.13 compatibility
+Uses basic pattern matching instead of external NLP libraries
+"""
 from typing import List, Dict, Tuple
 import re
 from collections import Counter
 import math
 
-# Download required NLTK data
-# try:
-#     nltk.data.find('tokenizers/punkt')
-#     nltk.data.find('taggers/averaged_perceptron_tagger')
-# except LookupError:
-#     nltk.download('punkt')
-#     nltk.download('averaged_perceptron_tagger')
 
 class TextAnalyzer:
     def __init__(self):
-        """Initialize NLP models"""
-        # Using TextBlob instead of spaCy for Python 3.13 compatibility
-        self.use_textblob = True
+        """Initialize text analyzer with basic patterns"""
+        self.use_textblob = False
         
         # Common filler words
         self.filler_words = {
