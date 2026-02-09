@@ -10,8 +10,10 @@ from datetime import datetime
 from bson import ObjectId
 
 from backend.app.ai_processing.lightweight_model import get_ai_processor
+from backend.app.ai_processing.lazy_loader import nlp_loader
 from backend.app.database import Database
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,9 @@ async def analyze_conversation(request: AnalyzeRequest):
     """
     Analyze conversation text using NLP models
     
+    Note: First request after call ends will load models (takes 10-30s)
+    Subsequent requests are instant.
+    
     Returns:
     - Topics discussed
     - Grammar issues detected
@@ -69,21 +74,56 @@ async def analyze_conversation(request: AnalyzeRequest):
     try:
         logger.info(f"Analyzing conversation ({len(request.text)} chars)")
         
-        # Get AI processor (lazy loading - models load on first use)
-        try:
-            processor = get_ai_processor()
-        except Exception as model_error:
-            logger.warning(f"NLP models not available: {model_error}")
-            # Return basic analysis without models
+        # Check if models are already loaded
+        if not nlp_loader.is_loaded and not nlp_loader.is_loading:
+            logger.info("⚡ First analysis request - loading models now...")
+            # Start loading in background and inform user
+            asyncio.create_task(nlp_loader.load_models())
+            
+            # Return helpful message for first request
             return {
                 "topics": [],
                 "grammar_issues": [],
                 "vocabulary_level": "Unknown",
-                "vocabulary_stats": {"level": "Unknown", "total_words": 0, "unique_words": 0, "vocabulary_richness": 0, "average_word_length": 0},
-                "suggestions": ["NLP models are downloading. Please try again in a few minutes."],
-                "recommended_topics": ["General English Practice"],
+                "vocabulary_stats": {
+                    "level": "Unknown",
+                    "total_words": 0,
+                    "unique_words": 0,
+                    "vocabulary_richness": 0,
+                    "average_word_length": 0
+                },
+                "suggestions": [
+                    "🤖 AI models are loading for the first time (10-30 seconds).",
+                    "✅ Your transcript is saved - refresh this page in 30 seconds to see full analysis!",
+                    "⚡ Next time will be instant!"
+                ],
+                "recommended_topics": ["Please refresh in 30 seconds"],
                 "weak_areas": []
             }
+        
+        # If models are currently loading, show progress
+        if nlp_loader.is_loading:
+            return {
+                "topics": [],
+                "grammar_issues": [],
+                "vocabulary_level": "Processing",
+                "vocabulary_stats": {
+                    "level": "Processing",
+                    "total_words": 0,
+                    "unique_words": 0,
+                    "vocabulary_richness": 0,
+                    "average_word_length": 0
+                },
+                "suggestions": [
+                    "⏳ AI analysis is in progress...",
+                    "🔄 Refresh this page in 15 seconds for results!"
+                ],
+                "recommended_topics": ["Loading..."],
+                "weak_areas": []
+            }
+        
+        # Models are loaded - proceed with analysis
+        processor = get_ai_processor()
         
         # Analyze the text
         result = processor.analyze_conversation(request.text)
@@ -126,15 +166,24 @@ async def generate_quiz(request: QuizRequest):
     try:
         logger.info(f"Generating quiz: {request.topic} ({request.difficulty})")
         
-        # Get AI processor (lazy loading)
-        try:
-            processor = get_ai_processor()
-        except Exception as model_error:
-            logger.warning(f"NLP models not available: {model_error}")
+        # Trigger loading if not started
+        if not nlp_loader.is_loaded and not nlp_loader.is_loading:
+            logger.info("⚡ Quiz requested - loading models now...")
+            asyncio.create_task(nlp_loader.load_models())
             raise HTTPException(
-                status_code=503, 
-                detail="NLP models are initializing. Please try again in 1-2 minutes."
+                status_code=503,
+                detail="AI models are initializing. Please try again in 30 seconds."
             )
+        
+        # Check if still loading
+        if nlp_loader.is_loading:
+            raise HTTPException(
+                status_code=503,
+                detail="AI models are loading. Please wait 15 seconds and try again."
+            )
+        
+        # Get AI processor (models should be loaded now)
+        processor = get_ai_processor()
         
         # Generate quiz
         questions = processor.generate_quiz(
@@ -361,20 +410,42 @@ async def save_user_weaknesses(db, user_id: str, weak_areas: List[str],
 @router.get("/health")
 async def nlp_health_check():
     """
-    Check if NLP models are loaded and working
+    Check if NLP models are loaded and ready
+    Shows current loading status
     """
-    try:
-        processor = get_ai_processor()
+    status_info = nlp_loader.get_status()
+    
+    return {
+        **status_info,
+        "endpoint": "/api/nlp/health",
+        "tip": "Models load automatically after 10 minutes of uptime or when first analysis is requested"
+    }
+
+
+@router.post("/warmup")
+async def warmup_models():
+    """
+    Manually trigger NLP model loading
+    Useful to preload models before first call ends
+    """
+    if nlp_loader.is_loaded:
         return {
-            "status": "healthy",
-            "models_loaded": True,
-            "message": "NLP service is operational"
+            "status": "already_loaded",
+            "message": "NLP models are already loaded and ready!"
         }
-    except Exception as e:
-        logger.warning(f"NLP models not yet loaded: {e}")
+    
+    if nlp_loader.is_loading:
         return {
-            "status": "initializing",
-            "models_loaded": False,
-            "message": "Models will load on first use",
-            "error": str(e)
+            "status": "loading",
+            "message": "NLP models are already loading..."
         }
+    
+    # Start loading
+    logger.info("🔥 Manual warmup requested - loading models now...")
+    asyncio.create_task(nlp_loader.load_models())
+    
+    return {
+        "status": "started",
+        "message": "NLP model loading started. Check /api/nlp/health for progress.",
+        "estimated_time": "10-30 seconds"
+    }
