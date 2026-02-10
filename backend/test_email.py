@@ -16,14 +16,18 @@ def main():
     print("=" * 70)
     
     # Check configuration
-    print("\n📋 Configuration Status:")
+    print("")
+    print("📋 Configuration Status:")
     print(f"   SMTP Host: {email_service.smtp_host}")
     print(f"   SMTP Port: {email_service.smtp_port}")
-    print(f"   SMTP User: {email_service.smtp_user or '(not set)')") 
-    print(f"   From Email: {email_service.from_email or '(not set)'}")
+    smtp_user_display = email_service.smtp_user if email_service.smtp_user else "(not set)"
+    print(f"   SMTP User: {smtp_user_display}") 
+    from_email_display = email_service.from_email if email_service.from_email else "(not set)"
+    print(f"   From Email: {from_email_display}")
     print(f"   From Name: {email_service.from_name}")
     print(f"   Timeout: {email_service.timeout}s")
-    print(f"   Configured: {'✅ YES' if email_service.is_configured else '❌ NO'}")
+    configured_status = "YES" if email_service.is_configured else "NO"
+    print(f"   Configured: {configured_status}")
     
     if not email_service.is_configured:
         print("\n" + "=" * 70)
@@ -98,4 +102,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n❌ Error: {str(e)}")
         import traceback
+        traceback.print_exc()
         traceback.print_exc()

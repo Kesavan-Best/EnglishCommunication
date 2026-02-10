@@ -74,9 +74,19 @@ class EmailService:
                 server.login(self.smtp_user, self.smtp_password)
                 
                 logger.info("Sending message...")
-                server.send_message(message)
+                result = server.send_message(message)
+                
+                # Check if message was rejected
+                if result:
+                    # result is a dict of failed recipients
+                    failed = ', '.join(result.keys())
+                    error_msg = f"Email rejected by server for: {failed}"
+                    logger.error(f"❌ {error_msg}")
+                    return False, error_msg
             
+            # Email sent successfully
             logger.info(f"✅ Email sent successfully to {to_email}")
+            logger.info(f"📬 Email should arrive in 1-2 minutes. Check spam folder if not in inbox.")
             return True, ""
             
         except socket.timeout as e:

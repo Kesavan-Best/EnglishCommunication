@@ -55,37 +55,55 @@ async def send_otp(request: SendOTPRequest):
         })
         
         # Try to send email
+        print(f"🔄 Attempting to send OTP to {request.email}...")
         success, error_msg = email_service.send_otp_email(request.email, otp, request.name)
         
         # Store whether email was sent successfully
         db.otps.update_one(
             {"email": request.email},
-            {"$set": {"email_sent": success, "email_error": error_msg if not success else None}}
+            {"$set": {
+                "email_sent": success, 
+                "email_error": error_msg if not success else None,
+                "smtp_user": email_service.smtp_user if success else None
+            }}
         )
         
-        # Always return success to user, but indicate if email wasn't sent
+        # Log the actual result
         if not success:
-            print(f"⚠️  Email not sent to {request.email}: {error_msg}")
+            print(f"❌ Email FAILED to send to {request.email}")
+            print(f"❌ Error: {error_msg}")
             print(f"🔐 OTP for testing: {otp}")
             
+            # Return clear error with OTP for testing
             return {
-                "message": "OTP generated successfully",
+                "message": "OTP generated but email failed to send",
                 "email": request.email,
                 "expires_in_minutes": 10,
                 "email_sent": False,
-                "warning": "Email service unavailable. Please check with administrator or use alternative verification.",
+                "warning": "⚠️ Email delivery failed. Use OTP below or check email configuration.",
                 "error_details": error_msg,
-                "otp_for_testing": otp,  # Include OTP for development/testing
-                "instructions": "Use the OTP code shown above to complete registration."
+                "otp_for_testing": otp,  # Include OTP for testing when email fails
+                "instructions": f"Copy this OTP code to verify: {otp}",
+                "troubleshooting": {
+                    "issue": "Email not configured or delivery failed",
+                    "smtp_configured": email_service.is_configured,
+                    "smtp_host": email_service.smtp_host,
+                    "smtp_user_set": bool(email_service.smtp_user),
+                    "recommendation": "Contact administrator to configure SMTP settings in Render environment variables"
+                }
             }
         
-        print(f"📧 OTP sent successfully to {request.email}")
+        # Email sent successfully
+        print(f"✅ OTP email SUCCESSFULLY sent to {request.email}")
+        print(f"📬 From: {email_service.smtp_user}")
+        print(f"📨 Check inbox and spam folder")
         
         return {
-            "message": "OTP sent successfully to your email",
+            "message": f"✅ OTP sent successfully to {request.email}",
             "email": request.email,
             "expires_in_minutes": 10,
-            "email_sent": True
+            "email_sent": True,
+            "instructions": "Check your email inbox (and spam folder) for the verification code."
         }
         
     except HTTPException:
