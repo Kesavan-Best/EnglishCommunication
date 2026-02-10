@@ -55,25 +55,37 @@ async def send_otp(request: SendOTPRequest):
         })
         
         # Try to send email
-        success = email_service.send_otp_email(request.email, otp, request.name)
+        success, error_msg = email_service.send_otp_email(request.email, otp, request.name)
         
-        # For development/testing: always return success but warn if email not sent
+        # Store whether email was sent successfully
+        db.otps.update_one(
+            {"email": request.email},
+            {"$set": {"email_sent": success, "email_error": error_msg if not success else None}}
+        )
+        
+        # Always return success to user, but indicate if email wasn't sent
         if not success:
-            print(f"⚠️  Email not sent but OTP stored. OTP: {otp}")
+            print(f"⚠️  Email not sent to {request.email}: {error_msg}")
+            print(f"🔐 OTP for testing: {otp}")
+            
             return {
-                "message": "OTP generated (email service not configured)",
+                "message": "OTP generated successfully",
                 "email": request.email,
                 "expires_in_minutes": 10,
-                "otp": otp,  # Include OTP in response for testing when email is not configured
-                "warning": "Email service not configured. Use the OTP shown above for testing."
+                "email_sent": False,
+                "warning": "Email service unavailable. Please check with administrator or use alternative verification.",
+                "error_details": error_msg,
+                "otp_for_testing": otp,  # Include OTP for development/testing
+                "instructions": "Use the OTP code shown above to complete registration."
             }
         
-        print(f"📧 OTP sent to {request.email}: {otp}")  # For debugging
+        print(f"📧 OTP sent successfully to {request.email}")
         
         return {
-            "message": "OTP sent successfully",
+            "message": "OTP sent successfully to your email",
             "email": request.email,
-            "expires_in_minutes": 10
+            "expires_in_minutes": 10,
+            "email_sent": True
         }
         
     except HTTPException:

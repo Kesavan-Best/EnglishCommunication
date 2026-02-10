@@ -41,10 +41,13 @@ class NLPLazyLoader:
         
         try:
             # Import and initialize models
-            from backend.app.ai_processing.lightweight_model import get_ai_processor
+            try:
+                from backend.app.ai_processing.memory_efficient_processor import get_ai_processor
+            except ImportError:
+                from app.ai_processing.memory_efficient_processor import get_ai_processor
             
             # This will trigger model download and initialization
-            processor = get_ai_processor()
+            processor = get_ai_processor(use_heavy_models=False)  # Use memory-efficient mode
             
             self.is_loaded = True
             self.load_completed_at = datetime.utcnow()

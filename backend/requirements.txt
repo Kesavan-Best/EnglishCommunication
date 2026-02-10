@@ -11,13 +11,15 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 
-# NLP/AI Libraries (Optional - for conversation analysis)
-# WARNING: These take 10-15 minutes to install on Render
-# For faster deployment, temporarily remove these and redeploy
-transformers>=4.30.0
-sentence-transformers>=2.2.0
-torch>=2.0.0
-numpy>=1.24.0
+# ⚡ MEMORY-OPTIMIZED FOR RENDER (< 512MB)
+# NLP/AI Libraries REMOVED - Using instant analyzer instead
+# If you need advanced AI: Use OpenAI API or upgrade to paid Render plan
+
+# Optional: Uncomment if you upgrade to paid plan (requires 1GB+ RAM)
+# transformers>=4.30.0
+# sentence-transformers>=2.2.0
+# torch>=2.0.0
+# numpy>=1.24.0
 
 # Optional (install separately if needed)
 # redis==5.0.1

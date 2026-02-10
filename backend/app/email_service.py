@@ -1,13 +1,20 @@
 """
 Email Service for sending OTP and notifications
 Supports Gmail SMTP and can be easily switched to Resend/SendGrid
+Enhanced for Render deployment with better error handling
 """
 import smtplib
 import os
+import socket
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import Optional
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
@@ -17,18 +24,29 @@ class EmailService:
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
         self.from_email = os.getenv("FROM_EMAIL", self.smtp_user)
         self.from_name = os.getenv("FROM_NAME", "ImproveCommunication")
+        self.timeout = int(os.getenv("SMTP_TIMEOUT", "30"))  # 30 second timeout
         self.is_configured = bool(self.smtp_user and self.smtp_password)
-        if not self.is_configured:
-            print("⚠️  WARNING: Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
         
-    def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> bool:
-        """Send email using SMTP"""
+        # Log configuration status (without exposing credentials)
         if not self.is_configured:
-            print(f"⚠️  Email service not configured - skipping email to {to_email}")
-            print(f"📧 Would have sent: {subject}")
-            return False
+            logger.warning("⚠️  Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
+        else:
+            logger.info(f"✅ Email service configured: {self.smtp_user[:3]}***@{self.smtp_user.split('@')[1] if '@' in self.smtp_user else 'unknown'}")
+        
+    def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> tuple[bool, str]:
+        """
+        Send email using SMTP
+        Returns: (success: bool, error_message: str)
+        """
+        if not self.is_configured:
+            error_msg = "Email service not configured. Set SMTP_USER and SMTP_PASSWORD."
+            logger.warning(f"⚠️  {error_msg} - Skipping email to {to_email}")
+            logger.info(f"📧 Subject: {subject}")
+            return False, error_msg
             
         try:
+            logger.info(f"📧 Attempting to send email to {to_email}...")
+            
             # Create message
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
@@ -44,21 +62,52 @@ class EmailService:
             part2 = MIMEText(html_content, "html")
             message.attach(part2)
             
-            # Send email
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            # Send email with timeout
+            logger.info(f"Connecting to {self.smtp_host}:{self.smtp_port}...")
+            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.timeout) as server:
+                server.set_debuglevel(0)  # Set to 1 for verbose debugging
+                
+                logger.info("Starting TLS...")
                 server.starttls()
+                
+                logger.info(f"Logging in as {self.smtp_user}...")
                 server.login(self.smtp_user, self.smtp_password)
+                
+                logger.info("Sending message...")
                 server.send_message(message)
             
-            print(f"✅ Email sent successfully to {to_email}")
-            return True
+            logger.info(f"✅ Email sent successfully to {to_email}")
+            return True, ""
             
+        except socket.timeout as e:
+            error_msg = f"Connection timeout after {self.timeout}s. Check network/firewall settings."
+            logger.error(f"❌ Timeout sending email to {to_email}: {error_msg}")
+            return False, error_msg
+        except smtplib.SMTPAuthenticationError as e:
+            error_msg = f"SMTP authentication failed. Check SMTP_USER and SMTP_PASSWORD. Error: {str(e)}"
+            logger.error(f"❌ Auth error: {error_msg}")
+            return False, error_msg
+        except smtplib.SMTPException as e:
+            error_msg = f"SMTP error: {str(e)}"
+            logger.error(f"❌ SMTP error sending to {to_email}: {error_msg}")
+            return False, error_msg
+        except socket.gaierror as e:
+            error_msg = f"DNS resolution failed for {self.smtp_host}. Check internet connection."
+            logger.error(f"❌ DNS error: {error_msg}")
+            return False, error_msg
         except Exception as e:
-            print(f"❌ Failed to send email to {to_email}: {str(e)}")
-            return False
+            error_msg = f"Unexpected error: {type(e).__name__}: {str(e)}"
+            logger.error(f"❌ Failed to send email to {to_email}: {error_msg}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False, error_msg
     
-    def send_otp_email(self, to_email: str, otp: str, name: str = "") -> bool:
-        """Send OTP verification email"""
+    def send_otp_email(self, to_email: str, otp: str, name: str = "") -> tuple[bool, str]:
+        """
+        Send OTP verification email
+        Returns: (success: bool, error_message: str)
+        """
+        logger.info(f"📧 Preparing OTP email for {to_email}")
         subject = "Verify Your Email - ImproveCommunication"
         
         html_content = f"""
@@ -122,10 +171,17 @@ class EmailService:
         © 2026 ImproveCommunication
         """
         
-        return self.send_email(to_email, subject, html_content, text_content)
+        success, error_msg = self.send_email(to_email, subject, html_content, text_content)
+        if not success:
+            logger.error(f"Failed to send OTP email: {error_msg}")
+        return success, error_msg
     
-    def send_welcome_email(self, to_email: str, name: str) -> bool:
-        """Send welcome email after successful registration"""
+    def send_welcome_email(self, to_email: str, name: str) -> tuple[bool, str]:
+        """
+        Send welcome email after successful registration
+        Returns: (success: bool, error_message: str)
+        """
+        logger.info(f"📧 Preparing welcome email for {to_email}")
         subject = "Welcome to ImproveCommunication! 🎉"
         
         html_content = f"""
@@ -187,7 +243,10 @@ class EmailService:
         © 2026 ImproveCommunication
         """
         
-        return self.send_email(to_email, subject, html_content, text_content)
+        success, error_msg = self.send_email(to_email, subject, html_content, text_content)
+        if not success:
+            logger.error(f"Failed to send welcome email: {error_msg}")
+        return success, error_msg
 
 # Create singleton instance
 email_service = EmailService()

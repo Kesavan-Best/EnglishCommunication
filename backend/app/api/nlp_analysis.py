@@ -9,9 +9,15 @@ from typing import List, Optional, Dict
 from datetime import datetime
 from bson import ObjectId
 
-from backend.app.ai_processing.lightweight_model import get_ai_processor
-from backend.app.ai_processing.lazy_loader import nlp_loader
-from backend.app.database import Database
+try:
+    from backend.app.ai_processing.memory_efficient_processor import get_ai_processor
+    from backend.app.ai_processing.lazy_loader import nlp_loader
+    from backend.app.database import Database
+except ImportError:
+    from app.ai_processing.memory_efficient_processor import get_ai_processor
+    from app.ai_processing.lazy_loader import nlp_loader
+    from app.database import Database
+    
 import logging
 import asyncio
 
@@ -24,6 +30,7 @@ router = APIRouter(prefix="/api/nlp", tags=["NLP Analysis"])
 class AnalyzeRequest(BaseModel):
     text: str = Field(..., min_length=10, description="Conversation text to analyze")
     user_id: Optional[str] = Field(None, description="User ID for storing results")
+    call_duration_minutes: Optional[int] = Field(10, description="Call duration in minutes for scoring")
 
 
 class AnalyzeResponse(BaseModel):
@@ -126,7 +133,10 @@ async def analyze_conversation(request: AnalyzeRequest):
         processor = get_ai_processor()
         
         # Analyze the text
-        result = processor.analyze_conversation(request.text)
+        result = processor.analyze_conversation(
+            request.text, 
+            call_duration_minutes=request.call_duration_minutes or 10
+        )
         
         # If user_id provided, save the weaknesses
         if request.user_id:

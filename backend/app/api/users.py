@@ -80,7 +80,9 @@ async def register(user_data: UserRegisterRequest):
         # Send welcome email (non-blocking)
         try:
             from backend.app.email_service import email_service
-            email_service.send_welcome_email(user_data.email, user_data.name)
+            success, error_msg = email_service.send_welcome_email(user_data.email, user_data.name)
+            if not success:
+                print(f"⚠️  Welcome email failed: {error_msg}")
         except Exception as e:
             print(f"Warning: Failed to send welcome email: {e}")
         
