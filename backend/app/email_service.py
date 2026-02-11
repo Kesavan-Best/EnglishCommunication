@@ -4,13 +4,15 @@ Supports Gmail SMTP and can be easily switched to Resend/SendGrid
 Enhanced for Render deployment with better error handling
 """
 import smtplib
+import ssl
 import os
 import socket
 import logging
+import time
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Tuple, Dict, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,86 +35,208 @@ class EmailService:
         else:
             logger.info(f"✅ Email service configured: {self.smtp_user[:3]}***@{self.smtp_user.split('@')[1] if '@' in self.smtp_user else 'unknown'}")
         
-    def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> tuple[bool, str]:
+    def get_diagnostics(self) -> Dict[str, Any]:
+        """Get diagnostic info about email service"""
+        return {
+            "configured": self.is_configured,
+            "smtp_host": self.smtp_host,
+            "smtp_port": self.smtp_port,
+            "smtp_ssl_port": self.smtp_ssl_port,
+            "smtp_user_set": bool(self.smtp_user),
+            "smtp_user_preview": f"{self.smtp_user[:3]}***" if self.smtp_user else None,
+            "smtp_password_set": bool(self.smtp_password),
+            "smtp_password_length": len(self.smtp_password) if self.smtp_password else 0,
+            "from_email": self.from_email,
+            "from_name": self.from_name,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+            "use_ssl": self.use_ssl,
+            "last_error": self.last_error,
+            "last_success_time": str(self.last_success_time) if self.last_success_time else None,
+            "total_sent": self.total_sent,
+            "total_failed": self.total_failed
+        }
+
+    def _send_with_tls(self, message: MIMEMultipart, to_email: str) -> Tuple[bool, str]:
+        """Send email using STARTTLS (port 587)"""
+        logger.info(f"📧 TLS: Connecting to {self.smtp_host}:{self.smtp_port}...")
+        
+        with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.timeout) as server:
+            server.set_debuglevel(1)  # Enable debug for troubleshooting
+            
+            # Say hello first
+            server.ehlo()
+            
+            logger.info("📧 TLS: Starting TLS encryption...")
+            context = ssl.create_default_context()
+            server.starttls(context=context)
+            server.ehlo()  # Re-identify after TLS
+            
+            logger.info(f"📧 TLS: Authenticating as {self.smtp_user}...")
+            server.login(self.smtp_user, self.smtp_password)
+            
+            logger.info(f"📧 TLS: Sending to {to_email}...")
+            result = server.send_message(message)
+            
+            if result:
+                failed = ', '.join(result.keys())
+                return False, f"Rejected for: {failed}"
+            
+            return True, ""
+
+    def _send_with_ssl(self, message: MIMEMultipart, to_email: str) -> Tuple[bool, str]:
+        """Send email using SSL directly (port 465)"""
+        logger.info(f"📧 SSL: Connecting to {self.smtp_host}:{self.smtp_ssl_port}...")
+        
+        context = ssl.create_default_context()
+        
+        with smtplib.SMTP_SSL(self.smtp_host, self.smtp_ssl_port, timeout=self.timeout, context=context) as server:
+            server.set_debuglevel(1)  # Enable debug
+            
+            logger.info(f"📧 SSL: Authenticating as {self.smtp_user}...")
+            server.login(self.smtp_user, self.smtp_password)
+            
+            logger.info(f"📧 SSL: Sending to {to_email}...")
+            result = server.send_message(message)
+            
+            if result:
+                failed = ', '.join(result.keys())
+                return False, f"Rejected for: {failed}"
+            
+            return True, ""
+
+    def send_email(self, to_email: str, subject: str, html_content: str, text_content: Optional[str] = None) -> Tuple[bool, str]:
         """
-        Send email using SMTP
+        Send email using SMTP with retry and fallback logic
         Returns: (success: bool, error_message: str)
         """
         if not self.is_configured:
             error_msg = "Email service not configured. Set SMTP_USER and SMTP_PASSWORD."
             logger.warning(f"⚠️  {error_msg} - Skipping email to {to_email}")
             logger.info(f"📧 Subject: {subject}")
+            self.last_error = error_msg
+            return False, error_msg
+        
+        # Validate email format
+        if not to_email or '@' not in to_email:
+            error_msg = f"Invalid email address: {to_email}"
+            self.last_error = error_msg
             return False, error_msg
             
         try:
-            logger.info(f"📧 Attempting to send email to {to_email}...")
+            logger.info(f"📧 ========================================")
+            logger.info(f"📧 SENDING EMAIL TO: {to_email}")
+            logger.info(f"📧 Subject: {subject}")
+            logger.info(f"📧 From: {self.from_email}")
+            logger.info(f"📧 SMTP: {self.smtp_host}")
+            logger.info(f"📧 ========================================")
             
             # Create message
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
             message["From"] = f"{self.from_name} <{self.from_email}>"
             message["To"] = to_email
+            message["Reply-To"] = self.from_email
+            message["X-Priority"] = "1"  # High priority
             
             # Add text version (fallback)
             if text_content:
-                part1 = MIMEText(text_content, "plain")
+                part1 = MIMEText(text_content, "plain", "utf-8")
                 message.attach(part1)
             
             # Add HTML version
-            part2 = MIMEText(html_content, "html")
+            part2 = MIMEText(html_content, "html", "utf-8")
             message.attach(part2)
             
-            # Send email with timeout
-            logger.info(f"Connecting to {self.smtp_host}:{self.smtp_port}...")
-            with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.timeout) as server:
-                server.set_debuglevel(0)  # Set to 1 for verbose debugging
+            last_error = None
+            
+            # Try sending with retries and fallback
+            for attempt in range(self.max_retries):
+                logger.info(f"📧 Attempt {attempt + 1}/{self.max_retries}...")
                 
-                logger.info("Starting TLS...")
-                server.starttls()
-                
-                logger.info(f"Logging in as {self.smtp_user}...")
-                server.login(self.smtp_user, self.smtp_password)
-                
-                logger.info("Sending message...")
-                result = server.send_message(message)
-                
-                # Check if message was rejected
-                if result:
-                    # result is a dict of failed recipients
-                    failed = ', '.join(result.keys())
-                    error_msg = f"Email rejected by server for: {failed}"
+                try:
+                    # First try TLS (port 587)
+                    if not self.use_ssl:
+                        success, error = self._send_with_tls(message, to_email)
+                        if success:
+                            self.total_sent += 1
+                            self.last_success_time = datetime.utcnow()
+                            self.last_error = None
+                            logger.info(f"✅ Email sent successfully via TLS to {to_email}")
+                            return True, ""
+                        last_error = f"TLS: {error}"
+                    
+                    # Fallback to SSL (port 465)
+                    logger.info("📧 TLS failed, trying SSL fallback...")
+                    success, error = self._send_with_ssl(message, to_email)
+                    if success:
+                        self.total_sent += 1
+                        self.last_success_time = datetime.utcnow()
+                        self.last_error = None
+                        logger.info(f"✅ Email sent successfully via SSL to {to_email}")
+                        return True, ""
+                    last_error = f"SSL: {error}"
+                    
+                except smtplib.SMTPAuthenticationError as e:
+                    error_msg = f"Authentication failed: {str(e)}. Check SMTP_USER and SMTP_PASSWORD (use Gmail App Password, not regular password)"
                     logger.error(f"❌ {error_msg}")
+                    self.last_error = error_msg
+                    self.total_failed += 1
                     return False, error_msg
+                    
+                except smtplib.SMTPRecipientsRefused as e:
+                    error_msg = f"Recipient rejected: {to_email} - {str(e)}"
+                    logger.error(f"❌ {error_msg}")
+                    self.last_error = error_msg
+                    self.total_failed += 1
+                    return False, error_msg
+                    
+                except smtplib.SMTPSenderRefused as e:
+                    error_msg = f"Sender rejected: {self.from_email} - {str(e)}"
+                    logger.error(f"❌ {error_msg}")
+                    self.last_error = error_msg
+                    self.total_failed += 1
+                    return False, error_msg
+                    
+                except socket.timeout as e:
+                    last_error = f"Connection timeout after {self.timeout}s"
+                    logger.warning(f"⚠️  Attempt {attempt + 1} timeout, retrying...")
+                    
+                except socket.gaierror as e:
+                    last_error = f"DNS resolution failed for {self.smtp_host}"
+                    logger.warning(f"⚠️  Attempt {attempt + 1} DNS error, retrying...")
+                    
+                except ConnectionRefusedError as e:
+                    last_error = f"Connection refused by {self.smtp_host}"
+                    logger.warning(f"⚠️  Attempt {attempt + 1} connection refused, retrying...")
+                    
+                except smtplib.SMTPException as e:
+                    last_error = f"SMTP error: {str(e)}"
+                    logger.warning(f"⚠️  Attempt {attempt + 1} SMTP error, retrying...")
+                
+                # Wait before retry (exponential backoff)
+                if attempt < self.max_retries - 1:
+                    wait_time = 2 ** attempt
+                    logger.info(f"📧 Waiting {wait_time}s before retry...")
+                    time.sleep(wait_time)
             
-            # Email sent successfully
-            logger.info(f"✅ Email sent successfully to {to_email}")
-            logger.info(f"📬 Email should arrive in 1-2 minutes. Check spam folder if not in inbox.")
-            return True, ""
+            # All retries failed
+            error_msg = f"All {self.max_retries} attempts failed. Last error: {last_error}"
+            logger.error(f"❌ {error_msg}")
+            self.last_error = error_msg
+            self.total_failed += 1
+            return False, error_msg
             
-        except socket.timeout as e:
-            error_msg = f"Connection timeout after {self.timeout}s. Check network/firewall settings."
-            logger.error(f"❌ Timeout sending email to {to_email}: {error_msg}")
-            return False, error_msg
-        except smtplib.SMTPAuthenticationError as e:
-            error_msg = f"SMTP authentication failed. Check SMTP_USER and SMTP_PASSWORD. Error: {str(e)}"
-            logger.error(f"❌ Auth error: {error_msg}")
-            return False, error_msg
-        except smtplib.SMTPException as e:
-            error_msg = f"SMTP error: {str(e)}"
-            logger.error(f"❌ SMTP error sending to {to_email}: {error_msg}")
-            return False, error_msg
-        except socket.gaierror as e:
-            error_msg = f"DNS resolution failed for {self.smtp_host}. Check internet connection."
-            logger.error(f"❌ DNS error: {error_msg}")
-            return False, error_msg
         except Exception as e:
+            import traceback
             error_msg = f"Unexpected error: {type(e).__name__}: {str(e)}"
             logger.error(f"❌ Failed to send email to {to_email}: {error_msg}")
-            import traceback
             logger.error(traceback.format_exc())
+            self.last_error = error_msg
+            self.total_failed += 1
             return False, error_msg
     
-    def send_otp_email(self, to_email: str, otp: str, name: str = "") -> tuple[bool, str]:
+    def send_otp_email(self, to_email: str, otp: str, name: str = "") -> Tuple[bool, str]:
         """
         Send OTP verification email
         Returns: (success: bool, error_message: str)
@@ -186,7 +310,7 @@ class EmailService:
             logger.error(f"Failed to send OTP email: {error_msg}")
         return success, error_msg
     
-    def send_welcome_email(self, to_email: str, name: str) -> tuple[bool, str]:
+    def send_welcome_email(self, to_email: str, name: str) -> Tuple[bool, str]:
         """
         Send welcome email after successful registration
         Returns: (success: bool, error_message: str)
