@@ -22,18 +22,29 @@ class EmailService:
     def __init__(self):
         self.smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
+        self.smtp_ssl_port = int(os.getenv("SMTP_SSL_PORT", "465"))  # SSL port for fallback
         self.smtp_user = os.getenv("SMTP_USER", "")
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
         self.from_email = os.getenv("FROM_EMAIL", self.smtp_user)
         self.from_name = os.getenv("FROM_NAME", "ImproveCommunication")
-        self.timeout = int(os.getenv("SMTP_TIMEOUT", "30"))  # 30 second timeout
+        self.timeout = int(os.getenv("SMTP_TIMEOUT", "60"))  # Increased to 60 seconds
+        self.max_retries = int(os.getenv("SMTP_MAX_RETRIES", "3"))
+        self.use_ssl = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
         self.is_configured = bool(self.smtp_user and self.smtp_password)
+        
+        # Track last error for diagnostics
+        self.last_error = None
+        self.last_success_time = None
+        self.total_sent = 0
+        self.total_failed = 0
         
         # Log configuration status (without exposing credentials)
         if not self.is_configured:
             logger.warning("⚠️  Email service not configured. Set SMTP_USER and SMTP_PASSWORD environment variables.")
         else:
-            logger.info(f"✅ Email service configured: {self.smtp_user[:3]}***@{self.smtp_user.split('@')[1] if '@' in self.smtp_user else 'unknown'}")
+            masked_email = f"{self.smtp_user[:3]}***@{self.smtp_user.split('@')[1] if '@' in self.smtp_user else 'unknown'}"
+            logger.info(f"✅ Email service configured: {masked_email}")
+            logger.info(f"📧 SMTP: {self.smtp_host}:{self.smtp_port} (TLS) / {self.smtp_ssl_port} (SSL fallback)")
         
     def get_diagnostics(self) -> Dict[str, Any]:
         """Get diagnostic info about email service"""
