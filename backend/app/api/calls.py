@@ -38,7 +38,11 @@ async def invite_to_call(
                 detail="User not found"
             )
         
-        if not receiver.get("is_online", False):
+        # Check ACTUAL online status from WebSocket connections
+        from backend.app.api.websocket import manager
+        is_receiver_online = str(receiver_id) in manager.active_connections
+        
+        if not is_receiver_online:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="User is offline"

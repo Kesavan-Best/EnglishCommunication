@@ -20,6 +20,19 @@ logger = logging.getLogger(__name__)
 
 class EmailService:
     def __init__(self):
+        # Track last error for diagnostics
+        self.last_error = None
+        self.last_success_time = None
+        self.total_sent = 0
+        self.total_failed = 0
+        
+        # Load configuration from environment
+        self._reload_config()
+    
+    def _reload_config(self):
+        """Reload SMTP configuration from environment variables.
+        This is called on init and can be called again to pick up new env vars.
+        """
         self.smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
         self.smtp_port = int(os.getenv("SMTP_PORT", "587"))
         self.smtp_ssl_port = int(os.getenv("SMTP_SSL_PORT", "465"))  # SSL port for fallback
@@ -27,16 +40,10 @@ class EmailService:
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
         self.from_email = os.getenv("FROM_EMAIL", self.smtp_user)
         self.from_name = os.getenv("FROM_NAME", "ImproveCommunication")
-        self.timeout = int(os.getenv("SMTP_TIMEOUT", "60"))  # Increased to 60 seconds
+        self.timeout = int(os.getenv("SMTP_TIMEOUT", "60"))  # 60 seconds timeout
         self.max_retries = int(os.getenv("SMTP_MAX_RETRIES", "3"))
         self.use_ssl = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
         self.is_configured = bool(self.smtp_user and self.smtp_password)
-        
-        # Track last error for diagnostics
-        self.last_error = None
-        self.last_success_time = None
-        self.total_sent = 0
-        self.total_failed = 0
         
         # Log configuration status (without exposing credentials)
         if not self.is_configured:
@@ -252,6 +259,8 @@ class EmailService:
         Send OTP verification email
         Returns: (success: bool, error_message: str)
         """
+        # Reload config to pick up any new environment variables (important for Render)
+        self._reload_config()
         logger.info(f"📧 Preparing OTP email for {to_email}")
         subject = "Verify Your Email - ImproveCommunication"
         

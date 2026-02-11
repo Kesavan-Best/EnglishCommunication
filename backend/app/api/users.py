@@ -631,15 +631,23 @@ async def get_friends(
     # Get friend details
     friends = db.users.find({"_id": {"$in": friend_ids}})
     
+    # Get WebSocket manager to check real online status
+    from backend.app.api.websocket import manager
+    
     result = []
     for friend in friends:
-        rank = await calculate_user_rank(str(friend["_id"]))
+        friend_id_str = str(friend["_id"])
+        
+        # Check ACTUAL online status from WebSocket connections (same as /all endpoint)
+        is_actually_online = friend_id_str in manager.active_connections
+        
+        rank = await calculate_user_rank(friend_id_str)
         result.append(UserResponse(
-            id=str(friend["_id"]),
+            id=friend_id_str,
             email=friend["email"],
             name=friend["name"],
             avatar_url=friend.get("avatar_url"),
-            is_online=friend.get("is_online", False),
+            is_online=is_actually_online,  # Use WebSocket status, not DB status
             ai_score=friend.get("ai_score", 0.0),
             total_calls=friend.get("total_calls", 0),
             total_call_duration=friend.get("total_call_duration", 0),
@@ -657,15 +665,23 @@ async def find_random_partner(
     """Find a random online partner for calling"""
     db = Database.get_db()
     
-    # Filter out test emails and current user, get only online users
+    # Get WebSocket manager to check real online status
+    from backend.app.api.websocket import manager
+    
+    # Filter out test emails and current user
     test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
     
-    # Find online users who are not the current user
-    online_users = list(db.users.find({
+    # Get all users except current user and test accounts
+    all_users = list(db.users.find({
         "_id": {"$ne": current_user.id},
-        "email": {"$nin": test_emails},
-        "is_online": True
+        "email": {"$nin": test_emails}
     }))
+    
+    # Filter to only actually online users (from WebSocket connections)
+    online_users = [
+        user for user in all_users 
+        if str(user["_id"]) in manager.active_connections
+    ]
     
     if not online_users:
         return {"message": "No online partners available", "partner": None}
@@ -722,6 +738,9 @@ async def get_user_profile(
     """Get user profile by ID"""
     db = Database.get_db()
     
+    # Get WebSocket manager to check real online status
+    from backend.app.api.websocket import manager
+    
     try:
         user = db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
@@ -730,6 +749,9 @@ async def get_user_profile(
                 detail="User not found"
             )
         
+        # Check ACTUAL online status from WebSocket connections
+        is_actually_online = user_id in manager.active_connections
+        
         rank = await calculate_user_rank(user_id)
         
         return UserResponse(
@@ -737,7 +759,7 @@ async def get_user_profile(
             email=user["email"],
             name=user["name"],
             avatar_url=user.get("avatar_url"),
-            is_online=user.get("is_online", False),
+            is_online=is_actually_online,  # Use WebSocket status, not DB status
             ai_score=user.get("ai_score", 0.0),
             total_calls=user.get("total_calls", 0),
             total_call_duration=user.get("total_call_duration", 0),
