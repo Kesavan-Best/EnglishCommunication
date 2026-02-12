@@ -457,7 +457,6 @@ async function initiateCall(userId) {
             const call = await response.json();
             console.log('✅ Call created:', call);
             console.log('✅ Call ID:', call.id);
-            console.log('✅ Redirecting to call page...');
             
             // Validate call response
             if (!call.id || !call.jitsi_room_id) {
@@ -466,9 +465,14 @@ async function initiateCall(userId) {
             
             showMessage('✅ Call invitation sent! Waiting for response...', 'success');
             
+            // Store pending call ID for handling responses
+            window.pendingCallId = call.id;
+            window.pendingCallRoomId = call.jitsi_room_id;
+            
             // Show a waiting UI
             const waitingDiv = document.createElement('div');
             waitingDiv.id = 'call-waiting';
+            waitingDiv.dataset.callId = call.id;
             waitingDiv.style.cssText = `
                 position: fixed;
                 top: 0;
@@ -482,11 +486,13 @@ async function initiateCall(userId) {
                 z-index: 9999;
             `;
             waitingDiv.innerHTML = `
-                <div style="background: white; padding: 40px; border-radius: 20px; text-align: center;">
+                <div style="background: white; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px;">
                     <div style="font-size: 60px; margin-bottom: 20px;">📞</div>
                     <h2 style="color: #667eea; margin-bottom: 15px;">Calling...</h2>
-                    <p style="color: #666; margin-bottom: 20px;">Waiting for the other person to answer</p>
-                    <button onclick="document.getElementById('call-waiting').remove(); window.location.reload();" 
+                    <p style="color: #666; margin-bottom: 10px;">Waiting for the other person to answer</p>
+                    <p style="color: #999; font-size: 14px; margin-bottom: 20px;">They will see your call invitation</p>
+                    <div id="call-waiting-timer" style="color: #667eea; font-weight: bold; margin-bottom: 20px;">30</div>
+                    <button onclick="cancelPendingCall('${call.id}')" 
                             style="background: #f5576c; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-size: 16px;">
                         Cancel Call
                     </button>
@@ -494,12 +500,22 @@ async function initiateCall(userId) {
             `;
             document.body.appendChild(waitingDiv);
             
-            // Auto-redirect to call page after 2 seconds
-            setTimeout(() => {
-                const callUrl = `call.html?callId=${call.id}`;
-                console.log('🔵 Redirecting to:', callUrl);
-                window.location.href = callUrl;
-            }, 2000);
+            // Start countdown timer (30 seconds)
+            let countdown = 30;
+            window.callWaitingInterval = setInterval(() => {
+                countdown--;
+                const timerEl = document.getElementById('call-waiting-timer');
+                if (timerEl) {
+                    timerEl.textContent = countdown;
+                }
+                
+                if (countdown <= 0) {
+                    // Auto-cancel after timeout
+                    clearInterval(window.callWaitingInterval);
+                    cancelPendingCall(call.id, true);
+                }
+            }, 1000);
+            
         } else {
             const error = await response.json();
             console.error('❌ API Error:', error);
@@ -527,8 +543,95 @@ async function initiateCall(userId) {
             btn.textContent = '📞 Call';
         });
         
-        showMessage(`❌ Network error: ${error.message}. Make sure backend is running on http://localhost:8000`, 'error');
+        showMessage(`❌ Network error: ${error.message}`, 'error');
     }
+}
+
+// Cancel a pending call
+function cancelPendingCall(callId, isTimeout = false) {
+    console.log('🔴 Cancelling pending call:', callId, isTimeout ? '(timeout)' : '(user cancelled)');
+    
+    // Clear interval
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
+    }
+    
+    // Remove waiting overlay
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+    
+    // Clear pending call
+    window.pendingCallId = null;
+    window.pendingCallRoomId = null;
+    
+    // Re-enable all call buttons
+    document.querySelectorAll('.btn-call').forEach(btn => {
+        btn.disabled = false;
+        btn.textContent = '📞 Call';
+    });
+    
+    // Show appropriate message
+    if (isTimeout) {
+        showMessage('📞 Call timed out - no answer', 'info');
+    } else {
+        showMessage('📞 Call cancelled', 'info');
+    }
+}
+
+// Handle call being accepted by receiver
+function handleCallAccepted(callId) {
+    console.log('✅ Call accepted! Redirecting to call page...');
+    
+    // Clear waiting interval
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
+    }
+    
+    // Remove waiting overlay
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+    
+    // Redirect to call page
+    showMessage('✅ Call accepted! Connecting...', 'success');
+    setTimeout(() => {
+        window.location.href = `call.html?callId=${callId}`;
+    }, 500);
+}
+
+// Handle call being rejected by receiver
+function handleCallRejected(rejectorName) {
+    console.log('❌ Call rejected by:', rejectorName);
+    
+    // Clear waiting interval
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
+    }
+    
+    // Remove waiting overlay
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+    
+    // Clear pending call
+    window.pendingCallId = null;
+    window.pendingCallRoomId = null;
+    
+    // Re-enable all call buttons
+    document.querySelectorAll('.btn-call').forEach(btn => {
+        btn.disabled = false;
+        btn.textContent = '📞 Call';
+    });
+    
+    // Show rejection message
+    showMessage(`❌ ${rejectorName || 'User'} declined your call`, 'error');
 }
 
 function viewProfile(userId) {
@@ -572,7 +675,8 @@ function setupWebSocket() {
         ws.close();
     }
     
-    const wsUrl = `ws://localhost:8000/api/ws/${userId}`;
+    // Use dynamic WebSocket URL from config (handles localhost vs production)
+    const wsUrl = `${API_ENDPOINTS.ws}/${userId}`;
     console.log('🔌 Connecting to WebSocket:', wsUrl);
     console.log('👤 User ID:', userId);
     console.log('👤 User Name:', currentUser.name);
@@ -635,9 +739,10 @@ function handleWebSocketMessage(data) {
         
         const callerName = data.caller_name || 'Someone';
         const callId = data.call_id;
+        const fromUserId = data.from_user_id;
         
         // Show a more prominent notification
-        showIncomingCallNotification(callerName, callId);
+        showIncomingCallNotification(callerName, callId, fromUserId);
         
         // Also play a sound and show browser notification if supported
         if ('Notification' in window && Notification.permission === 'granted') {
@@ -646,24 +751,24 @@ function handleWebSocketMessage(data) {
                 icon: '/assets/icons/call.png'
             });
         }
-    } else if (data.type === 'call_rejected') {
-        console.log('❌ Call was rejected by:', data.rejected_by_name);
+    } else if (data.type === 'call_accepted') {
+        console.log('✅ ========== CALL ACCEPTED ==========');
+        console.log('✅ Call ID:', data.call_id);
+        console.log('✅ Partner ID:', data.partner_id);
+        console.log('✅ ===================================');
         
-        // Remove waiting overlay if exists
-        const waitingDiv = document.getElementById('call-waiting');
-        if (waitingDiv) {
-            waitingDiv.remove();
+        // Check if this is for our pending call
+        if (window.pendingCallId === data.call_id) {
+            handleCallAccepted(data.call_id);
         }
+    } else if (data.type === 'call_rejected') {
+        console.log('❌ ========== CALL REJECTED ==========');
+        console.log('❌ Call was rejected by:', data.rejected_by_name);
+        console.log('❌ Call ID:', data.call_id);
+        console.log('❌ ===================================');
         
-        // Show rejection message
-        showMessage(`❌ ${data.rejected_by_name} declined your call`, 'error');
-        
-        // Re-enable call buttons
-        const callButtons = document.querySelectorAll('.btn-call');
-        callButtons.forEach(btn => {
-            btn.disabled = false;
-            btn.textContent = '📞 Call';
-        });
+        // Use the new handler function
+        handleCallRejected(data.rejected_by_name);
     } else {
         console.log('⚠️ Unknown message type:', data.type);
     }
@@ -721,7 +826,7 @@ function showMessage(text, type = 'info') {
     }, 3000);
 }
 
-function showIncomingCallNotification(callerName, callId) {
+function showIncomingCallNotification(callerName, callId, fromUserId) {
     // Remove any existing call notification
     const existing = document.getElementById('incoming-call-notification');
     if (existing) {
@@ -804,21 +909,57 @@ function showIncomingCallNotification(callerName, callId) {
     }
     
     // Handle accept
-    document.getElementById('accept-call-btn').onclick = () => {
+    document.getElementById('accept-call-btn').onclick = async () => {
+        console.log('✅ Accepting call:', callId);
+        
+        // Send accept message via WebSocket to notify the caller
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'accept_call',
+                call_id: callId,
+                from_user_id: fromUserId
+            }));
+            console.log('📤 Sent call accept notification to caller');
+        }
+        
         overlay.remove();
-        window.location.href = `call.html?callId=${callId}`;
+        showMessage('✅ Call accepted! Connecting...', 'success');
+        
+        // Redirect to call page
+        setTimeout(() => {
+            window.location.href = `call.html?callId=${callId}`;
+        }, 500);
     };
     
     // Handle reject
     document.getElementById('reject-call-btn').onclick = () => {
+        console.log('❌ Rejecting call:', callId);
+        
+        // Send reject message via WebSocket to notify the caller
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'reject_call_invitation',
+                call_id: callId,
+                from_user_id: fromUserId
+            }));
+            console.log('📤 Sent call rejection notification to caller');
+        }
+        
         overlay.remove();
         showMessage('Call declined', 'info');
-        // Optionally notify backend about rejection
     };
     
     // Auto-dismiss after 30 seconds
     setTimeout(() => {
         if (document.getElementById('incoming-call-notification')) {
+            // Send missed call notification
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'call_missed',
+                    call_id: callId,
+                    from_user_id: fromUserId
+                }));
+            }
             overlay.remove();
             showMessage('Missed call from ' + callerName, 'info');
         }

@@ -346,7 +346,11 @@ function handleWebSocketMessage(data) {
             break;
         case 'call_rejected':
             // Handle call rejection notification
-            showToast(`❌ ${data.rejected_by_name || 'User'} declined your call`, 'error');
+            handleCallRejected(data);
+            break;
+        case 'call_accepted':
+            // Handle call accepted notification
+            handleCallAccepted(data);
             break;
         default:
             // Refresh dashboard data for other updates
@@ -360,12 +364,13 @@ function handleCallInvitation(data) {
     
     const callerName = data.caller_name || 'Someone';
     const callId = data.call_id;
+    const fromUserId = data.from_user_id;
     
     // Show prominent notification
-    showIncomingCallNotification(callerName, callId);
+    showIncomingCallNotification(callerName, callId, fromUserId);
 }
 
-function showIncomingCallNotification(callerName, callId) {
+function showIncomingCallNotification(callerName, callId, fromUserId) {
     // Remove any existing call notification
     const existing = document.getElementById('incoming-call-notification');
     if (existing) {
@@ -448,13 +453,42 @@ function showIncomingCallNotification(callerName, callId) {
     }
     
     // Handle accept
-    document.getElementById('accept-call-btn').onclick = () => {
+    document.getElementById('accept-call-btn').onclick = async () => {
+        console.log('✅ Accepting call:', callId);
+        
+        // Send accept message via WebSocket to notify the caller
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'accept_call',
+                call_id: callId,
+                from_user_id: fromUserId
+            }));
+            console.log('📤 Sent call accept notification to caller');
+        }
+        
         overlay.remove();
-        window.location.href = `call.html?callId=${callId}`;
+        showToast('✅ Call accepted! Connecting...', 'success');
+        
+        // Redirect to call page
+        setTimeout(() => {
+            window.location.href = `call.html?callId=${callId}`;
+        }, 500);
     };
     
     // Handle reject
     document.getElementById('reject-call-btn').onclick = () => {
+        console.log('❌ Rejecting call:', callId);
+        
+        // Send reject message via WebSocket to notify the caller
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'reject_call_invitation',
+                call_id: callId,
+                from_user_id: fromUserId
+            }));
+            console.log('📤 Sent call rejection notification to caller');
+        }
+        
         overlay.remove();
         showToast('Call declined', 'info');
     };
@@ -462,10 +496,55 @@ function showIncomingCallNotification(callerName, callId) {
     // Auto-dismiss after 30 seconds
     setTimeout(() => {
         if (document.getElementById('incoming-call-notification')) {
+            // Send missed call notification
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'call_missed',
+                    call_id: callId,
+                    from_user_id: fromUserId
+                }));
+            }
             overlay.remove();
             showToast('Missed call from ' + callerName, 'info');
         }
     }, 30000);
+}
+
+// Handle call rejection notification
+function handleCallRejected(data) {
+    console.log('❌ Call was rejected:', data);
+    
+    // Remove waiting overlay if exists
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+    
+    // Clear any pending call data
+    window.pendingCallId = null;
+    
+    // Show rejection message
+    showToast(`❌ ${data.rejected_by_name || 'User'} declined your call`, 'error');
+}
+
+// Handle call accepted notification  
+function handleCallAccepted(data) {
+    console.log('✅ Call was accepted:', data);
+    
+    const callId = data.call_id;
+    
+    // Remove waiting overlay if exists
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+    
+    // Show success message and redirect
+    showToast(`✅ ${data.partner_name || 'User'} accepted your call! Connecting...`, 'success');
+    
+    setTimeout(() => {
+        window.location.href = `call.html?callId=${callId}`;
+    }, 500);
 }
 
 // Initiate call to a user

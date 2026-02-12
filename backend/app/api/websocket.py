@@ -376,12 +376,46 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 }, user_id)
                 
             elif message_type == "accept_call_invitation":
-                # Accept call invitation
+                # Accept call invitation (legacy with invitation_id)
                 invitation_id = data.get("invitation_id")
                 result = await manager.accept_call_invitation(invitation_id, user_id)
                 await manager.send_personal_message({
                     "type": "accept_result",
                     "data": result,
+                    "timestamp": datetime.now().isoformat()
+                }, user_id)
+            
+            elif message_type == "accept_call":
+                # Accept call (new direct call_id based)
+                call_id = data.get("call_id")
+                from_user_id = data.get("from_user_id")
+                
+                logger.info(f"✅ User {user_id} accepting call {call_id} from {from_user_id}")
+                
+                # Get acceptor's name
+                from backend.app.database import Database
+                from bson import ObjectId
+                db = Database.get_db()
+                acceptor = db.users.find_one({"_id": ObjectId(user_id)})
+                acceptor_name = acceptor.get("name", "User") if acceptor else "User"
+                
+                # Notify the caller that the call was accepted
+                if from_user_id and from_user_id in manager.active_connections:
+                    await manager.send_personal_message({
+                        "type": "call_accepted",
+                        "call_id": call_id,
+                        "partner_id": user_id,
+                        "partner_name": acceptor_name,
+                        "message": f"{acceptor_name} accepted your call",
+                        "timestamp": datetime.now().isoformat()
+                    }, from_user_id)
+                    logger.info(f"✅ Notified {from_user_id} that call was accepted by {user_id}")
+                
+                # Send confirmation to acceptor
+                await manager.send_personal_message({
+                    "type": "accept_result",
+                    "success": True,
+                    "call_id": call_id,
                     "timestamp": datetime.now().isoformat()
                 }, user_id)
                 
@@ -391,7 +425,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 call_id = data.get("call_id")
                 from_user_id = data.get("from_user_id")
                 
-                result = await manager.reject_call_invitation(invitation_id, user_id)
+                # If we have an invitation_id, use the original flow
+                if invitation_id:
+                    result = await manager.reject_call_invitation(invitation_id, user_id)
+                else:
+                    result = {"status": "rejected"}
                 
                 # Send confirmation to rejector
                 await manager.send_personal_message({

@@ -33,8 +33,8 @@ const API_ENDPOINTS = {
     leaderboard: `${API_BASE_URL}/api/leaderboard/top`,
     leaderboardTop: `${API_BASE_URL}/api/leaderboard/top`,
     
-    // WebSocket
-    ws: `${WS_BASE_URL}/ws`
+    // WebSocket (matches backend /api/ws/{user_id} route)
+    ws: `${WS_BASE_URL}/api/ws`
 };
 
 // Auth checker for protected routes
