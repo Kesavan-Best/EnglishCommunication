@@ -25,10 +25,10 @@ try:
     except ImportError:
         from app.ai_processing.lightweight_model import LightweightAIProcessor
     HEAVY_MODELS_AVAILABLE = True
-    logger.info("✅ Heavy NLP models are available")
+    # Don't log here - it's misleading since we use language_weakness_analyzer now
 except (ImportError, ModuleNotFoundError) as e:
     HEAVY_MODELS_AVAILABLE = False
-    logger.info("⚡ Using memory-optimized instant analyzer (models not installed)")
+    # Silent fallback - we use language_weakness_analyzer anyway
 
 
 class MemoryEfficientProcessor:

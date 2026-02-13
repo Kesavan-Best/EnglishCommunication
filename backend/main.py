@@ -17,24 +17,24 @@ if str(parent_dir) not in sys.path:
 from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp, nlp_analysis
 from backend.app.database import init_db
 from backend.app.core.config import settings
-from backend.app.ai_processing.lazy_loader import nlp_loader
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print("Initializing database...")
+    logger.info("Initializing database...")
     await init_db()
-    print("Database initialized")
+    logger.info("✅ Database initialized")
     
-    # Start NLP model loading in background after 10 minutes
-    # (Models will be ready by the time first call ends)
-    print("⏰ NLP models will load after 10 minutes (when calls typically end)")
-    asyncio.create_task(nlp_loader.start_background_loading(delay_seconds=600))
+    # Language analysis uses LanguageTool + WordNet + Rule-based (no heavy NLP models)
+    logger.info("📊 Language analyzer ready (LanguageTool + WordNet + Filler Detection)")
     
     yield
     # Shutdown
-    print("Shutting down...")
+    logger.info("Shutting down...")
 
 app = FastAPI(
     title="English Communication Platform",

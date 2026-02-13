@@ -7,10 +7,12 @@ from datetime import datetime, timedelta
 from typing import Optional
 import random
 import string
+import logging
 
 from backend.app.database import Database
 from backend.app.email_service import email_service
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class SendOTPRequest(BaseModel):
@@ -55,7 +57,7 @@ async def send_otp(request: SendOTPRequest):
         })
         
         # Try to send email
-        print(f"🔄 Attempting to send OTP to {request.email}...")
+        logger.info(f"📧 Sending OTP to {request.email}...")
         success, error_msg = email_service.send_otp_email(request.email, otp, request.name)
         
         # Store whether email was sent successfully
@@ -70,9 +72,8 @@ async def send_otp(request: SendOTPRequest):
         
         # Log the actual result
         if not success:
-            print(f"❌ Email FAILED to send to {request.email}")
-            print(f"❌ Error: {error_msg}")
-            print(f"🔐 OTP for testing: {otp}")
+            logger.error(f"❌ Email FAILED to {request.email}: {error_msg}")
+            logger.info(f"🔐 OTP for testing: {otp}")
             
             # Return clear error with OTP for testing
             return {
@@ -94,9 +95,7 @@ async def send_otp(request: SendOTPRequest):
             }
         
         # Email sent successfully
-        print(f"✅ OTP email SUCCESSFULLY sent to {request.email}")
-        print(f"📬 From: {email_service.smtp_user}")
-        print(f"📨 Check inbox and spam folder")
+        logger.info(f"✅ OTP sent to {request.email} from {email_service.smtp_user}")
         
         return {
             "message": f"✅ OTP sent successfully to {request.email}",
@@ -109,7 +108,7 @@ async def send_otp(request: SendOTPRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error sending OTP: {str(e)}")
+        logger.error(f"Error sending OTP: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(
@@ -169,7 +168,7 @@ async def verify_otp(request: VerifyOTPRequest):
             {"$set": {"verified": True, "verified_at": datetime.utcnow()}}
         )
         
-        print(f"✅ OTP verified successfully for {request.email}")
+        logger.info(f"✅ OTP verified for {request.email}")
         
         return {
             "message": "OTP verified successfully",
@@ -180,7 +179,7 @@ async def verify_otp(request: VerifyOTPRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error verifying OTP: {str(e)}")
+        logger.error(f"Error verifying OTP: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to verify OTP: {str(e)}"
@@ -209,7 +208,7 @@ async def resend_otp(request: SendOTPRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error resending OTP: {str(e)}")
+        logger.error(f"Error resending OTP: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to resend OTP: {str(e)}"

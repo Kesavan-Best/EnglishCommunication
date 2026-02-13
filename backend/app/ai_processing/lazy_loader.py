@@ -37,22 +37,19 @@ class NLPLazyLoader:
         
         self.is_loading = True
         self.load_started_at = datetime.utcnow()
-        logger.info("🤖 Starting NLP model loading in background...")
+        logger.info("📊 Starting language analyzer initialization...")
         
         try:
-            # Import and initialize models
+            # Import language weakness analyzer (LanguageTool + WordNet)
             try:
-                from backend.app.ai_processing.memory_efficient_processor import get_ai_processor
+                from backend.app.ai_processing.language_weakness_analyzer import language_analyzer
             except ImportError:
-                from app.ai_processing.memory_efficient_processor import get_ai_processor
-            
-            # This will trigger model download and initialization
-            processor = get_ai_processor(use_heavy_models=False)  # Use memory-efficient mode
+                from app.ai_processing.language_weakness_analyzer import language_analyzer
             
             self.is_loaded = True
             self.load_completed_at = datetime.utcnow()
             load_time = (self.load_completed_at - self.load_started_at).total_seconds()
-            logger.info(f"✅ NLP models loaded successfully in {load_time:.1f}s")
+            logger.info(f"✅ Language analyzer ready in {load_time:.1f}s")
             
         except Exception as e:
             self.error = str(e)

@@ -4,6 +4,7 @@ from typing import List
 from bson import ObjectId
 import shutil
 import os
+import logging
 
 from backend.app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse
 from backend.app.models import UserInDB
@@ -11,6 +12,7 @@ from backend.app.auth import AuthHandler
 from backend.app.database import Database
 from backend.app.core.config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 # Helper function to calculate user rank
@@ -27,12 +29,12 @@ async def register(user_data: UserRegisterRequest):
     try:
         db = Database.get_db()
         
-        print(f"📝 Registration attempt for: {user_data.email}")
+        logger.info(f"📝 Registration attempt for: {user_data.email}")
         
         # Check if user already exists
         existing_user = db.users.find_one({"email": user_data.email})
         if existing_user:
-            print(f"❌ Email already registered: {user_data.email}")
+            logger.warning(f"❌ Email already registered: {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
@@ -45,7 +47,7 @@ async def register(user_data: UserRegisterRequest):
         })
         
         if not otp_record:
-            print(f"❌ Email not verified: {user_data.email}")
+            logger.warning(f"❌ Email not verified: {user_data.email}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Please verify your email with OTP first"
@@ -53,7 +55,7 @@ async def register(user_data: UserRegisterRequest):
         
         # Hash password
         hashed_password = AuthHandler.hash_password(user_data.password)
-        print(f"🔐 Password hashed successfully for: {user_data.email}")
+        logger.info(f"🔐 Password hashed for: {user_data.email}")
         
         # Create user document
         user_doc = {
@@ -82,11 +84,11 @@ async def register(user_data: UserRegisterRequest):
             from backend.app.email_service import email_service
             success, error_msg = email_service.send_welcome_email(user_data.email, user_data.name)
             if not success:
-                print(f"⚠️  Welcome email failed: {error_msg}")
+                logger.warning(f"⚠️ Welcome email failed: {error_msg}")
         except Exception as e:
-            print(f"Warning: Failed to send welcome email: {e}")
+            logger.warning(f"Warning: Failed to send welcome email: {e}")
         
-        print(f"✅ User registered successfully: {user_data.email} (ID: {result.inserted_id})")
+        logger.info(f"✅ User registered successfully: {user_data.email} (ID: {result.inserted_id})")
         
         return UserResponse(
             id=str(result.inserted_id),
@@ -104,7 +106,7 @@ async def register(user_data: UserRegisterRequest):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Registration error: {str(e)}")
+        logger.error(f"Registration error: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}"

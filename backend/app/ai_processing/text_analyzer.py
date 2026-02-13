@@ -1,17 +1,29 @@
 """
 Text Analyzer - Lightweight stub for Python 3.13 compatibility
 Uses basic pattern matching instead of external NLP libraries
+Enhanced with LanguageTool, WordNet, and rule-based systems when available
 """
 from typing import List, Dict, Tuple
 import re
 from collections import Counter
 import math
 
+# Try to import enhanced analyzer
+try:
+    from backend.app.ai_processing.language_weakness_analyzer import (
+        language_analyzer, 
+        analyze_conversation
+    )
+    ENHANCED_ANALYZER_AVAILABLE = True
+except ImportError:
+    ENHANCED_ANALYZER_AVAILABLE = False
+
 
 class TextAnalyzer:
     def __init__(self):
         """Initialize text analyzer with basic patterns"""
         self.use_textblob = False
+        self.use_enhanced = ENHANCED_ANALYZER_AVAILABLE
         
         # Common filler words
         self.filler_words = {
@@ -41,6 +53,47 @@ class TextAnalyzer:
         if not text.strip():
             return self._empty_analysis()
         
+        # Use enhanced analyzer if available
+        if self.use_enhanced:
+            return self._enhanced_analysis(text, audio_duration)
+        
+        return self._basic_analysis(text, audio_duration)
+    
+    def _enhanced_analysis(self, text: str, audio_duration: float = None) -> Dict:
+        """Use the enhanced language weakness analyzer"""
+        try:
+            result = analyze_conversation(text, audio_duration)
+            
+            # Map enhanced result to expected format for backward compatibility
+            return {
+                "word_count": result['speaking_metrics']['word_count'],
+                "sentence_count": len(self._split_sentences(text)),
+                "grammar_errors": result['grammar_analysis']['total_errors'],
+                "grammar_details": result['grammar_analysis'],
+                "filler_words": [f['word'] for f in result['filler_analysis'].get('filler_details', [])],
+                "filler_analysis": result['filler_analysis'],
+                "vocabulary_repetition": 1 - result['vocabulary_analysis']['type_token_ratio'],
+                "vocabulary_analysis": result['vocabulary_analysis'],
+                "fluency_score": result['scores']['filler'],
+                "words_per_minute": result['speaking_metrics']['words_per_minute'],
+                "pause_count": result['filler_analysis']['total_fillers'],
+                "english_compliance_score": result['scores']['grammar'] / 100,
+                "overall_score": result['overall_score'],
+                "scores": result['scores'],
+                "weaknesses": [w['area'] for w in result['weaknesses']],
+                "weakness_details": result['weaknesses'],
+                "suggestions": result['suggestions'],
+                "strength_areas": result.get('strength_areas', []),
+                "vocabulary_level": result['vocabulary_analysis']['vocabulary_level'],
+                "advanced_words": result['vocabulary_analysis'].get('advanced_words_used', [])
+            }
+        except Exception as e:
+            # Fallback to basic analysis on error
+            print(f"Enhanced analysis error: {e}, falling back to basic")
+            return self._basic_analysis(text, audio_duration)
+    
+    def _basic_analysis(self, text: str, audio_duration: float = None) -> Dict:
+        """Basic analysis without enhanced libraries"""
         # Basic metrics
         words = text.split()
         word_count = len(words)
