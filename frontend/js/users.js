@@ -3,6 +3,7 @@ let allUsers = [];
 let friends = [];
 let currentUser = null;
 let ws = null;
+let heartbeatInterval = null;
 
 // Initialize page
 async function initUsersPage() {
@@ -675,6 +676,12 @@ function setupWebSocket() {
         ws.close();
     }
     
+    // Clear existing heartbeat interval
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+    
     // Use dynamic WebSocket URL from config (handles localhost vs production)
     const wsUrl = `${API_ENDPOINTS.ws}/${userId}`;
     console.log('🔌 Connecting to WebSocket:', wsUrl);
@@ -686,6 +693,18 @@ function setupWebSocket() {
     ws.onopen = () => {
         console.log('✅ WebSocket connected successfully');
         console.log('📡 Ready to receive call notifications');
+        
+        // Start heartbeat to keep online status updated across environments
+        // Sends ping every 2 minutes to update last_seen in database
+        heartbeatInterval = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'ping' }));
+                console.log('💓 Heartbeat sent');
+            }
+        }, 120000); // Every 2 minutes
+        
+        // Send initial ping immediately
+        ws.send(JSON.stringify({ type: 'ping' }));
     };
     
     ws.onmessage = (event) => {
@@ -700,6 +719,11 @@ function setupWebSocket() {
     
     ws.onclose = () => {
         console.log('⚠️ WebSocket closed, reconnecting in 5s...');
+        // Clear heartbeat interval on close
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+            heartbeatInterval = null;
+        }
         setTimeout(setupWebSocket, 5000);
     };
 }
@@ -730,6 +754,11 @@ function handleWebSocketMessage(data) {
     } else if (data.type === 'friend_request') {
         showMessage(`🔔 New friend request from ${data.sender_name}`, 'info');
         loadPendingRequests();
+    } else if (data.type === 'friend_request_accepted') {
+        // Friend request was accepted by the recipient
+        showMessage(`🎉 ${data.accepter_name || 'User'} accepted your friend request!`, 'success');
+        loadFriends(); // Refresh friends list
+        loadAllUsers(); // Refresh all users to update button states
     } else if (data.type === 'call_invite') {
         console.log('📞 ========== INCOMING CALL ==========');
         console.log('📞 Caller name:', data.caller_name);

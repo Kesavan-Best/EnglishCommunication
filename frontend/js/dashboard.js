@@ -2,6 +2,7 @@
 let userData = null;
 let ws = null;
 let statsRefreshInterval = null;
+let heartbeatInterval = null;
 
 // Initialize dashboard
 async function initDashboard() {
@@ -294,6 +295,12 @@ function setupWebSocket(userId) {
         return;
     }
     
+    // Clear existing heartbeat interval
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+    }
+    
     try {
         console.log('🔌 Dashboard connecting to WebSocket for user:', userId);
         ws = new WebSocket(`${API_ENDPOINTS.ws}/${userId}`);
@@ -301,6 +308,17 @@ function setupWebSocket(userId) {
         ws.onopen = () => {
             console.log('✅ Dashboard WebSocket connected');
             console.log('📡 Ready to receive notifications');
+            
+            // Start heartbeat to keep online status updated across environments
+            heartbeatInterval = setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'ping' }));
+                    console.log('💓 Dashboard heartbeat sent');
+                }
+            }, 120000); // Every 2 minutes
+            
+            // Send initial ping immediately
+            ws.send(JSON.stringify({ type: 'ping' }));
         };
         
         ws.onmessage = (event) => {
@@ -315,6 +333,11 @@ function setupWebSocket(userId) {
         
         ws.onclose = () => {
             console.log('⚠️ WebSocket closed, reconnecting...');
+            // Clear heartbeat interval on close
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
             setTimeout(() => setupWebSocket(userId), 5000);
         };
     } catch (error) {

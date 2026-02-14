@@ -11,9 +11,38 @@ from backend.app.models import UserInDB
 from backend.app.auth import AuthHandler
 from backend.app.database import Database
 from backend.app.core.config import settings
+from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Helper function to check if user is online based on database status
+# This works across different server instances (localhost + Render)
+def is_user_online_db(user_id: str) -> bool:
+    """Check if user is online based on database status (cross-instance compatible)"""
+    try:
+        db = Database.get_db()
+        user = db.users.find_one({"_id": ObjectId(user_id)})
+        if not user:
+            return False
+        
+        # User must have is_online=True AND last_seen within last 5 minutes
+        is_online = user.get("is_online", False)
+        last_seen = user.get("last_seen")
+        
+        if not is_online:
+            return False
+        
+        if last_seen:
+            # Check if last_seen is within the last 5 minutes
+            time_threshold = datetime.utcnow() - timedelta(minutes=5)
+            if last_seen < time_threshold:
+                return False
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error checking online status for {user_id}: {e}")
+        return False
 
 # Helper function to calculate user rank
 async def calculate_user_rank(user_id: str) -> int:
@@ -403,9 +432,6 @@ async def get_all_users(
     """Get all registered users excluding test accounts and current user"""
     db = Database.get_db()
     
-    # Get WebSocket manager to check real online status
-    from backend.app.api.websocket import manager
-    
     # Filter out test email addresses and current user
     test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
     
@@ -418,8 +444,8 @@ async def get_all_users(
     for user in users:
         user_id_str = str(user["_id"])
         
-        # Check ACTUAL online status from WebSocket connections
-        is_actually_online = user_id_str in manager.active_connections
+        # Check online status from database (works across server instances)
+        is_actually_online = is_user_online_db(user_id_str)
         
         rank = await calculate_user_rank(user_id_str)
         result.append(UserResponse(
@@ -427,7 +453,7 @@ async def get_all_users(
             email=user["email"],
             name=user["name"],
             avatar_url=user.get("avatar_url"),
-            is_online=is_actually_online,  # Use WebSocket status, not DB status
+            is_online=is_actually_online,  # Use DB status for cross-instance compatibility
             ai_score=user.get("ai_score", 0.0),
             total_calls=user.get("total_calls", 0),
             total_call_duration=user.get("total_call_duration", 0),
@@ -585,6 +611,17 @@ async def accept_friend_request(
         {"$set": {"status": "accepted", "updated_at": datetime.utcnow()}}
     )
     
+    # Send WebSocket notification to the sender that their request was accepted
+    from backend.app.api.websocket import manager
+    sender_id = str(request["from_user_id"])
+    await manager.send_personal_message({
+        "type": "friend_request_accepted",
+        "from_user_id": str(current_user.id),
+        "accepter_name": current_user.name,
+        "message": f"{current_user.name} accepted your friend request!",
+        "timestamp": datetime.utcnow().isoformat()
+    }, sender_id)
+    
     return {"message": "Friend request accepted"}
 
 @router.post("/friend-request/{request_id}/reject")
@@ -633,15 +670,12 @@ async def get_friends(
     # Get friend details
     friends = db.users.find({"_id": {"$in": friend_ids}})
     
-    # Get WebSocket manager to check real online status
-    from backend.app.api.websocket import manager
-    
     result = []
     for friend in friends:
         friend_id_str = str(friend["_id"])
         
-        # Check ACTUAL online status from WebSocket connections (same as /all endpoint)
-        is_actually_online = friend_id_str in manager.active_connections
+        # Check online status from database (works across server instances)
+        is_actually_online = is_user_online_db(friend_id_str)
         
         rank = await calculate_user_rank(friend_id_str)
         result.append(UserResponse(
@@ -649,7 +683,7 @@ async def get_friends(
             email=friend["email"],
             name=friend["name"],
             avatar_url=friend.get("avatar_url"),
-            is_online=is_actually_online,  # Use WebSocket status, not DB status
+            is_online=is_actually_online,  # Use DB status for cross-instance compatibility
             ai_score=friend.get("ai_score", 0.0),
             total_calls=friend.get("total_calls", 0),
             total_call_duration=friend.get("total_call_duration", 0),
@@ -667,9 +701,6 @@ async def find_random_partner(
     """Find a random online partner for calling"""
     db = Database.get_db()
     
-    # Get WebSocket manager to check real online status
-    from backend.app.api.websocket import manager
-    
     # Filter out test emails and current user
     test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
     
@@ -679,10 +710,10 @@ async def find_random_partner(
         "email": {"$nin": test_emails}
     }))
     
-    # Filter to only actually online users (from WebSocket connections)
+    # Filter to only actually online users (from database - works across instances)
     online_users = [
         user for user in all_users 
-        if str(user["_id"]) in manager.active_connections
+        if is_user_online_db(str(user["_id"]))
     ]
     
     if not online_users:
@@ -740,9 +771,6 @@ async def get_user_profile(
     """Get user profile by ID"""
     db = Database.get_db()
     
-    # Get WebSocket manager to check real online status
-    from backend.app.api.websocket import manager
-    
     try:
         user = db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
@@ -751,8 +779,8 @@ async def get_user_profile(
                 detail="User not found"
             )
         
-        # Check ACTUAL online status from WebSocket connections
-        is_actually_online = user_id in manager.active_connections
+        # Check online status from database (works across server instances)
+        is_actually_online = is_user_online_db(user_id)
         
         rank = await calculate_user_rank(user_id)
         
@@ -761,7 +789,7 @@ async def get_user_profile(
             email=user["email"],
             name=user["name"],
             avatar_url=user.get("avatar_url"),
-            is_online=is_actually_online,  # Use WebSocket status, not DB status
+            is_online=is_actually_online,  # Use DB status for cross-instance compatibility
             ai_score=user.get("ai_score", 0.0),
             total_calls=user.get("total_calls", 0),
             total_call_duration=user.get("total_call_duration", 0),

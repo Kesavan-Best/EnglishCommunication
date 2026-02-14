@@ -354,7 +354,18 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             logger.debug(f"📨 {message_type} from {user_id}")
             
             if message_type == "ping":
-                # Keep-alive ping
+                # Keep-alive ping - also update database last_seen for cross-instance online status
+                try:
+                    from backend.app.database import Database
+                    from bson import ObjectId
+                    db = Database.get_db()
+                    db.users.update_one(
+                        {"_id": ObjectId(user_id)},
+                        {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to update last_seen on ping: {e}")
+                
                 await manager.send_personal_message({
                     "type": "pong",
                     "timestamp": datetime.now().isoformat()
