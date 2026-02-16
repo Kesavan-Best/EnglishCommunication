@@ -497,6 +497,7 @@
         let isCaller = false;
         let incomingCallData = null;
         let callActive = false;
+        let callWasAccepted = false; // Track if call was accepted (for auto-start)
         
         // WebRTC Configuration
         const rtcConfig = {
@@ -531,10 +532,31 @@
             // Get call ID from URL
             const urlParams = new URLSearchParams(window.location.search);
             callId = urlParams.get('callId');
+            const autoStart = urlParams.get('autoStart');
+            callWasAccepted = autoStart === 'true';
+            
+            // Store active call in session so user can return to it
+            if (callId) {
+                sessionStorage.setItem('activeCallId', callId);
+                sessionStorage.setItem('activeCallTimestamp', Date.now().toString());
+            }
+            
+            // Handle browser back button
+            setupBackButtonHandling();
             
             if (callId) {
                 console.log('📞 Call ID from URL:', callId);
+                console.log('📞 Auto-start:', callWasAccepted);
                 await fetchCallDetails();
+                
+                // If call was accepted, auto-start immediately
+                if (callWasAccepted) {
+                    console.log('🚀 Auto-starting call (was accepted)');
+                    document.getElementById('preCallScreen').style.display = 'none';
+                    document.getElementById('loadingScreen').style.display = 'block';
+                    updateStatus('Connecting to call...', '📞');
+                    setTimeout(startWebRTCCall, 1500);
+                }
             } else {
                 console.log('⚠️ No call ID in URL - waiting for incoming call');
                 updatePreCallMessage('Waiting for incoming call or start a new one');
@@ -542,6 +564,38 @@
                 connectWebSocket();
             }
         });
+        
+        // Setup back button handling to return to active call
+        function setupBackButtonHandling() {
+            // Push a state so we can intercept back button
+            if (callId) {
+                history.pushState({ callId: callId, inCall: true }, '', window.location.href);
+            }
+            
+            window.addEventListener('popstate', (event) => {
+                if (callActive) {
+                    // User tried to leave during active call
+                    if (confirm('You have an active call! Do you want to leave the call?')) {
+                        endCall();
+                    } else {
+                        // Stay on call page - push state back
+                        history.pushState({ callId: callId, inCall: true }, '', window.location.href);
+                    }
+                } else if (sessionStorage.getItem('activeCallId')) {
+                    // There might be an active call to return to
+                    const activeCallId = sessionStorage.getItem('activeCallId');
+                    const timestamp = parseInt(sessionStorage.getItem('activeCallTimestamp') || '0');
+                    const timeSince = Date.now() - timestamp;
+                    
+                    // If call was started less than 10 minutes ago, offer to return
+                    if (timeSince < 600000 && activeCallId !== callId) {
+                        if (confirm('You have an active call. Return to it?')) {
+                            window.location.href = `call.html?callId=${activeCallId}&autoStart=true`;
+                        }
+                    }
+                }
+            });
+        }
         
         // Check authentication
         async function checkAuthentication() {
@@ -1210,6 +1264,11 @@
         // End call
         async function endCall() {
             console.log('📞 Ending call...');
+            
+            // Clear active call from session (so user isn't prompted to return)
+            sessionStorage.removeItem('activeCallId');
+            sessionStorage.removeItem('activeCallTimestamp');
+            callActive = false;
             
             // Stop timer
             if (callTimer) {

@@ -15,6 +15,9 @@ async function initUsersPage() {
         return;
     }
     
+    // Check for active call (user might have navigated away)
+    checkForActiveCall();
+    
     // Setup tabs
     setupTabs();
     
@@ -37,6 +40,122 @@ async function initUsersPage() {
         loadFriends();
         loadPendingRequests();
     }, 10000);
+}
+
+// Check if user has an active call and show return banner
+function checkForActiveCall() {
+    const activeCallId = sessionStorage.getItem('activeCallId');
+    const timestamp = parseInt(sessionStorage.getItem('activeCallTimestamp') || '0');
+    const timeSince = Date.now() - timestamp;
+    
+    // If call was started less than 10 minutes ago, show return banner
+    if (activeCallId && timeSince < 600000) {
+        showActiveCallBanner(activeCallId);
+    }
+}
+
+// Show banner to return to active call
+function showActiveCallBanner(callId) {
+    // Remove existing banner if any
+    const existingBanner = document.getElementById('active-call-banner');
+    if (existingBanner) existingBanner.remove();
+    
+    const banner = document.createElement('div');
+    banner.id = 'active-call-banner';
+    banner.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 9999;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        animation: slideDown 0.3s ease-out;
+    `;
+    
+    banner.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="font-size: 24px; animation: pulse 1.5s infinite;">📞</div>
+            <div>
+                <strong>You have an active call!</strong>
+                <span style="opacity: 0.9; margin-left: 10px;">Click to return to your call</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="returnToActiveCall('${callId}')" style="
+                background: white;
+                color: #667eea;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 8px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.3s;
+            ">Return to Call</button>
+            <button onclick="dismissActiveCallBanner()" style="
+                background: rgba(255,255,255,0.2);
+                color: white;
+                border: none;
+                padding: 10px 15px;
+                border-radius: 8px;
+                cursor: pointer;
+            ">✕</button>
+        </div>
+    `;
+    
+    // Add animation style
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideDown {
+            from { transform: translateY(-100%); }
+            to { transform: translateY(0); }
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+        }
+    `;
+    document.head.appendChild(style);
+    
+    document.body.prepend(banner);
+    
+    // Adjust page content to not be hidden under banner
+    document.body.style.paddingTop = '70px';
+}
+
+// Return to active call
+function returnToActiveCall(callId) {
+    window.location.href = `call.html?callId=${callId}&autoStart=true`;
+}
+
+// Dismiss active call banner (also clears session storage)
+function dismissActiveCallBanner() {
+    sessionStorage.removeItem('activeCallId');
+    sessionStorage.removeItem('activeCallTimestamp');
+    
+    const banner = document.getElementById('active-call-banner');
+    if (banner) {
+        banner.style.animation = 'slideUp 0.3s ease-out forwards';
+        setTimeout(() => {
+            banner.remove();
+            document.body.style.paddingTop = '0';
+        }, 300);
+    }
+    
+    // Add slideUp animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideUp {
+            from { transform: translateY(0); }
+            to { transform: translateY(-100%); }
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 function setupTabs() {
@@ -598,10 +717,14 @@ function handleCallAccepted(callId) {
         waitingDiv.remove();
     }
     
-    // Redirect to call page
+    // Clear pending call state
+    window.pendingCallId = null;
+    window.pendingCallRoomId = null;
+    
+    // Redirect to call page with autoStart flag to skip the "Start Call" button
     showMessage('✅ Call accepted! Connecting...', 'success');
     setTimeout(() => {
-        window.location.href = `call.html?callId=${callId}`;
+        window.location.href = `call.html?callId=${callId}&autoStart=true`;
     }, 500);
 }
 
@@ -631,8 +754,50 @@ function handleCallRejected(rejectorName) {
         btn.textContent = '📞 Call';
     });
     
-    // Show rejection message
-    showMessage(`❌ ${rejectorName || 'User'} declined your call`, 'error');
+    // Show a prominent rejection notification overlay
+    showCallRejectedOverlay(rejectorName);
+}
+
+// Show call rejected overlay with clear message
+function showCallRejectedOverlay(rejecterName) {
+    const overlay = document.createElement('div');
+    overlay.id = 'call-rejected-overlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10001;
+        animation: fadeIn 0.3s;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="background: white; padding: 40px 50px; border-radius: 20px; text-align: center; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,0.5);">
+            <div style="font-size: 80px; margin-bottom: 20px;">❌</div>
+            <h2 style="color: #ef4444; margin-bottom: 15px; font-size: 24px;">Call Declined</h2>
+            <p style="color: #666; margin-bottom: 10px; font-size: 18px;">
+                <strong>${rejecterName || 'The user'}</strong> declined your call.
+            </p>
+            <p style="color: #999; margin-bottom: 30px; font-size: 14px;">They may be busy right now. Try again later!</p>
+            <button onclick="document.getElementById('call-rejected-overlay').remove()" 
+                    style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 14px 40px; border-radius: 10px; cursor: pointer; font-size: 16px; font-weight: 600; transition: all 0.3s;">
+                OK, Got it
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Auto-dismiss after 8 seconds
+    setTimeout(() => {
+        const el = document.getElementById('call-rejected-overlay');
+        if (el) el.remove();
+    }, 8000);
 }
 
 function viewProfile(userId) {
@@ -954,9 +1119,9 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
         overlay.remove();
         showMessage('✅ Call accepted! Connecting...', 'success');
         
-        // Redirect to call page
+        // Redirect to call page with autoStart to directly start the call
         setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}`;
+            window.location.href = `call.html?callId=${callId}&autoStart=true`;
         }, 500);
     };
     
