@@ -104,7 +104,6 @@ async def invite_to_call(
             "analysis_id": None,
             "created_at": datetime.utcnow()
         }
-        }
         
         result = db.calls.insert_one(call_dict)
         call_id = result.inserted_id
