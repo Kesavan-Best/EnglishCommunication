@@ -369,37 +369,100 @@ async function rejectFriendRequest(requestId) {
     }
 }
 
+// Track if user is currently searching for random match
+let isSearchingRandom = false;
 
 async function loadRandomPartner() {
     const btn = document.getElementById('find-random-btn');
     const statusDiv = document.getElementById('random-status');
     
-    btn.disabled = true;
-    btn.textContent = '🔍 Searching...';
-    statusDiv.innerHTML = '<p class="searching">Looking for an online partner...</p>';
-    
-    try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(API_ENDPOINTS.findRandomPartner, {
-            headers: {
-                'Authorization': `Bearer ${token}`
-            }
-        });
-        
-        if (response.ok) {
-            const partner = await response.json();
-            displayRandomPartner(partner);
-        } else {
-            const error = await response.json();
-            statusDiv.innerHTML = `<p class="error">❌ ${error.detail || 'No online users available'}</p>`;
-        }
-    } catch (error) {
-        console.error('Error finding random partner:', error);
-        statusDiv.innerHTML = '<p class="error">❌ Error finding partner</p>';
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '🎲 Find Random Partner';
+    // If already searching, cancel
+    if (isSearchingRandom) {
+        cancelRandomSearch();
+        return;
     }
+    
+    // Check if WebSocket is connected
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn('⚠️ WebSocket not connected, reconnecting...');
+        setupWebSocket();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    isSearchingRandom = true;
+    btn.disabled = false;
+    btn.textContent = '❌ Cancel Search';
+    btn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+    
+    statusDiv.innerHTML = `
+        <div style="text-align: center; padding: 30px;">
+            <div style="font-size: 50px; margin-bottom: 20px; animation: pulse 1.5s infinite;">🔍</div>
+            <p style="font-size: 18px; color: #667eea; font-weight: 600;">Searching for a partner...</p>
+            <p style="color: #666; margin-top: 10px;">When someone else clicks "Find Random Partner", you'll be matched!</p>
+            <div style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 10px;">
+                <p style="color: #667eea; font-size: 14px;">⏳ Waiting in queue...</p>
+            </div>
+        </div>
+        <style>
+            @keyframes pulse {
+                0%, 100% { transform: scale(1); }
+                50% { transform: scale(1.1); }
+            }
+        </style>
+    `;
+    
+    // Send join queue message via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'join_random_queue',
+            user_name: currentUser?.name || 'Anonymous'
+        }));
+        console.log('🎲 Joined random matching queue');
+    }
+}
+
+function cancelRandomSearch() {
+    const btn = document.getElementById('find-random-btn');
+    const statusDiv = document.getElementById('random-status');
+    
+    isSearchingRandom = false;
+    btn.textContent = '🔀 Find Random Partner';
+    btn.style.background = '';
+    statusDiv.innerHTML = '';
+    
+    // Send leave queue message via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'leave_random_queue'
+        }));
+        console.log('🎲 Left random matching queue');
+    }
+}
+
+// Handle random match found (called from WebSocket message handler)
+function handleRandomMatchFound(data) {
+    console.log('🎲 Random match found!', data);
+    
+    const btn = document.getElementById('find-random-btn');
+    const statusDiv = document.getElementById('random-status');
+    
+    isSearchingRandom = false;
+    btn.textContent = '🔀 Find Random Partner';
+    btn.style.background = '';
+    
+    statusDiv.innerHTML = `
+        <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%); border-radius: 15px;">
+            <div style="font-size: 60px; margin-bottom: 20px;">🎉</div>
+            <h3 style="color: #11998e; margin-bottom: 10px;">Match Found!</h3>
+            <p style="font-size: 18px; color: #333; font-weight: 600;">${data.partner_name}</p>
+            <p style="color: #666; margin: 15px 0;">Connecting you now...</p>
+        </div>
+    `;
+    
+    // Auto-redirect to call page
+    setTimeout(() => {
+        window.location.href = `call.html?callId=${data.call_id}&autoStart=true`;
+    }, 1500);
 }
 
 function displayUsers(users, containerId) {
@@ -963,6 +1026,24 @@ function handleWebSocketMessage(data) {
         
         // Use the new handler function
         handleCallRejected(data.rejected_by_name);
+    } else if (data.type === 'random_match_found') {
+        console.log('🎲 ========== RANDOM MATCH FOUND ==========');
+        console.log('🎲 Call ID:', data.call_id);
+        console.log('🎲 Partner:', data.partner_name);
+        console.log('🎲 =========================================');
+        
+        // Handle the random match
+        handleRandomMatchFound(data);
+    } else if (data.type === 'random_queue_status') {
+        console.log('🎲 Queue status:', data.data);
+        if (data.data.status === 'waiting') {
+            // Still waiting in queue
+            console.log('🎲 Position in queue:', data.data.position);
+        } else if (data.data.status === 'already_in_queue') {
+            showMessage('You are already in the queue', 'info');
+        }
+    } else if (data.type === 'random_queue_left') {
+        console.log('🎲 Left queue:', data.data);
     } else {
         console.log('⚠️ Unknown message type:', data.type);
     }

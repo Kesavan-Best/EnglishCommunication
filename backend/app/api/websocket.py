@@ -21,6 +21,8 @@ class ConnectionManager:
         self.active_calls: Dict[str, dict] = {}
         # Track user status: user_id -> {"is_online": bool, "current_call": call_id or None}
         self.user_status: Dict[str, dict] = {}
+        # Random matching queue: list of {user_id, joined_at, user_name}
+        self.random_queue: List[dict] = []
 
     async def connect(self, websocket: WebSocket, user_id: str):
         """Accept WebSocket connection"""
@@ -53,6 +55,9 @@ class ConnectionManager:
         """Clean up when user disconnects"""
         if user_id in self.active_connections:
             del self.active_connections[user_id]
+        
+        # Remove from random queue if present
+        self.random_queue = [q for q in self.random_queue if q["user_id"] != user_id]
         
         if user_id in self.user_status:
             self.user_status[user_id]["is_online"] = False
@@ -337,6 +342,99 @@ class ConnectionManager:
         
         return {"status": "call_ended"}
 
+    async def join_random_queue(self, user_id: str, user_name: str):
+        """Join the random matching queue"""
+        # Check if user is already in queue
+        for queued in self.random_queue:
+            if queued["user_id"] == user_id:
+                logger.info(f"⚠️ User {user_id} already in random queue")
+                return {"status": "already_in_queue"}
+        
+        # Check if there's someone already waiting
+        if len(self.random_queue) > 0:
+            # Match with first person in queue
+            partner = self.random_queue.pop(0)
+            partner_id = partner["user_id"]
+            partner_name = partner["user_name"]
+            
+            logger.info(f"🎲 Random match: {user_id} ({user_name}) matched with {partner_id} ({partner_name})")
+            
+            # Create a call between them
+            try:
+                from backend.app.database import Database
+                from bson import ObjectId
+                db = Database.get_db()
+                
+                # Create call record
+                call_data = {
+                    "caller_id": partner_id,  # First person who joined queue is caller
+                    "receiver_id": user_id,
+                    "jitsi_room_id": f"random_{uuid.uuid4().hex[:12]}",
+                    "status": "accepted",
+                    "created_at": datetime.utcnow(),
+                    "started_at": datetime.utcnow(),
+                    "is_random_match": True
+                }
+                result = db.calls.insert_one(call_data)
+                call_id = str(result.inserted_id)
+                
+                # Add to active calls
+                self.active_calls[call_id] = {
+                    "participants": [partner_id, user_id],
+                    "room_id": call_data["jitsi_room_id"],
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                
+                # Update user status
+                if partner_id in self.user_status:
+                    self.user_status[partner_id]["current_call"] = call_id
+                if user_id in self.user_status:
+                    self.user_status[user_id]["current_call"] = call_id
+                
+                # Notify both users about the match
+                match_message = {
+                    "type": "random_match_found",
+                    "call_id": call_id,
+                    "room_id": call_data["jitsi_room_id"],
+                    "timestamp": datetime.now().isoformat()
+                }
+                
+                # Send to partner (first person in queue)
+                await self.send_personal_message({
+                    **match_message,
+                    "partner_id": user_id,
+                    "partner_name": user_name
+                }, partner_id)
+                
+                # Send to current user
+                await self.send_personal_message({
+                    **match_message,
+                    "partner_id": partner_id,
+                    "partner_name": partner_name
+                }, user_id)
+                
+                return {"status": "matched", "call_id": call_id, "partner_id": partner_id}
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to create random match call: {e}")
+                return {"status": "error", "message": str(e)}
+        else:
+            # No one waiting, add to queue
+            self.random_queue.append({
+                "user_id": user_id,
+                "user_name": user_name,
+                "joined_at": datetime.utcnow().isoformat()
+            })
+            logger.info(f"🎲 User {user_id} ({user_name}) joined random queue. Queue size: {len(self.random_queue)}")
+            
+            return {"status": "waiting", "position": len(self.random_queue)}
+
+    def leave_random_queue(self, user_id: str):
+        """Leave the random matching queue"""
+        self.random_queue = [q for q in self.random_queue if q["user_id"] != user_id]
+        logger.info(f"🎲 User {user_id} left random queue. Queue size: {len(self.random_queue)}")
+        return {"status": "left_queue"}
+
 # Global connection manager instance
 manager = ConnectionManager()
 
@@ -533,6 +631,25 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     "is_online": is_online,
                     "timestamp": datetime.now().isoformat()
                 }, user_id)
+            
+            elif message_type == "join_random_queue":
+                # Join random matching queue
+                user_name = data.get("user_name", "Anonymous")
+                result = await manager.join_random_queue(user_id, user_name)
+                await manager.send_personal_message({
+                    "type": "random_queue_status",
+                    "data": result,
+                    "timestamp": datetime.now().isoformat()
+                }, user_id)
+            
+            elif message_type == "leave_random_queue":
+                # Leave random matching queue
+                result = manager.leave_random_queue(user_id)
+                await manager.send_personal_message({
+                    "type": "random_queue_left",
+                    "data": result,
+                    "timestamp": datetime.now().isoformat()
+                }, user_id)
                 
             else:
                 logger.warning(f"⚠️ Unknown message type: {message_type}")
@@ -555,4 +672,12 @@ async def get_online_users():
     return {
         "online_users": list(manager.active_connections.keys()),
         "total": len(manager.active_connections)
+    }
+
+@router.get("/random-queue-status")
+async def get_random_queue_status():
+    """Get random queue status (for debugging)"""
+    return {
+        "queue_length": len(manager.random_queue),
+        "users_waiting": [q["user_id"] for q in manager.random_queue]
     }
