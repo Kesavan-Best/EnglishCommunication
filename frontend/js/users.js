@@ -4,6 +4,7 @@ let friends = [];
 let currentUser = null;
 let ws = null;
 let heartbeatInterval = null;
+let pendingCallsInterval = null;
 
 // Initialize page
 async function initUsersPage() {
@@ -34,12 +35,58 @@ async function initUsersPage() {
     // Setup search
     setupSearch();
     
+    // Start polling for pending call invites (cross-instance support)
+    startPendingCallsPolling();
+    
     // Refresh data every 10 seconds
     setInterval(() => {
         loadAllUsers();
         loadFriends();
         loadPendingRequests();
     }, 10000);
+}
+
+// Poll for pending call invites (works across server instances)
+function startPendingCallsPolling() {
+    // Check immediately
+    checkPendingCallInvites();
+    
+    // Then poll every 2 seconds
+    pendingCallsInterval = setInterval(checkPendingCallInvites, 2000);
+}
+
+async function checkPendingCallInvites() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch(`${API_BASE_URL}/api/calls/pending-invites`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.invites && data.invites.length > 0) {
+                // Show the first pending invite
+                const invite = data.invites[0];
+                
+                // Check if we're not already showing this notification
+                if (!document.getElementById('incoming-call-notification')) {
+                    console.log('📞 Found pending call invite via polling:', invite);
+                    showIncomingCallNotification(invite.caller_name, invite.call_id, invite.caller_id);
+                    
+                    // Mark as seen so we don't show it again
+                    await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${invite.call_id}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        // Silently fail - polling will retry
+        console.debug('Polling check failed:', error.message);
+    }
 }
 
 // Check if user has an active call and show return banner
@@ -683,13 +730,34 @@ async function initiateCall(userId) {
             `;
             document.body.appendChild(waitingDiv);
             
-            // Start countdown timer (30 seconds)
+            // Start countdown timer (30 seconds) AND poll for acceptance
             let countdown = 30;
-            window.callWaitingInterval = setInterval(() => {
+            window.callWaitingInterval = setInterval(async () => {
                 countdown--;
                 const timerEl = document.getElementById('call-waiting-timer');
                 if (timerEl) {
                     timerEl.textContent = countdown;
+                }
+                
+                // Poll call status every 2 seconds (for cross-instance support)
+                if (countdown % 2 === 0) {
+                    try {
+                        const statusResponse = await fetch(`${API_BASE_URL}/api/calls/check-status/${call.id}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (statusResponse.ok) {
+                            const statusData = await statusResponse.json();
+                            if (statusData.status === 'active') {
+                                // Call was accepted! Redirect to call page
+                                console.log('✅ Call accepted (via polling)!');
+                                clearInterval(window.callWaitingInterval);
+                                handleCallAccepted(call.id);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('Status check failed:', e.message);
+                    }
                 }
                 
                 if (countdown <= 0) {

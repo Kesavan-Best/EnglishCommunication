@@ -3,6 +3,7 @@ let userData = null;
 let ws = null;
 let statsRefreshInterval = null;
 let heartbeatInterval = null;
+let pendingCallsInterval = null;
 
 // Initialize dashboard
 async function initDashboard() {
@@ -18,8 +19,147 @@ async function initDashboard() {
     // Setup WebSocket for live updates
     setupWebSocket(currentUser.id);
     
+    // Start polling for pending call invites (cross-instance support)
+    startPendingCallsPolling();
+    
     // Refresh stats periodically
     statsRefreshInterval = setInterval(loadDashboardData, 30000);
+}
+
+// Poll for pending call invites (works across server instances)
+function startPendingCallsPolling() {
+    // Check immediately
+    checkPendingCallInvites();
+    
+    // Then poll every 2 seconds
+    pendingCallsInterval = setInterval(checkPendingCallInvites, 2000);
+}
+
+async function checkPendingCallInvites() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch(`${API_BASE_URL}/api/calls/pending-invites`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            if (data.invites && data.invites.length > 0) {
+                const invite = data.invites[0];
+                
+                // Check if we're not already showing this notification
+                if (!document.getElementById('incoming-call-notification')) {
+                    console.log('📞 Found pending call invite via polling:', invite);
+                    showIncomingCallNotification(invite.caller_name, invite.call_id, invite.caller_id);
+                    
+                    // Mark as seen
+                    await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${invite.call_id}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
+            }
+        }
+    } catch (error) {
+        console.debug('Polling check failed:', error.message);
+    }
+}
+
+// Show incoming call notification
+function showIncomingCallNotification(callerName, callId, fromUserId) {
+    // Remove existing notification if any
+    const existing = document.getElementById('incoming-call-notification');
+    if (existing) existing.remove();
+    
+    const overlay = document.createElement('div');
+    overlay.id = 'incoming-call-notification';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+    `;
+    
+    overlay.innerHTML = `
+        <div style="background: white; padding: 40px; border-radius: 20px; text-align: center; max-width: 400px;">
+            <div style="font-size: 80px; margin-bottom: 20px;">📞</div>
+            <h2 style="margin: 0 0 10px 0; color: #667eea;">Incoming Call</h2>
+            <p style="font-size: 20px; margin: 20px 0; font-weight: 600;">${callerName}</p>
+            <p style="color: #666; margin-bottom: 30px;">wants to practice English with you</p>
+            <div style="display: flex; gap: 15px; justify-content: center;">
+                <button onclick="acceptCall('${callId}', '${fromUserId}')" style="
+                    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+                    color: white; border: none; padding: 15px 40px; border-radius: 10px;
+                    font-size: 16px; font-weight: 600; cursor: pointer;">
+                    ✓ Accept
+                </button>
+                <button onclick="rejectCall('${callId}', '${fromUserId}')" style="
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                    color: white; border: none; padding: 15px 40px; border-radius: 10px;
+                    font-size: 16px; font-weight: 600; cursor: pointer;">
+                    ✗ Decline
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Auto-dismiss after 30 seconds
+    setTimeout(() => {
+        const el = document.getElementById('incoming-call-notification');
+        if (el) el.remove();
+    }, 30000);
+}
+
+async function acceptCall(callId, fromUserId) {
+    // Send accept via WebSocket if connected
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'accept_call',
+            call_id: callId,
+            from_user_id: fromUserId
+        }));
+    }
+    
+    // Also call the API to accept
+    try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/api/calls/accept`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ call_id: callId })
+        });
+    } catch (e) {
+        console.error('Accept API call failed:', e);
+    }
+    
+    document.getElementById('incoming-call-notification')?.remove();
+    window.location.href = `call.html?callId=${callId}&autoStart=true`;
+}
+
+function rejectCall(callId, fromUserId) {
+    // Send reject via WebSocket
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({
+            type: 'reject_call_invitation',
+            call_id: callId,
+            from_user_id: fromUserId
+        }));
+    }
+    
+    document.getElementById('incoming-call-notification')?.remove();
 }
 
 // Display welcome message

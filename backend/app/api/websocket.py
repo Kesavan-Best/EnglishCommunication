@@ -501,12 +501,27 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 
                 logger.info(f"✅ User {user_id} accepting call {call_id} from {from_user_id}")
                 
-                # Get acceptor's name
+                # Get acceptor's name and update call in database
                 from backend.app.database import Database
                 from bson import ObjectId
                 db = Database.get_db()
                 acceptor = db.users.find_one({"_id": ObjectId(user_id)})
                 acceptor_name = acceptor.get("name", "User") if acceptor else "User"
+                
+                # Update call status to 'accepted' in database (for cross-instance)
+                if call_id:
+                    try:
+                        db.calls.update_one(
+                            {"_id": ObjectId(call_id)},
+                            {"$set": {
+                                "status": "active",
+                                "start_time": datetime.utcnow(),
+                                "accepted_at": datetime.utcnow()
+                            }}
+                        )
+                        logger.info(f"✅ Updated call {call_id} to active in database")
+                    except Exception as e:
+                        logger.error(f"Failed to update call status: {e}")
                 
                 # Notify the caller that the call was accepted
                 if from_user_id and from_user_id in manager.active_connections:

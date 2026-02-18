@@ -38,9 +38,9 @@ async def invite_to_call(
                 detail="User not found"
             )
         
-        # Check ACTUAL online status from WebSocket connections
-        from backend.app.api.websocket import manager
-        is_receiver_online = str(receiver_id) in manager.active_connections
+        # Check online status using DATABASE (works across server instances)
+        from backend.app.api.users import is_user_online_db
+        is_receiver_online = is_user_online_db(str(receiver_id))
         
         if not is_receiver_online:
             raise HTTPException(
@@ -85,13 +85,18 @@ async def invite_to_call(
         # Generate Jitsi room ID immediately
         jitsi_room_id = f"english-comm-{uuid.uuid4().hex}"
         
-        # Create call record with 'active' status so both users can join immediately
+        # Get caller name for notification
+        caller_name = current_user.name if hasattr(current_user, 'name') else current_user.username
+        
+        # Create call record with 'pending' status - receiver needs to accept
         call_dict = {
             "caller_id": caller_id,
             "receiver_id": receiver_id,
             "jitsi_room_id": jitsi_room_id,
-            "status": "active",
-            "start_time": datetime.utcnow(),
+            "status": "pending",
+            "caller_name": caller_name,  # Store caller name for cross-instance notifications
+            "notification_seen": False,  # Track if receiver has seen the notification
+            "start_time": None,
             "end_time": None,
             "duration_seconds": None,
             "audio_url": None,
@@ -99,16 +104,14 @@ async def invite_to_call(
             "analysis_id": None,
             "created_at": datetime.utcnow()
         }
+        }
         
         result = db.calls.insert_one(call_dict)
         call_id = result.inserted_id
         
-        # Send WebSocket notification to receiver
+        # Send WebSocket notification to receiver (may not work cross-instance)
         try:
             from backend.app.api.websocket import manager
-            
-            # Get caller name for notification
-            caller_name = current_user.name if hasattr(current_user, 'name') else current_user.username
             
             await manager.send_call_invite(
                 from_user_id=str(caller_id),
@@ -116,17 +119,18 @@ async def invite_to_call(
                 call_id=str(call_id),
                 caller_name=caller_name
             )
-            print(f"📞 Sent call invite notification to user {receiver_id}")
+            print(f"📞 Sent WebSocket call invite to user {receiver_id}")
         except Exception as ws_error:
-            print(f"⚠️ Failed to send WebSocket notification: {ws_error}")
+            print(f"⚠️ WebSocket notification failed (cross-instance): {ws_error}")
+            # This is OK - receiver will poll for pending calls
         
         return CallResponse(
             id=str(call_id),
             caller_id=str(caller_id),
             receiver_id=str(receiver_id),
-            status="active",
+            status="pending",
             jitsi_room_id=jitsi_room_id,
-            start_time=call_dict["start_time"],
+            start_time=None,
             end_time=None,
             duration_seconds=None,
             created_at=call_dict["created_at"]
@@ -391,6 +395,73 @@ async def end_call(
         duration_seconds=call.duration_seconds,
         created_at=call.created_at
     )
+
+@router.get("/pending-invites")
+async def get_pending_invites(
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get pending call invitations for current user (for cross-instance polling)"""
+    db = Database.get_db()
+    
+    # Find pending calls where current user is the receiver
+    pending_calls = list(db.calls.find({
+        "receiver_id": current_user.id,
+        "status": "pending",
+        "notification_seen": {"$ne": True}
+    }).sort("created_at", -1).limit(5))
+    
+    invites = []
+    for call in pending_calls:
+        # Check if call is not too old (< 60 seconds)
+        call_age = (datetime.utcnow() - call["created_at"]).total_seconds()
+        if call_age < 60:
+            invites.append({
+                "call_id": str(call["_id"]),
+                "caller_id": str(call["caller_id"]),
+                "caller_name": call.get("caller_name", "Someone"),
+                "jitsi_room_id": call["jitsi_room_id"],
+                "created_at": call["created_at"].isoformat()
+            })
+    
+    return {"invites": invites}
+
+@router.get("/check-status/{call_id}")
+async def check_call_status(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Check status of a call (for caller polling to know when accepted)"""
+    db = Database.get_db()
+    
+    try:
+        call = db.calls.find_one({"_id": ObjectId(call_id)})
+        if not call:
+            return {"status": "not_found"}
+        
+        return {
+            "status": call.get("status", "unknown"),
+            "accepted_at": call.get("accepted_at").isoformat() if call.get("accepted_at") else None,
+            "jitsi_room_id": call.get("jitsi_room_id")
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@router.post("/mark-invite-seen")
+async def mark_invite_seen(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Mark a call invite as seen (to stop polling for it)"""
+    db = Database.get_db()
+    
+    try:
+        db.calls.update_one(
+            {"_id": ObjectId(call_id), "receiver_id": current_user.id},
+            {"$set": {"notification_seen": True}}
+        )
+        return {"status": "ok"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @router.get("/my-calls", response_model=list[CallResponse])
 async def get_my_calls(

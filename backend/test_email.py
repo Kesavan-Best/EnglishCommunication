@@ -61,7 +61,7 @@ def main():
         print(f"\n📧 Sending test OTP email to {test_email}...")
         print("   (This will take 5-30 seconds)")
         print()
-        
+                  
         # Send test OTP email
         success, error_msg = email_service.send_otp_email(
             to_email=test_email,

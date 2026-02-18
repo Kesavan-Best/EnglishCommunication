@@ -1,4 +1,4 @@
-# 🎯 Quick Start: Testing Calls Locally
+1. 🎯 Quick Start: Testing Calls Locally
 
 ## Problem You're Facing
 
@@ -10,15 +10,16 @@ You're trying to test calls by opening two tabs, but both tabs show the same log
 
 ### Step-by-Step:
 
-1. **Regular Window**: 
+1. **Regular Window**:
+
    - Open `http://localhost:5500/frontend/index.html`
    - Login as `john@example.com` / `password123`
-
 2. **Incognito Window** (Ctrl+Shift+N):
-   - Open `http://localhost:5500/frontend/index.html`  
-   - Login as `jane@example.com` / `password123`
 
+   - Open `http://localhost:5500/frontend/index.html`
+   - Login as `jane@example.com` / `password123`
 3. **Make a Call**:
+
    - In one window, go to "Find Partners"
    - Click the "Call" button on the other user
    - ✅ **Both users join the Jitsi room and can talk!**
@@ -32,6 +33,7 @@ You're trying to test calls by opening two tabs, but both tabs show the same log
 **Good news!** ✅ **OpenAI API WORKS perfectly on Render's free tier!**
 
 The free tier limitations are:
+
 - ⏰ Cold starts (app sleeps after 15 min inactivity)
 - 💾 512 MB RAM
 - ⏱️ 750 hours/month compute time
@@ -41,15 +43,16 @@ But **external API calls (like OpenAI) work perfectly!** You only pay OpenAI for
 ### Quick Render Deployment (15 minutes):
 
 1. **Create MongoDB Atlas Account** (Free)
+
    - Go to https://www.mongodb.com/cloud/atlas
    - Create free M0 cluster
    - Get connection string
-
 2. **Create Render Account**
+
    - Go to https://render.com
    - Sign up with GitHub
-
 3. **Deploy Backend**
+
    - New → Web Service
    - Connect repository
    - Root Directory: `backend`
@@ -62,18 +65,18 @@ But **external API calls (like OpenAI) work perfectly!** You only pay OpenAI for
      OPENAI_API_KEY=your_openai_key
      ENVIRONMENT=production
      ```
-
 4. **Update Frontend Config**
+
    - Edit `frontend/js/config.js`
    - Change `API_BASE_URL` to your Render backend URL
    - Example: `https://english-communication-backend.onrender.com`
-
 5. **Deploy Frontend** (Optional - or use Cloudflare Pages)
+
    - New → Static Site
    - Root Directory: `frontend`
    - Publish Directory: `.`
-
 6. **Test with Friends!**
+
    - Share your Render URL
    - Have them login with different accounts
    - Make calls from anywhere in the world!
@@ -83,8 +86,9 @@ But **external API calls (like OpenAI) work perfectly!** You only pay OpenAI for
 ## 📝 Test Accounts
 
 Use these accounts for testing:
+
 - `john@example.com` / `password123`
-- `jane@example.com` / `password123`  
+- `jane@example.com` / `password123`
 - `bob@example.com` / `password123`
 
 ---
@@ -122,6 +126,7 @@ Use these accounts for testing:
 ## 🐛 Still Having Issues?
 
 If calls don't connect:
+
 1. Check browser console for errors (F12)
 2. Make sure backend is running (`python main.py`)
 3. Verify both users are online (green status)
