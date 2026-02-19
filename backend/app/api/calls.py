@@ -51,36 +51,49 @@ async def invite_to_call(
         # Convert current_user.id to ObjectId for database query
         caller_id = ObjectId(str(current_user.id)) if not isinstance(current_user.id, ObjectId) else current_user.id
         
-        # Check for existing pending/active call and clean up old ones
+        # Cancel any old pending calls from this caller to this receiver
+        # This allows multiple call attempts without getting stuck
+        db.calls.update_many(
+            {
+                "caller_id": caller_id,
+                "receiver_id": receiver_id,
+                "status": "pending"
+            },
+            {"$set": {"status": "cancelled", "cancelled_at": datetime.utcnow()}}
+        )
+        
+        # Also cancel any old pending calls from receiver to caller (in case of reverse call)
+        db.calls.update_many(
+            {
+                "caller_id": receiver_id,
+                "receiver_id": caller_id,
+                "status": "pending"
+            },
+            {"$set": {"status": "cancelled", "cancelled_at": datetime.utcnow()}}
+        )
+        
+        # Check for existing ACTIVE call (not pending - we just cancelled those)
         existing_call = db.calls.find_one({
             "$or": [
                 {"caller_id": caller_id, "receiver_id": receiver_id},
                 {"caller_id": receiver_id, "receiver_id": caller_id}
             ],
-            "status": {"$in": ["pending", "active"]}
+            "status": "active"
         })
         
         if existing_call:
-            # Check if call is more than 5 minutes old, if so, mark as failed and create new one
-            call_age = (datetime.utcnow() - existing_call["created_at"]).total_seconds()
-            if call_age > 300:  # 5 minutes
-                db.calls.update_one(
-                    {"_id": existing_call["_id"]},
-                    {"$set": {"status": "failed", "end_time": datetime.utcnow()}}
-                )
-            else:
-                # Return existing call if it's recent
-                return CallResponse(
-                    id=str(existing_call["_id"]),
-                    caller_id=str(existing_call["caller_id"]),
-                    receiver_id=str(existing_call["receiver_id"]),
-                    status=existing_call["status"],
-                    jitsi_room_id=existing_call["jitsi_room_id"],
-                    start_time=existing_call.get("start_time"),
-                    end_time=existing_call.get("end_time"),
-                    duration_seconds=existing_call.get("duration_seconds"),
-                    created_at=existing_call["created_at"]
-                )
+            # There's an active call, return it
+            return CallResponse(
+                id=str(existing_call["_id"]),
+                caller_id=str(existing_call["caller_id"]),
+                receiver_id=str(existing_call["receiver_id"]),
+                status=existing_call["status"],
+                jitsi_room_id=existing_call["jitsi_room_id"],
+                start_time=existing_call.get("start_time"),
+                end_time=existing_call.get("end_time"),
+                duration_seconds=existing_call.get("duration_seconds"),
+                created_at=existing_call["created_at"]
+            )
         
         # Generate Jitsi room ID immediately
         jitsi_room_id = f"english-comm-{uuid.uuid4().hex}"
@@ -287,8 +300,8 @@ async def end_call(
                      60 <= duration <= MAX_CALL_DURATION and
                      caller_spoke and receiver_spoke)
     
+    # Update user stats only for valid calls
     if is_valid_call:
-        # Only count as valid call if all conditions met
         for user_id in [call.caller_id, call.receiver_id]:
             db.users.update_one(
                 {"_id": user_id},
@@ -299,67 +312,83 @@ async def end_call(
                     }
                 }
             )
-        
-        # Generate INSTANT AI feedback for both users using stored conversation
-        from backend.app.ai_processing.instant_analyzer import instant_analyzer
-        
-        # Get the stored transcripts and conversation
-        conversation = call_data.get("conversation", [])
-        
-        # Generate feedback for caller based on their transcript
-        caller_feedback = instant_analyzer.generate_instant_feedback(
-            duration_seconds=duration,
-            user_id=str(call.caller_id),
-            transcript=caller_transcript if caller_transcript else None,
-            conversation=conversation if conversation else None
-        )
-        
-        # Generate feedback for receiver based on their transcript
-        receiver_feedback = instant_analyzer.generate_instant_feedback(
-            duration_seconds=duration,
-            user_id=str(call.receiver_id),
-            transcript=receiver_transcript if receiver_transcript else None,
-            conversation=conversation if conversation else None
-        )
-        
-        # Save AI feedback to database
-        db.calls.update_one(
-            {"_id": call_id},
-            {
-                "$set": {
-                    "caller_ai_rating": caller_feedback["ai_rating"],
-                    "caller_ai_feedback": caller_feedback["overall_message"],
-                    "caller_strengths": caller_feedback["strengths"],
-                    "caller_weaknesses": [
-                        {
-                            "category": w["category"],
-                            "title": w["title"],
-                            "description": w["description"],
-                            "tip": w["tip"]
-                        }
-                        for w in caller_feedback["weaknesses"]
-                    ],
-                    "caller_recommended_topics": caller_feedback["recommended_topics"],
-                    "receiver_ai_rating": receiver_feedback["ai_rating"],
-                    "receiver_ai_feedback": receiver_feedback["overall_message"],
-                    "receiver_strengths": receiver_feedback["strengths"],
-                    "receiver_weaknesses": [
-                        {
-                            "category": w["category"],
-                            "title": w["title"],
-                            "description": w["description"],
-                            "tip": w["tip"]
-                        }
-                        for w in receiver_feedback["weaknesses"]
-                    ],
-                    "receiver_recommended_topics": receiver_feedback["recommended_topics"],
-                    "analysis_completed_at": datetime.utcnow()
-                }
+    
+    # ALWAYS generate AI feedback (even for short/basic calls)
+    from backend.app.ai_processing.instant_analyzer import instant_analyzer
+    
+    # Get the stored transcripts and conversation
+    conversation = call_data.get("conversation", [])
+    
+    # Generate feedback for caller
+    caller_feedback = instant_analyzer.generate_instant_feedback(
+        duration_seconds=duration,
+        user_id=str(call.caller_id),
+        transcript=caller_transcript if caller_transcript else None,
+        conversation=conversation if conversation else None
+    )
+    
+    # Generate feedback for receiver
+    receiver_feedback = instant_analyzer.generate_instant_feedback(
+        duration_seconds=duration,
+        user_id=str(call.receiver_id),
+        transcript=receiver_transcript if receiver_transcript else None,
+        conversation=conversation if conversation else None
+    )
+    
+    # Adjust feedback for very short calls
+    if duration < 30:
+        short_call_msg = "This call was very short. For better feedback, try having longer conversations (1-5 minutes)."
+        caller_feedback["overall_message"] = short_call_msg
+        receiver_feedback["overall_message"] = short_call_msg
+        caller_feedback["ai_rating"] = max(1.0, caller_feedback["ai_rating"] - 1.0)
+        receiver_feedback["ai_rating"] = max(1.0, receiver_feedback["ai_rating"] - 1.0)
+    elif duration < 60:
+        brief_msg = "This was a brief conversation. Keep practicing with longer calls for more detailed feedback!"
+        if not caller_spoke:
+            caller_feedback["overall_message"] = brief_msg
+        if not receiver_spoke:
+            receiver_feedback["overall_message"] = brief_msg
+    
+    # Save AI feedback to database
+    db.calls.update_one(
+        {"_id": call_id},
+        {
+            "$set": {
+                "caller_ai_rating": caller_feedback["ai_rating"],
+                "caller_ai_feedback": caller_feedback["overall_message"],
+                "caller_strengths": caller_feedback["strengths"],
+                "caller_weaknesses": [
+                    {
+                        "category": w["category"],
+                        "title": w["title"],
+                        "description": w["description"],
+                        "tip": w["tip"]
+                    }
+                    for w in caller_feedback["weaknesses"]
+                ],
+                "caller_recommended_topics": caller_feedback["recommended_topics"],
+                "receiver_ai_rating": receiver_feedback["ai_rating"],
+                "receiver_ai_feedback": receiver_feedback["overall_message"],
+                "receiver_strengths": receiver_feedback["strengths"],
+                "receiver_weaknesses": [
+                    {
+                        "category": w["category"],
+                        "title": w["title"],
+                        "description": w["description"],
+                        "tip": w["tip"]
+                    }
+                    for w in receiver_feedback["weaknesses"]
+                ],
+                "receiver_recommended_topics": receiver_feedback["recommended_topics"],
+                "analysis_completed_at": datetime.utcnow(),
+                "both_users_connected": True  # Mark as connected since call completed
             }
-        )
-        
-        print(f"✅ Instant AI feedback generated for call {call_id}")
-    else:
+        }
+    )
+    
+    print(f"✅ AI feedback generated for call {call_id} (duration: {duration}s, valid: {is_valid_call})")
+    
+    if not is_valid_call:
         # Log why call was not counted
         reasons = []
         if not both_connected:
@@ -676,26 +705,73 @@ async def get_call_results(
             detail="Not authorized to view this call"
         )
     
-    # Check if call actually had a meaningful conversation
-    if not call_data.get("duration_seconds") or call_data.get("duration_seconds", 0) < 10:
+    # Check if call had any duration (relaxed from 10 to 5 seconds)
+    duration = call_data.get("duration_seconds", 0)
+    if duration < 5:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Call was too short for analysis. Minimum 10 seconds required."
+            detail="Call was too short for analysis. Please have a longer conversation."
         )
     
-    # Check if BOTH users actually connected
-    if not call_data.get("both_users_connected", False):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Call did not connect properly. Both users must join the call. Please try again."
-        )
-    
-    # Check if AI analysis has been completed (should be instant now)
+    # Check if AI analysis has been completed
+    # If not, generate it now (for cases where end_call wasn't properly triggered)
     if not call_data.get("caller_ai_rating") or not call_data.get("receiver_ai_rating"):
-        raise HTTPException(
-            status_code=status.HTTP_202_ACCEPTED,
-            detail="Analysis is being generated. Please wait a moment."
-        )
+        # Generate AI feedback now
+        try:
+            from backend.app.ai_processing.instant_analyzer import instant_analyzer
+            
+            caller_feedback = instant_analyzer.generate_instant_feedback(
+                duration_seconds=duration,
+                user_id=str(call_data["caller_id"]),
+                transcript=call_data.get("caller_transcript"),
+                conversation=call_data.get("conversation", [])
+            )
+            
+            receiver_feedback = instant_analyzer.generate_instant_feedback(
+                duration_seconds=duration,
+                user_id=str(call_data["receiver_id"]),
+                transcript=call_data.get("receiver_transcript"),
+                conversation=call_data.get("conversation", [])
+            )
+            
+            # Save to database
+            db.calls.update_one(
+                {"_id": call_id_obj},
+                {
+                    "$set": {
+                        "caller_ai_rating": caller_feedback["ai_rating"],
+                        "caller_ai_feedback": caller_feedback["overall_message"],
+                        "caller_strengths": caller_feedback["strengths"],
+                        "caller_weaknesses": [
+                            {"category": w["category"], "title": w["title"], 
+                             "description": w["description"], "tip": w["tip"]}
+                            for w in caller_feedback["weaknesses"]
+                        ],
+                        "caller_recommended_topics": caller_feedback["recommended_topics"],
+                        "receiver_ai_rating": receiver_feedback["ai_rating"],
+                        "receiver_ai_feedback": receiver_feedback["overall_message"],
+                        "receiver_strengths": receiver_feedback["strengths"],
+                        "receiver_weaknesses": [
+                            {"category": w["category"], "title": w["title"], 
+                             "description": w["description"], "tip": w["tip"]}
+                            for w in receiver_feedback["weaknesses"]
+                        ],
+                        "receiver_recommended_topics": receiver_feedback["recommended_topics"],
+                        "both_users_connected": True,
+                        "analysis_completed_at": datetime.utcnow()
+                    }
+                }
+            )
+            
+            # Re-fetch the updated data
+            call_data = db.calls.find_one({"_id": call_id_obj})
+            
+        except Exception as e:
+            print(f"Error generating AI feedback: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_202_ACCEPTED,
+                detail="Analysis is being generated. Please refresh in a moment."
+            )
     
     # Determine which feedback to show based on current user
     my_feedback = {}

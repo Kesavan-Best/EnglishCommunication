@@ -549,6 +549,28 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 call_id = data.get("call_id")
                 from_user_id = data.get("from_user_id")
                 
+                # Get rejector's name
+                from backend.app.database import Database
+                from bson import ObjectId
+                db = Database.get_db()
+                rejector = db.users.find_one({"_id": ObjectId(user_id)})
+                rejector_name = rejector.get("name", "User") if rejector else "User"
+                
+                # Update call status in database to "rejected" so new invites can be sent
+                if call_id:
+                    try:
+                        db.calls.update_one(
+                            {"_id": ObjectId(call_id)},
+                            {"$set": {
+                                "status": "rejected",
+                                "rejected_at": datetime.utcnow(),
+                                "rejected_by": user_id
+                            }}
+                        )
+                        logger.info(f"✅ Updated call {call_id} to rejected in database")
+                    except Exception as e:
+                        logger.error(f"Failed to update call rejection status: {e}")
+                
                 # If we have an invitation_id, use the original flow
                 if invitation_id:
                     result = await manager.reject_call_invitation(invitation_id, user_id)
@@ -564,13 +586,6 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 
                 # Notify sender that call was rejected
                 if from_user_id and from_user_id in manager.active_connections:
-                    # Get rejector's name
-                    from backend.app.database import Database
-                    from bson import ObjectId
-                    db = Database.get_db()
-                    rejector = db.users.find_one({"_id": ObjectId(user_id)})
-                    rejector_name = rejector.get("name", "User") if rejector else "User"
-                    
                     await manager.send_personal_message({
                         "type": "call_rejected",
                         "call_id": call_id,

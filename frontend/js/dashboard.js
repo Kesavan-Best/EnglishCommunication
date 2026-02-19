@@ -146,7 +146,7 @@ async function acceptCall(callId, fromUserId) {
     }
     
     document.getElementById('incoming-call-notification')?.remove();
-    window.location.href = `call.html?callId=${callId}&autoStart=true`;
+    window.location.href = `call-jitsi.html?callId=${callId}`;
 }
 
 function rejectCall(callId, fromUserId) {
@@ -632,9 +632,9 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
         overlay.remove();
         showToast('✅ Call accepted! Connecting...', 'success');
         
-        // Redirect to call page
+        // Redirect to Jitsi call page
         setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}`;
+            window.location.href = `call-jitsi.html?callId=${callId}`;
         }, 500);
     };
     
@@ -706,7 +706,7 @@ function handleCallAccepted(data) {
     showToast(`✅ ${data.partner_name || 'User'} accepted your call! Connecting...`, 'success');
     
     setTimeout(() => {
-        window.location.href = `call.html?callId=${callId}`;
+        window.location.href = `call-jitsi.html?callId=${callId}`;
     }, 500);
 }
 
@@ -727,7 +727,7 @@ async function initiateCall(userId) {
             const data = await response.json();
             showToast('Call initiated!', 'success');
             setTimeout(() => {
-                window.location.href = `call.html?callId=${data.call_id}`;
+                window.location.href = `call-jitsi.html?callId=${data.call_id}`;
             }, 1000);
         } else {
             const error = await response.json();

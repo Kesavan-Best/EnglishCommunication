@@ -852,10 +852,10 @@ function handleCallAccepted(callId) {
     window.pendingCallId = null;
     window.pendingCallRoomId = null;
     
-    // Redirect to call page with autoStart flag to skip the "Start Call" button
+    // Redirect to Jitsi call page
     showMessage('✅ Call accepted! Connecting...', 'success');
     setTimeout(() => {
-        window.location.href = `call.html?callId=${callId}&autoStart=true`;
+        window.location.href = `call-jitsi.html?callId=${callId}`;
     }, 500);
 }
 
@@ -1268,9 +1268,24 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
         overlay.remove();
         showMessage('✅ Call accepted! Connecting...', 'success');
         
-        // Redirect to call page with autoStart to directly start the call
+        // Call accept endpoint to update DB, then redirect
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`${API_BASE_URL}/api/calls/accept`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ call_id: callId })
+            });
+        } catch (e) {
+            console.log('Accept API call failed, continuing anyway:', e);
+        }
+        
+        // Redirect to Jitsi call page
         setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}&autoStart=true`;
+            window.location.href = `call-jitsi.html?callId=${callId}`;
         }, 500);
     };
     
