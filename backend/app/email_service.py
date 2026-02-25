@@ -1,10 +1,15 @@
 """
 Email Service for sending OTP and notifications
-Supports Resend API (HTTP) for Render deployment and SMTP fallback for local dev
+Supports Brevo API, Resend API (HTTP) for Render deployment and SMTP fallback
 
-RENDER FREE TIER: SMTP is blocked! Use Resend API instead.
-Setup: 
-1. Go to https://resend.com and sign up (free - 100 emails/day)
+RENDER FREE TIER: SMTP is blocked! Use Brevo or Resend API instead.
+Setup (Brevo - RECOMMENDED - 300 emails/day FREE, no domain verification): 
+1. Go to https://www.brevo.com and sign up
+2. Get your API key from Settings > API Keys
+3. Add BREVO_API_KEY and BREVO_FROM to Render environment variables
+
+Alternative (Resend - requires domain verification):
+1. Go to https://resend.com and sign up
 2. Get your API key from dashboard
 3. Add RESEND_API_KEY to Render environment variables
 """
@@ -28,6 +33,41 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Configure logging to show in console
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+
+def log_email_status(to_email: str, subject: str, status: str, method: str, error: str = None, extra_info: dict = None):
+    """Log email delivery status with detailed information"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    print("\n" + "="*70)
+    print(f"📧 EMAIL LOG - {timestamp}")
+    print("="*70)
+    print(f"  To:       {to_email}")
+    print(f"  Subject:  {subject[:50]}..." if len(subject) > 50 else f"  Subject:  {subject}")
+    print(f"  Method:   {method}")
+    print(f"  Status:   {'✅ DELIVERED' if status == 'success' else '❌ FAILED'}")
+    
+    if error:
+        print(f"  Error:    {error}")
+    
+    if extra_info:
+        for key, value in extra_info.items():
+            print(f"  {key}:  {value}")
+    
+    print("="*70 + "\n")
+    
+    # Also log to logger for file-based logging
+    if status == 'success':
+        logger.info(f"EMAIL DELIVERED | To: {to_email} | Method: {method} | Subject: {subject}")
+    else:
+        logger.error(f"EMAIL FAILED | To: {to_email} | Method: {method} | Error: {error} | Subject: {subject}")
+
 
 class EmailService:
     def __init__(self):
@@ -39,7 +79,11 @@ class EmailService:
     
     def _reload_config(self):
         """Reload configuration from environment variables."""
-        # Resend API (recommended for Render - HTTP works, SMTP blocked)
+        # Brevo API (RECOMMENDED - 300 emails/day FREE, no domain verification needed)
+        self.brevo_api_key = os.getenv("BREVO_API_KEY", "")
+        self.brevo_from = os.getenv("BREVO_FROM", "")
+        
+        # Resend API (requires domain verification for production)
         self.resend_api_key = os.getenv("RESEND_API_KEY", "")
         self.resend_from = os.getenv("RESEND_FROM", "onboarding@resend.dev")
         
@@ -49,30 +93,36 @@ class EmailService:
         self.smtp_ssl_port = int(os.getenv("SMTP_SSL_PORT", "465"))
         self.smtp_user = os.getenv("SMTP_USER", "")
         self.smtp_password = os.getenv("SMTP_PASSWORD", "")
-        self.from_email = os.getenv("FROM_EMAIL", self.smtp_user or self.resend_from)
+        self.from_email = os.getenv("FROM_EMAIL", self.brevo_from or self.smtp_user or self.resend_from)
         self.from_name = os.getenv("FROM_NAME", "ImproveCommunication")
         self.timeout = int(os.getenv("SMTP_TIMEOUT", "30"))
         
-        # Determine which service to use
+        # Determine which service to use (priority: Brevo > Resend > SMTP)
+        self.use_brevo = bool(self.brevo_api_key and self.brevo_from)
         self.use_resend = bool(self.resend_api_key)
         self.use_smtp = bool(self.smtp_user and self.smtp_password)
-        self.is_configured = self.use_resend or self.use_smtp
+        self.is_configured = self.use_brevo or self.use_resend or self.use_smtp
         
         # Log configuration
-        if self.use_resend:
+        if self.use_brevo:
+            logger.info(f"✅ Email via Brevo API - From: {self.brevo_from}")
+        elif self.use_resend:
             logger.info(f"✅ Email via Resend API - From: {self.resend_from}")
         elif self.use_smtp:
             masked = f"{self.smtp_user[:3]}***" if self.smtp_user else "none"
             logger.info(f"✅ Email via SMTP: {masked}")
         else:
-            logger.warning("⚠️ Email not configured. Set RESEND_API_KEY (for Render) or SMTP credentials")
+            logger.warning("⚠️ Email not configured. Set BREVO_API_KEY+BREVO_FROM (recommended) or SMTP credentials")
     
     def get_diagnostics(self) -> Dict[str, Any]:
         """Get diagnostic info"""
         return {
             "configured": self.is_configured,
+            "use_brevo": self.use_brevo,
             "use_resend": self.use_resend,
             "use_smtp": self.use_smtp,
+            "brevo_api_key_set": bool(self.brevo_api_key),
+            "brevo_from": self.brevo_from if self.use_brevo else None,
             "resend_api_key_set": bool(self.resend_api_key),
             "resend_from": self.resend_from if self.use_resend else None,
             "smtp_host": self.smtp_host,
@@ -82,16 +132,90 @@ class EmailService:
             "total_failed": self.total_failed
         }
 
+    def _send_with_brevo(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> Tuple[bool, str]:
+        """Send email using Brevo API (HTTP - works on Render, 300 emails/day FREE)"""
+        print(f"\n[BREVO API] Attempting to send email to: {to_email}")
+        
+        if not REQUESTS_AVAILABLE:
+            error = "requests library not installed"
+            log_email_status(to_email, subject, 'failed', 'Brevo API', error)
+            return False, error
+        
+        if not self.brevo_api_key:
+            error = "BREVO_API_KEY not set"
+            log_email_status(to_email, subject, 'failed', 'Brevo API', error)
+            return False, error
+        
+        if not self.brevo_from:
+            error = "BREVO_FROM not set (use your verified email)"
+            log_email_status(to_email, subject, 'failed', 'Brevo API', error)
+            return False, error
+        
+        try:
+            logger.info(f"📧 Brevo: Sending to {to_email}...")
+            print(f"[BREVO API] Making HTTP POST request to api.brevo.com...")
+            
+            response = requests.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": self.brevo_api_key,
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                json={
+                    "sender": {
+                        "name": self.from_name,
+                        "email": self.brevo_from
+                    },
+                    "to": [{"email": to_email}],
+                    "subject": subject,
+                    "htmlContent": html_content,
+                    "textContent": text_content or ""
+                },
+                timeout=30
+            )
+            
+            print(f"[BREVO API] Response Status Code: {response.status_code}")
+            
+            if response.status_code in [200, 201]:
+                result = response.json()
+                message_id = result.get('messageId', 'ok')
+                logger.info(f"✅ Brevo: Sent! ID: {message_id}")
+                log_email_status(to_email, subject, 'success', 'Brevo API', extra_info={'Message ID': message_id})
+                return True, ""
+            else:
+                error_data = response.json() if response.text else {}
+                error_msg = error_data.get('message', f"HTTP {response.status_code}")
+                logger.error(f"❌ Brevo: {error_msg}")
+                log_email_status(to_email, subject, 'failed', 'Brevo API', error_msg, {'HTTP Code': response.status_code})
+                return False, f"Brevo: {error_msg}"
+                
+        except requests.exceptions.Timeout:
+            error = "Brevo timeout - request took too long"
+            log_email_status(to_email, subject, 'failed', 'Brevo API', error)
+            return False, error
+        except Exception as e:
+            error = f"Brevo error: {str(e)}"
+            log_email_status(to_email, subject, 'failed', 'Brevo API', error)
+            return False, error
+
     def _send_with_resend(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> Tuple[bool, str]:
         """Send email using Resend API (HTTP - works on Render free tier)"""
+        print(f"\n[RESEND API] Attempting to send email to: {to_email}")
+        
         if not REQUESTS_AVAILABLE:
-            return False, "requests library not installed"
+            error = "requests library not installed"
+            log_email_status(to_email, subject, 'failed', 'Resend API', error)
+            return False, error
         
         if not self.resend_api_key:
-            return False, "RESEND_API_KEY not set"
+            error = "RESEND_API_KEY not set"
+            log_email_status(to_email, subject, 'failed', 'Resend API', error)
+            return False, error
         
         try:
             logger.info(f"📧 Resend: Sending to {to_email}...")
+            print(f"[RESEND API] Making HTTP POST request to api.resend.com...")
             
             response = requests.post(
                 "https://api.resend.com/emails",
@@ -109,28 +233,42 @@ class EmailService:
                 timeout=30
             )
             
+            print(f"[RESEND API] Response Status Code: {response.status_code}")
+            
             if response.status_code == 200:
                 result = response.json()
-                logger.info(f"✅ Resend: Sent! ID: {result.get('id', 'ok')}")
+                email_id = result.get('id', 'ok')
+                logger.info(f"✅ Resend: Sent! ID: {email_id}")
+                log_email_status(to_email, subject, 'success', 'Resend API', extra_info={'Email ID': email_id})
                 return True, ""
             else:
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', f"HTTP {response.status_code}")
                 logger.error(f"❌ Resend: {error_msg}")
+                log_email_status(to_email, subject, 'failed', 'Resend API', error_msg, {'HTTP Code': response.status_code})
                 return False, f"Resend: {error_msg}"
                 
         except requests.exceptions.Timeout:
-            return False, "Resend timeout"
+            error = "Resend timeout - request took too long"
+            log_email_status(to_email, subject, 'failed', 'Resend API', error)
+            return False, error
         except Exception as e:
-            return False, f"Resend error: {str(e)}"
+            error = f"Resend error: {str(e)}"
+            log_email_status(to_email, subject, 'failed', 'Resend API', error)
+            return False, error
 
     def _send_with_smtp(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> Tuple[bool, str]:
         """Send email using SMTP (for local development)"""
+        print(f"\n[SMTP] Attempting to send email to: {to_email}")
+        
         if not self.smtp_user or not self.smtp_password:
-            return False, "SMTP not configured"
+            error = "SMTP not configured"
+            log_email_status(to_email, subject, 'failed', 'SMTP', error)
+            return False, error
         
         try:
             logger.info(f"📧 SMTP: {self.smtp_host}:{self.smtp_port}...")
+            print(f"[SMTP] Connecting to {self.smtp_host}:{self.smtp_port}...")
             
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
@@ -142,44 +280,86 @@ class EmailService:
             message.attach(MIMEText(html_content, "html", "utf-8"))
             
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.timeout) as server:
+                print("[SMTP] Connected! Starting TLS handshake...")
                 server.ehlo()
                 server.starttls(context=ssl.create_default_context())
                 server.ehlo()
+                print("[SMTP] TLS established. Authenticating...")
                 server.login(self.smtp_user, self.smtp_password)
+                print("[SMTP] Authenticated. Sending message...")
                 server.send_message(message)
                 logger.info(f"✅ SMTP: Sent to {to_email}")
+                log_email_status(to_email, subject, 'success', 'SMTP', extra_info={'Server': f"{self.smtp_host}:{self.smtp_port}"})
                 return True, ""
                 
         except OSError as e:
             if "Network is unreachable" in str(e) or getattr(e, 'errno', 0) == 101:
-                return False, "SMTP blocked on Render. Use RESEND_API_KEY instead."
-            return False, f"SMTP network error: {str(e)}"
+                error = "SMTP blocked on Render. Use BREVO_API_KEY instead."
+            else:
+                error = f"SMTP network error: {str(e)}"
+            log_email_status(to_email, subject, 'failed', 'SMTP', error)
+            return False, error
         except smtplib.SMTPAuthenticationError as e:
-            return False, f"SMTP auth failed: Check credentials"
+            error = f"SMTP auth failed: Check credentials"
+            log_email_status(to_email, subject, 'failed', 'SMTP', error)
+            return False, error
         except Exception as e:
-            return False, f"SMTP error: {str(e)}"
+            error = f"SMTP error: {str(e)}"
+            log_email_status(to_email, subject, 'failed', 'SMTP', error)
+            return False, error
 
     def send_email(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> Tuple[bool, str]:
-        """Send email - tries Resend API first (Render), then SMTP (local)"""
+        """Send email - tries Brevo API first (Render), then Resend, then SMTP (local)"""
         self._reload_config()
         
+        print("\n" + "*"*70)
+        print(f"📨 EMAIL SEND REQUEST")
+        print(f"   Recipient: {to_email}")
+        print(f"   Subject: {subject}")
+        print(f"   Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"   Brevo API: {'Enabled' if self.use_brevo else 'Disabled'}")
+        print(f"   Resend API: {'Enabled' if self.use_resend else 'Disabled'}")
+        print(f"   SMTP: {'Enabled' if self.use_smtp else 'Disabled'}")
+        print("*"*70)
+        
         if not self.is_configured:
-            self.last_error = "Email not configured. Set RESEND_API_KEY (Render) or SMTP credentials (local)"
+            self.last_error = "Email not configured. Set BREVO_API_KEY+BREVO_FROM (recommended) or SMTP credentials"
             logger.warning(f"⚠️ {self.last_error}")
+            print(f"❌ EMAIL NOT CONFIGURED: {self.last_error}")
+            log_email_status(to_email, subject, 'failed', 'None', self.last_error)
             return False, self.last_error
         
         if not to_email or '@' not in to_email:
-            return False, f"Invalid email: {to_email}"
+            error = f"Invalid email: {to_email}"
+            print(f"❌ INVALID EMAIL ADDRESS: {error}")
+            log_email_status(to_email, subject, 'failed', 'Validation', error)
+            return False, error
         
-        # Try Resend API first (works on Render)
+        # Try Brevo API first (RECOMMENDED - works on Render, 300 emails/day FREE)
+        if self.use_brevo:
+            success, error = self._send_with_brevo(to_email, subject, html_content, text_content)
+            if success:
+                self.total_sent += 1
+                self.last_success_time = datetime.utcnow()
+                self.last_error = None
+                print(f"\n✅ EMAIL SUCCESSFULLY SENT via Brevo API")
+                print(f"   Total emails sent: {self.total_sent}")
+                return True, ""
+            logger.warning(f"Brevo failed: {error}")
+            print(f"\n⚠️ Brevo API failed, trying Resend fallback...")
+        
+        # Try Resend API (requires domain verification)
         if self.use_resend:
             success, error = self._send_with_resend(to_email, subject, html_content, text_content)
             if success:
                 self.total_sent += 1
                 self.last_success_time = datetime.utcnow()
                 self.last_error = None
+                print(f"\n✅ EMAIL SUCCESSFULLY SENT via Resend API")
+                print(f"   Total emails sent: {self.total_sent}")
                 return True, ""
             logger.warning(f"Resend failed: {error}")
+            print(f"\n⚠️ Resend API failed, trying SMTP fallback...")
         
         # Fallback to SMTP (local dev)
         if self.use_smtp:
@@ -188,14 +368,24 @@ class EmailService:
                 self.total_sent += 1
                 self.last_success_time = datetime.utcnow()
                 self.last_error = None
+                print(f"\n✅ EMAIL SUCCESSFULLY SENT via SMTP")
+                print(f"   Total emails sent: {self.total_sent}")
                 return True, ""
             self.last_error = error
         
         self.total_failed += 1
+        print(f"\n❌ EMAIL SEND FAILED")
+        print(f"   Total failed: {self.total_failed}")
+        print(f"   Last error: {self.last_error}")
         return False, self.last_error or "Email send failed"
     
     def send_otp_email(self, to_email: str, otp: str, name: str = "") -> Tuple[bool, str]:
         """Send OTP verification email"""
+        print(f"\n🔐 OTP EMAIL REQUEST")
+        print(f"   To: {to_email}")
+        print(f"   Name: {name or 'Not provided'}")
+        print(f"   OTP: {otp}")
+        
         subject = "Verify Your Email - ImproveCommunication"
         
         html_content = f"""
@@ -232,10 +422,19 @@ class EmailService:
         
         text_content = f"Your verification code: {otp}\nExpires in 10 minutes."
         
-        return self.send_email(to_email, subject, html_content, text_content)
+        success, error = self.send_email(to_email, subject, html_content, text_content)
+        if success:
+            print(f"\n✅ OTP EMAIL DELIVERED to {to_email}")
+        else:
+            print(f"\n❌ OTP EMAIL FAILED to {to_email}: {error}")
+        return success, error
     
     def send_welcome_email(self, to_email: str, name: str) -> Tuple[bool, str]:
         """Send welcome email"""
+        print(f"\n🎉 WELCOME EMAIL REQUEST")
+        print(f"   To: {to_email}")
+        print(f"   Name: {name}")
+        
         subject = "Welcome to ImproveCommunication! 🎉"
         
         html_content = f"""
@@ -270,7 +469,12 @@ class EmailService:
         
         text_content = f"Hi {name}, Welcome to ImproveCommunication! Your account is ready."
         
-        return self.send_email(to_email, subject, html_content, text_content)
+        success, error = self.send_email(to_email, subject, html_content, text_content)
+        if success:
+            print(f"\n✅ WELCOME EMAIL DELIVERED to {to_email}")
+        else:
+            print(f"\n❌ WELCOME EMAIL FAILED to {to_email}: {error}")
+        return success, error
 
 
 # Singleton instance
