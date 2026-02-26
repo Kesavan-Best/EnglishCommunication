@@ -1,13 +1,13 @@
 """
 Instant AI Analysis Generator
-Provides immediate feedback without waiting for audio processing
+Provides feedback based on ACTUAL conversation transcript - NO FAKE DATA
 """
-import random
+import re
 from typing import Dict, List
 from datetime import datetime
 
 class InstantAnalyzer:
-    """Generate instant AI feedback based on call duration and basic metrics"""
+    """Generate AI feedback based on actual transcript analysis only"""
     
     # Topic categories with reading content
     TOPICS = {
@@ -183,12 +183,6 @@ Record yourself saying:
 - **the**: Specific, already mentioned
   - "The dog was friendly" (that specific dog)
 
-### Conditionals
-- **Zero**: General truths - "If you heat water, it boils"
-- **First**: Real possibility - "If it rains, I'll stay home"
-- **Second**: Unreal present - "If I won the lottery, I would travel"
-- **Third**: Unreal past - "If I had studied, I would have passed"
-
 ### Common Mistakes
 ❌ "I am living here since 2020"
 ✅ "I have lived here since 2020"
@@ -227,34 +221,19 @@ Record yourself saying:
 Learn related words together:
 - **decide** (verb) → decision (noun) → decisive (adj)
 - **success** (noun) → succeed (verb) → successful (adj)
-- **analyze** (verb) → analysis (noun) → analytical (adj)
 
 ### Collocations
 Words that naturally go together:
 - **Make**: make a decision, make progress, make sense
 - **Do**: do homework, do business, do your best
 - **Take**: take a break, take time, take notes
-- **Get**: get tired, get better, get the idea
 
 ### Synonyms for Common Words
 Instead of "good":
 - excellent, outstanding, remarkable, superb
-- positive, beneficial, advantageous
 
 Instead of "bad":
 - poor, terrible, awful, dreadful
-- negative, harmful, detrimental
-
-### Context Clues
-Learn from context:
-"The enigmatic smile puzzled everyone" 
-→ enigmatic = mysterious (from 'puzzled')
-
-### Practice Method
-1. Learn word + definition
-2. Create example sentence
-3. Use in conversation within 24 hours
-4. Review after 1 week
             """,
             "quiz": [
                 {
@@ -299,29 +278,10 @@ Connect ideas smoothly:
 - **Example**: for instance, such as, for example
 - **Result**: therefore, consequently, as a result
 
-### Conversation Strategies
-**Keep talking:**
-- Elaborate on your points
-- Give examples
-- Ask follow-up questions
-
-**Buy time naturally:**
-- "That's a great question..."
-- "Let me think about that..."
-- "Well, in my experience..."
-
 ### Natural Expressions
 - "I know what you mean" (understanding)
 - "That makes sense" (agreement)
 - "I see where you're coming from" (empathy)
-- "Actually..." (correction politely)
-
-### Practice Exercise
-Record a 2-minute answer to:
-"Describe your perfect day off"
-- Goal: No filler words
-- Use 3+ linking words
-- Include specific examples
             """,
             "quiz": [
                 {
@@ -346,227 +306,318 @@ Record a 2-minute answer to:
         }
     }
     
-    # Weakness categories with specific advice
-    WEAKNESS_TYPES = {
-        "grammar": {
-            "title": "Grammar Accuracy",
-            "descriptions": [
-                "Tense consistency needs improvement",
-                "Subject-verb agreement errors detected",
-                "Article usage (a, an, the) needs work",
-                "Preposition selection could be better"
-            ],
-            "tips": [
-                "Review present perfect vs simple past",
-                "Practice conditional sentences daily",
-                "Study article rules with examples",
-                "Focus on common preposition pairs"
-            ]
-        },
-        "pronunciation": {
-            "title": "Pronunciation Clarity",
-            "descriptions": [
-                "Some sounds are unclear",
-                "Word stress patterns need attention",
-                "Sentence rhythm could be smoother",
-                "Certain consonants need practice"
-            ],
-            "tips": [
-                "Practice TH sounds: 'think' vs 'sink'",
-                "Work on R vs L distinction",
-                "Record and compare with native speakers",
-                "Focus on word stress in longer words"
-            ]
-        },
-        "vocabulary": {
-            "title": "Vocabulary Range",
-            "descriptions": [
-                "Limited word variety observed",
-                "Same words repeated frequently",
-                "Could use more advanced expressions",
-                "Vocabulary range is intermediate"
-            ],
-            "tips": [
-                "Learn 5 new words daily from context",
-                "Use a thesaurus for variety",
-                "Study word collocations",
-                "Practice synonym substitution"
-            ]
-        },
-        "fluency": {
-            "title": "Speaking Fluency",
-            "descriptions": [
-                "Some hesitation in responses",
-                "Filler words detected (um, uh, like)",
-                "Pace varies too much",
-                "Long pauses between thoughts"
-            ],
-            "tips": [
-                "Practice speaking for 2 minutes non-stop",
-                "Replace fillers with brief pauses",
-                "Use linking words to connect ideas",
-                "Think in English, not translate"
-            ]
-        },
-        "confidence": {
-            "title": "Speaking Confidence",
-            "descriptions": [
-                "Good effort, building confidence",
-                "Speaking improved during conversation",
-                "Started strong, maintain momentum",
-                "Confidence fluctuated throughout"
-            ],
-            "tips": [
-                "Practice with a mirror daily",
-                "Record yourself and listen back",
-                "Join conversation groups",
-                "Celebrate small improvements"
-            ]
-        }
+    # Common filler words to detect
+    FILLER_WORDS = ['um', 'uh', 'uhm', 'like', 'you know', 'i mean', 'so like', 'basically', 'actually', 'literally']
+    
+    # Grammar patterns to check
+    GRAMMAR_ISSUES = {
+        r'\bi am\b.+\bsince\b': 'Consider using present perfect with "since" (e.g., "I have been" instead of "I am")',
+        r'\bhave went\b': 'Use "have gone" instead of "have went"',
+        r'\bmore better\b': 'Use either "more" or "better", not both',
+        r'\bdon\'t has\b|\bdoesn\'t has\b': 'Use "have" after "don\'t", "has" after "doesn\'t"',
+        r'\bI goed\b': 'Use "I went" instead of "I goed"',
+        r'\bmore bigger\b|\bmore smaller\b': 'Remove "more" before comparative adjectives ending in -er',
     }
+    
+    def analyze_transcript(self, transcript: str) -> Dict:
+        """
+        Analyze actual transcript text for language issues
+        Returns specific issues found, not random ones
+        """
+        if not transcript or len(transcript.strip()) < 10:
+            return {
+                "word_count": 0,
+                "filler_words": [],
+                "filler_count": 0,
+                "grammar_issues": [],
+                "vocabulary_stats": {},
+                "strengths": [],
+                "weaknesses": []
+            }
+        
+        transcript_lower = transcript.lower()
+        words = transcript.split()
+        word_count = len(words)
+        
+        # Count filler words
+        filler_words_found = []
+        for filler in self.FILLER_WORDS:
+            count = transcript_lower.count(filler)
+            if count > 0:
+                filler_words_found.append({"word": filler, "count": count})
+        
+        filler_count = sum(f["count"] for f in filler_words_found)
+        
+        # Check for grammar issues
+        grammar_issues_found = []
+        for pattern, suggestion in self.GRAMMAR_ISSUES.items():
+            if re.search(pattern, transcript_lower):
+                grammar_issues_found.append(suggestion)
+        
+        # Vocabulary analysis
+        unique_words = set(w.lower().strip('.,!?;:') for w in words if len(w) > 2)
+        vocabulary_ratio = len(unique_words) / word_count if word_count > 0 else 0
+        
+        # Sentence structure
+        sentences = re.split(r'[.!?]+', transcript)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        sentence_count = len(sentences)
+        avg_sentence_length = word_count / sentence_count if sentence_count > 0 else 0
+        
+        # Determine strengths based on actual analysis
+        strengths = []
+        if word_count >= 50:
+            strengths.append("Good speaking participation - you contributed substantially to the conversation")
+        if vocabulary_ratio >= 0.5:
+            strengths.append("Good vocabulary variety - you used diverse words")
+        if filler_count < 3:
+            strengths.append("Fluent speech - minimal filler words used")
+        if sentence_count >= 3 and 5 <= avg_sentence_length <= 20:
+            strengths.append("Well-structured sentences - good sentence length and variety")
+        
+        # Determine weaknesses based on actual findings
+        weaknesses = []
+        
+        # Filler word weakness
+        if filler_count >= 3:
+            filler_list = ", ".join(f['word'] for f in filler_words_found[:3])
+            weaknesses.append({
+                "category": "fluency",
+                "title": "Filler Words Detected",
+                "description": f"Found {filler_count} filler words in your speech ({filler_list})",
+                "tip": "Try pausing briefly instead of using filler words. This sounds more confident and professional."
+            })
+        
+        # Grammar weakness
+        if grammar_issues_found:
+            weaknesses.append({
+                "category": "grammar",
+                "title": "Grammar Patterns to Review",
+                "description": grammar_issues_found[0],
+                "tip": "Review the grammar rule and practice using it correctly in sentences."
+            })
+        
+        # Vocabulary weakness
+        if vocabulary_ratio < 0.4 and word_count >= 30:
+            weaknesses.append({
+                "category": "vocabulary",
+                "title": "Vocabulary Variety",
+                "description": "Consider using more varied vocabulary - some words were repeated frequently",
+                "tip": "Try learning synonyms for common words you use often."
+            })
+        
+        # Short responses weakness
+        if word_count < 30 and sentence_count < 3:
+            weaknesses.append({
+                "category": "confidence",
+                "title": "Brief Responses",
+                "description": "Your responses were quite short",
+                "tip": "Try elaborating more on your thoughts - give examples, share opinions, ask follow-up questions."
+            })
+        
+        return {
+            "word_count": word_count,
+            "filler_words": filler_words_found,
+            "filler_count": filler_count,
+            "grammar_issues": grammar_issues_found,
+            "vocabulary_stats": {
+                "unique_words": len(unique_words),
+                "vocabulary_ratio": round(vocabulary_ratio, 2),
+                "sentence_count": sentence_count,
+                "avg_sentence_length": round(avg_sentence_length, 1)
+            },
+            "strengths": strengths,
+            "weaknesses": weaknesses
+        }
     
     def generate_instant_feedback(self, duration_seconds: int, user_id: str, transcript: str = None, conversation: list = None) -> Dict:
         """
-        Generate instant AI feedback based on call duration and optionally transcript
+        Generate AI feedback based ONLY on actual transcript data
+        NO random/fake feedback - only real analysis
         
         Args:
             duration_seconds: Call duration in seconds
-            user_id: User ID for personalization
-            transcript: Optional - User's transcript text
-            conversation: Optional - Full conversation array
+            user_id: User ID
+            transcript: User's actual transcript text
+            conversation: Full conversation array
             
         Returns:
-            Complete AI feedback with rating, weaknesses, topics, and quiz
+            Real AI feedback based on actual speech, or clear message if no data
         """
-        # Calculate base score from duration (longer calls = better engagement)
-        if duration_seconds < 30:
-            base_score = 3.0
-        elif duration_seconds < 60:
-            base_score = 4.0
-        elif duration_seconds < 120:
-            base_score = 5.0
-        elif duration_seconds < 300:
-            base_score = 6.5
-        elif duration_seconds < 600:
-            base_score = 7.5
-        else:
-            base_score = 8.5
         
-        # If we have transcript, analyze it for more accurate scoring
-        if transcript and len(transcript.strip()) > 0:
-            word_count = len(transcript.split())
-            
-            # Bonus for more words (active participation)
-            if word_count > 100:
-                base_score += 0.5
-            elif word_count > 50:
-                base_score += 0.3
-            
-            # Check for variety in vocabulary (unique words)
-            unique_words = len(set(transcript.lower().split()))
-            if unique_words > 50:
-                base_score += 0.3
-            
-            # Check for sentence variety (periods indicate complete sentences)
-            sentences = transcript.count('.') + transcript.count('?') + transcript.count('!')
-            if sentences > 5:
-                base_score += 0.2
+        # Check if we have actual transcript data
+        has_transcript = transcript and len(transcript.strip()) > 10
         
-        # Add small random variation
-        rating = round(min(10.0, base_score + random.uniform(-0.3, 0.5)), 1)
+        if not has_transcript:
+            # No transcript = no fake feedback, just a clear message
+            return {
+                "ai_rating": None,  # No rating without data
+                "overall_message": "No speech data was captured for analysis. To get AI feedback, make sure you're speaking clearly during the call and your microphone is working.",
+                "strengths": [],
+                "weaknesses": [],
+                "recommended_topics": [self._get_topic_data("daily_conversation")],
+                "generated_at": datetime.utcnow().isoformat(),
+                "analysis_version": "instant_v3_real_only",
+                "transcript_analyzed": False,
+                "no_data_reason": "No transcript captured during the call"
+            }
         
-        # Generate weaknesses (2-3 random weaknesses, but fewer if we have good transcript)
-        if transcript and len(transcript.split()) > 80:
-            weakness_count = 2 if rating >= 7.0 else 2
-        else:
-            weakness_count = 2 if rating >= 7.0 else 3
+        # Analyze the actual transcript
+        analysis = self.analyze_transcript(transcript)
         
-        selected_weaknesses = random.sample(list(self.WEAKNESS_TYPES.keys()), weakness_count)
+        # Calculate rating based on REAL metrics
+        rating = self._calculate_real_rating(analysis, duration_seconds)
         
-        weaknesses = []
-        for weakness_key in selected_weaknesses:
-            weakness_data = self.WEAKNESS_TYPES[weakness_key]
-            weaknesses.append({
-                "category": weakness_key,
-                "title": weakness_data["title"],
-                "description": random.choice(weakness_data["descriptions"]),
-                "tip": random.choice(weakness_data["tips"]),
-                "severity": "medium" if rating < 6.0 else "low"
-            })
+        # Generate message based on actual analysis
+        overall_message = self._generate_real_message(analysis, rating, duration_seconds)
         
-        # Select recommended topics (2-3 topics based on weaknesses)
-        recommended_topics = []
-        topic_mapping = {
-            "grammar": "grammar",
-            "pronunciation": "pronunciation",
-            "vocabulary": "vocabulary",
-            "fluency": "fluency",
-            "confidence": "daily_conversation"
-        }
-        
-        # Add topics based on weaknesses
-        for weakness in weaknesses[:2]:
-            topic_key = topic_mapping.get(weakness["category"], "daily_conversation")
-            if topic_key not in [t["key"] for t in recommended_topics]:
-                topic_data = self.TOPICS[topic_key]
-                recommended_topics.append({
-                    "key": topic_key,
-                    "name": topic_data["name"],
-                    "description": topic_data["description"],
-                    "reading_content": topic_data["reading_content"],
-                    "quiz": topic_data["quiz"]
-                })
-        
-        # Always add business English as third topic (common request)
-        if len(recommended_topics) < 3 and "business_english" not in [t["key"] for t in recommended_topics]:
-            topic_data = self.TOPICS["business_english"]
-            recommended_topics.append({
-                "key": "business_english",
-                "name": topic_data["name"],
-                "description": topic_data["description"],
-                "reading_content": topic_data["reading_content"],
-                "quiz": topic_data["quiz"]
-            })
-        
-        # Generate personalized feedback message
-        if transcript and len(transcript.split()) > 100:
-            transcript_feedback = " You actively participated with meaningful contributions."
-        elif transcript and len(transcript.split()) > 30:
-            transcript_feedback = " You participated well in the conversation."
-        else:
-            transcript_feedback = ""
-        
-        if rating >= 8.0:
-            overall_message = f"Excellent conversation!{transcript_feedback} You demonstrated strong English skills with good fluency and vocabulary. Keep practicing to maintain this level."
-        elif rating >= 6.5:
-            overall_message = f"Good job!{transcript_feedback} You communicated effectively with some minor areas for improvement. Continue practicing daily."
-        elif rating >= 5.0:
-            overall_message = f"Nice effort!{transcript_feedback} You're making progress. Focus on the areas highlighted below to improve further."
-        else:
-            overall_message = f"Good start! Regular practice will help you improve. Review the topics below to strengthen your skills."
-        
-        # Calculate strength areas
-        strengths = []
-        if duration_seconds >= 120:
-            strengths.append("Good engagement and conversation length")
-        if transcript and len(transcript.split()) > 80:
-            strengths.append("Active participation with substantial contribution")
-        if rating >= 7.0:
-            strengths.append("Overall communication was effective")
-        if "fluency" not in selected_weaknesses:
-            strengths.append("Decent speaking fluency")
-        if "vocabulary" not in selected_weaknesses:
-            strengths.append("Adequate vocabulary usage")
+        # Get recommended topics based on actual weaknesses found
+        recommended_topics = self._get_relevant_topics(analysis["weaknesses"])
         
         return {
             "ai_rating": rating,
             "overall_message": overall_message,
-            "strengths": strengths if strengths else ["Participated in conversation", "Practiced speaking English"],
-            "weaknesses": weaknesses,
+            "strengths": analysis["strengths"] if analysis["strengths"] else ["Participated in the conversation"],
+            "weaknesses": analysis["weaknesses"],
             "recommended_topics": recommended_topics,
             "generated_at": datetime.utcnow().isoformat(),
-            "analysis_version": "instant_v2_with_transcript",
-            "transcript_analyzed": bool(transcript)
+            "analysis_version": "instant_v3_real_only",
+            "transcript_analyzed": True,
+            "transcript_stats": {
+                "word_count": analysis["word_count"],
+                "filler_count": analysis["filler_count"],
+                "vocabulary_ratio": analysis["vocabulary_stats"].get("vocabulary_ratio", 0)
+            }
+        }
+    
+    def _calculate_real_rating(self, analysis: Dict, duration_seconds: int) -> float:
+        """Calculate rating based on actual metrics, not random"""
+        
+        word_count = analysis["word_count"]
+        filler_count = analysis["filler_count"]
+        vocab_ratio = analysis["vocabulary_stats"].get("vocabulary_ratio", 0)
+        grammar_issues = len(analysis["grammar_issues"])
+        
+        # Start with base rating
+        rating = 5.0
+        
+        # Word count contribution (more words = more engagement)
+        if word_count >= 100:
+            rating += 1.5
+        elif word_count >= 50:
+            rating += 1.0
+        elif word_count >= 20:
+            rating += 0.5
+        elif word_count < 10:
+            rating -= 1.0
+        
+        # Vocabulary variety bonus
+        if vocab_ratio >= 0.6:
+            rating += 1.0
+        elif vocab_ratio >= 0.5:
+            rating += 0.5
+        elif vocab_ratio < 0.3:
+            rating -= 0.5
+        
+        # Filler word penalty
+        filler_ratio = filler_count / word_count if word_count > 0 else 0
+        if filler_ratio > 0.1:  # More than 10% fillers
+            rating -= 1.0
+        elif filler_ratio > 0.05:  # More than 5% fillers
+            rating -= 0.5
+        elif filler_count == 0:
+            rating += 0.5
+        
+        # Grammar issues penalty
+        if grammar_issues > 2:
+            rating -= 1.0
+        elif grammar_issues > 0:
+            rating -= 0.5
+        
+        # Duration bonus (longer calls = more practice)
+        if duration_seconds >= 180:  # 3+ minutes
+            rating += 0.5
+        elif duration_seconds < 60:  # Less than 1 minute
+            rating -= 0.5
+        
+        # Clamp to valid range
+        return round(max(1.0, min(10.0, rating)), 1)
+    
+    def _generate_real_message(self, analysis: Dict, rating: float, duration_seconds: int) -> str:
+        """Generate feedback message based on actual analysis"""
+        
+        word_count = analysis["word_count"]
+        weakness_count = len(analysis["weaknesses"])
+        strength_count = len(analysis["strengths"])
+        
+        if rating >= 8.0:
+            base = "Excellent conversation! Your English communication was strong."
+        elif rating >= 6.5:
+            base = "Good job! You communicated effectively."
+        elif rating >= 5.0:
+            base = "Nice effort! You're making progress."
+        else:
+            base = "Keep practicing! Regular conversations will help you improve."
+        
+        # Add specific observations
+        details = []
+        
+        if word_count >= 50:
+            details.append(f"You contributed {word_count} words to the conversation.")
+        elif word_count > 0:
+            details.append(f"Try to speak more - you only said about {word_count} words.")
+        
+        if weakness_count > 0:
+            details.append(f"We found {weakness_count} area(s) to work on.")
+        
+        if strength_count > 0:
+            details.append(f"You showed {strength_count} strength(s) in your speech.")
+        
+        return base + " " + " ".join(details)
+    
+    def _get_relevant_topics(self, weaknesses: List[Dict]) -> List[Dict]:
+        """Get topics relevant to actual weaknesses found"""
+        
+        topic_mapping = {
+            "grammar": "grammar",
+            "fluency": "fluency",
+            "vocabulary": "vocabulary",
+            "confidence": "daily_conversation",
+            "pronunciation": "pronunciation"
+        }
+        
+        recommended = []
+        added_keys = set()
+        
+        # Add topics based on actual weaknesses
+        for weakness in weaknesses:
+            category = weakness.get("category", "")
+            topic_key = topic_mapping.get(category, "daily_conversation")
+            
+            if topic_key not in added_keys:
+                recommended.append(self._get_topic_data(topic_key))
+                added_keys.add(topic_key)
+        
+        # If no weaknesses found, recommend general practice
+        if not recommended:
+            recommended.append(self._get_topic_data("daily_conversation"))
+        
+        # Limit to 3 topics
+        return recommended[:3]
+    
+    def _get_topic_data(self, topic_key: str) -> Dict:
+        """Get full topic data by key"""
+        
+        if topic_key not in self.TOPICS:
+            topic_key = "daily_conversation"
+        
+        topic_data = self.TOPICS[topic_key]
+        return {
+            "key": topic_key,
+            "name": topic_data["name"],
+            "description": topic_data["description"],
+            "reading_content": topic_data["reading_content"],
+            "quiz": topic_data["quiz"]
         }
     
     def get_all_topics(self) -> List[Dict]:

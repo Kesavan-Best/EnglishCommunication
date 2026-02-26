@@ -146,7 +146,7 @@ async function acceptCall(callId, fromUserId) {
     }
     
     document.getElementById('incoming-call-notification')?.remove();
-    window.location.href = `call.html?callId=${callId}`;
+    window.location.href = `call.html?callId=${callId}&autoStart=true`;
 }
 
 function rejectCall(callId, fromUserId) {
@@ -632,9 +632,9 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
         overlay.remove();
         showToast('✅ Call accepted! Connecting...', 'success');
         
-        // Redirect to WebRTC call page
+        // Redirect to WebRTC call page with autoStart
         setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}`;
+            window.location.href = `call.html?callId=${callId}&autoStart=true`;
         }, 500);
     };
     
@@ -706,7 +706,7 @@ function handleCallAccepted(data) {
     showToast(`✅ ${data.partner_name || 'User'} accepted your call! Connecting...`, 'success');
     
     setTimeout(() => {
-        window.location.href = `call.html?callId=${callId}`;
+        window.location.href = `call.html?callId=${callId}&autoStart=true`;
     }, 500);
 }
 
@@ -727,7 +727,7 @@ async function initiateCall(userId) {
             const data = await response.json();
             showToast('Call initiated!', 'success');
             setTimeout(() => {
-                window.location.href = `call.html?callId=${data.call_id}`;
+                window.location.href = `call.html?callId=${data.call_id}&autoStart=true`;
             }, 1000);
         } else {
             const error = await response.json();

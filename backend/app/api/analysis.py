@@ -116,18 +116,56 @@ async def get_my_analyses(
 async def generate_quiz(
     current_user: UserInDB = Depends(AuthHandler.get_current_user)
 ):
-    """Generate personalized quiz based on user weaknesses"""
+    """Generate personalized quiz based on REAL weaknesses from recent calls"""
     db = Database.get_db()
     
-    # Get user's recent weaknesses
-    user_data = db.users.find_one({"_id": current_user.id})
-    weaknesses = user_data.get("weaknesses", [])
+    # Get user's real weaknesses from recent calls (not fake random ones)
+    recent_calls = list(db.calls.find({
+        "$or": [
+            {"caller_id": current_user.id},
+            {"receiver_id": current_user.id}
+        ],
+        "analysis_completed_at": {"$exists": True}
+    }).sort("created_at", -1).limit(5))
+    
+    # Collect actual weaknesses from recent calls
+    weaknesses = set()
+    for call in recent_calls:
+        is_caller = str(call.get("caller_id")) == str(current_user.id)
+        
+        if is_caller and call.get("caller_weaknesses"):
+            for w in call["caller_weaknesses"]:
+                if w.get("category"):
+                    weaknesses.add(w["category"])
+        elif not is_caller and call.get("receiver_weaknesses"):
+            for w in call["receiver_weaknesses"]:
+                if w.get("category"):
+                    weaknesses.add(w["category"])
+    
+    # Convert to list
+    weaknesses = list(weaknesses)
     
     if not weaknesses:
-        # Default weaknesses if none found
-        weaknesses = ["grammar", "fluency"]
+        # No real weaknesses found - user hasn't had analyzed calls yet
+        return QuizResponse(
+            id="no_data",
+            weaknesses=[],
+            questions=[],
+            completed=False,
+            score=None,
+            created_at=datetime.utcnow(),
+            message="Complete some calls first to get a personalized quiz based on your actual speaking patterns."
+        ) if hasattr(QuizResponse, 'message') else {
+            "id": "no_data",
+            "weaknesses": [],
+            "questions": [],
+            "completed": False,
+            "score": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "message": "Complete some calls first to get a personalized quiz based on your actual speaking patterns."
+        }
     
-    # Generate quiz
+    # Generate quiz based on REAL weaknesses
     quiz = quiz_generator.generate_quiz(weaknesses)
     
     # Save to database

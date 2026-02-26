@@ -852,10 +852,10 @@ function handleCallAccepted(callId) {
     window.pendingCallId = null;
     window.pendingCallRoomId = null;
     
-    // Redirect to WebRTC call page
+    // Redirect to WebRTC call page with autoStart
     showMessage('✅ Call accepted! Connecting...', 'success');
     setTimeout(() => {
-        window.location.href = `call.html?callId=${callId}`;
+        window.location.href = `call.html?callId=${callId}&autoStart=true`;
     }, 500);
 }
 
@@ -1283,9 +1283,9 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
             console.log('Accept API call failed, continuing anyway:', e);
         }
         
-        // Redirect to WebRTC call page
+        // Redirect to WebRTC call page with autoStart
         setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}`;
+            window.location.href = `call.html?callId=${callId}&autoStart=true`;
         }, 500);
     };
     

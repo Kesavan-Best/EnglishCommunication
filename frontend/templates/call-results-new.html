@@ -507,37 +507,70 @@
             document.getElementById('duration').textContent = 
                 `Call Duration: ${minutes}m ${seconds}s`;
 
-            // AI Rating
+            // AI Rating - handle case where no rating (no speech captured)
             const feedback = data.my_feedback;
-            document.getElementById('aiRating').textContent = feedback.ai_rating;
+            
+            if (feedback.ai_rating !== null && feedback.ai_rating !== undefined) {
+                document.getElementById('aiRating').textContent = feedback.ai_rating;
+            } else {
+                // No speech data captured
+                document.getElementById('aiRating').textContent = '-';
+                document.getElementById('aiRating').style.color = '#999';
+            }
+            
             document.getElementById('feedbackMessage').textContent = feedback.ai_feedback;
 
             // Strengths
             const strengthsList = document.getElementById('strengthsList');
             strengthsList.innerHTML = '';
-            feedback.strengths.forEach(strength => {
+            
+            if (feedback.strengths && feedback.strengths.length > 0) {
+                feedback.strengths.forEach(strength => {
+                    const li = document.createElement('li');
+                    li.className = 'strength-item';
+                    li.innerHTML = `✅ ${strength}`;
+                    strengthsList.appendChild(li);
+                });
+            } else {
                 const li = document.createElement('li');
                 li.className = 'strength-item';
-                li.innerHTML = `✅ ${strength}`;
+                li.innerHTML = '💡 Complete more calls to see your strengths identified from your actual speech.';
                 strengthsList.appendChild(li);
-            });
+            }
 
             // Weaknesses
             const weaknessesList = document.getElementById('weaknessesList');
             weaknessesList.innerHTML = '';
-            feedback.weaknesses.forEach(weakness => {
+            
+            if (feedback.weaknesses && feedback.weaknesses.length > 0) {
+                feedback.weaknesses.forEach(weakness => {
+                    const li = document.createElement('li');
+                    li.className = 'weakness-item';
+                    li.innerHTML = `
+                        <div class="weakness-title">${weakness.title}</div>
+                        <div class="weakness-desc">${weakness.description}</div>
+                        <div class="weakness-tip">
+                            <span class="tip-label">💡 Tip:</span>
+                            ${weakness.tip}
+                        </div>
+                    `;
+                    weaknessesList.appendChild(li);
+                });
+            } else {
                 const li = document.createElement('li');
                 li.className = 'weakness-item';
+                li.style.background = '#e3f2fd';
+                li.style.borderLeftColor = '#2196f3';
                 li.innerHTML = `
-                    <div class="weakness-title">${weakness.title}</div>
-                    <div class="weakness-desc">${weakness.description}</div>
+                    <div class="weakness-title">No Issues Found</div>
+                    <div class="weakness-desc">Either no speech was captured, or no issues were detected in your conversation.</div>
                     <div class="weakness-tip">
                         <span class="tip-label">💡 Tip:</span>
-                        ${weakness.tip}
+                        Make sure your microphone is working and speak clearly during calls.
                     </div>
                 `;
                 weaknessesList.appendChild(li);
-            });
+            }
 
             // Topics
             const topicsGrid = document.getElementById('topicsGrid');

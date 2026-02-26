@@ -313,7 +313,7 @@ async def end_call(
                 }
             )
     
-    # ALWAYS generate AI feedback (even for short/basic calls)
+    # Generate AI feedback - now based on REAL transcript only
     from backend.app.ai_processing.instant_analyzer import instant_analyzer
     
     # Get the stored transcripts and conversation
@@ -335,26 +335,12 @@ async def end_call(
         conversation=conversation if conversation else None
     )
     
-    # Adjust feedback for very short calls
-    if duration < 30:
-        short_call_msg = "This call was very short. For better feedback, try having longer conversations (1-5 minutes)."
-        caller_feedback["overall_message"] = short_call_msg
-        receiver_feedback["overall_message"] = short_call_msg
-        caller_feedback["ai_rating"] = max(1.0, caller_feedback["ai_rating"] - 1.0)
-        receiver_feedback["ai_rating"] = max(1.0, receiver_feedback["ai_rating"] - 1.0)
-    elif duration < 60:
-        brief_msg = "This was a brief conversation. Keep practicing with longer calls for more detailed feedback!"
-        if not caller_spoke:
-            caller_feedback["overall_message"] = brief_msg
-        if not receiver_spoke:
-            receiver_feedback["overall_message"] = brief_msg
-    
-    # Save AI feedback to database
+    # Save AI feedback to database (only save real data, no fake ratings)
     db.calls.update_one(
         {"_id": call_id},
         {
             "$set": {
-                "caller_ai_rating": caller_feedback["ai_rating"],
+                "caller_ai_rating": caller_feedback.get("ai_rating"),  # May be None if no transcript
                 "caller_ai_feedback": caller_feedback["overall_message"],
                 "caller_strengths": caller_feedback["strengths"],
                 "caller_weaknesses": [
@@ -367,7 +353,8 @@ async def end_call(
                     for w in caller_feedback["weaknesses"]
                 ],
                 "caller_recommended_topics": caller_feedback["recommended_topics"],
-                "receiver_ai_rating": receiver_feedback["ai_rating"],
+                "caller_transcript_analyzed": caller_feedback.get("transcript_analyzed", False),
+                "receiver_ai_rating": receiver_feedback.get("ai_rating"),  # May be None if no transcript
                 "receiver_ai_feedback": receiver_feedback["overall_message"],
                 "receiver_strengths": receiver_feedback["strengths"],
                 "receiver_weaknesses": [
@@ -380,6 +367,7 @@ async def end_call(
                     for w in receiver_feedback["weaknesses"]
                 ],
                 "receiver_recommended_topics": receiver_feedback["recommended_topics"],
+                "receiver_transcript_analyzed": receiver_feedback.get("transcript_analyzed", False),
                 "analysis_completed_at": datetime.utcnow(),
                 "both_users_connected": True  # Mark as connected since call completed
             }
