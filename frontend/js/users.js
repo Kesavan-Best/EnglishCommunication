@@ -852,10 +852,10 @@ function handleCallAccepted(callId) {
     window.pendingCallId = null;
     window.pendingCallRoomId = null;
     
-    // Redirect to Jitsi call page
+    // Redirect to WebRTC call page
     showMessage('✅ Call accepted! Connecting...', 'success');
     setTimeout(() => {
-        window.location.href = `call-jitsi.html?callId=${callId}`;
+        window.location.href = `call.html?callId=${callId}`;
     }, 500);
 }
 
@@ -1283,9 +1283,9 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
             console.log('Accept API call failed, continuing anyway:', e);
         }
         
-        // Redirect to Jitsi call page
+        // Redirect to WebRTC call page
         setTimeout(() => {
-            window.location.href = `call-jitsi.html?callId=${callId}`;
+            window.location.href = `call.html?callId=${callId}`;
         }, 500);
     };
     

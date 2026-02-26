@@ -1010,3 +1010,121 @@ async def send_call_notification(call_id: str, receiver_id: str, caller_id: str,
     except Exception as e:
         print(f"❌ Failed to send notification: {e}")
         return False
+
+
+# ==================== WebRTC Signaling API (Database-based) ====================
+# These endpoints enable cross-instance WebRTC signaling by storing signals in MongoDB
+
+@router.post("/webrtc/signal")
+async def store_webrtc_signal(
+    signal_data: dict,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Store a WebRTC signal (offer, answer, or ICE candidate) in database for cross-instance signaling"""
+    db = Database.get_db()
+    
+    try:
+        call_id = signal_data.get("call_id")
+        to_user_id = signal_data.get("to_user_id")
+        signal_type = signal_data.get("type")  # offer, answer, ice-candidate
+        
+        if not all([call_id, to_user_id, signal_type]):
+            raise HTTPException(status_code=400, detail="Missing required fields: call_id, to_user_id, type")
+        
+        # Create signal document
+        signal_doc = {
+            "call_id": call_id,
+            "from_user_id": str(current_user.id),
+            "to_user_id": to_user_id,
+            "signal_type": signal_type,
+            "signal_data": signal_data,
+            "created_at": datetime.utcnow(),
+            "read": False
+        }
+        
+        # Store in webrtc_signals collection
+        result = db.webrtc_signals.insert_one(signal_doc)
+        
+        print(f"📡 WebRTC signal stored: {signal_type} from {current_user.id} to {to_user_id}")
+        
+        # Also try WebSocket for faster delivery (may fail if cross-instance)
+        try:
+            from backend.app.api.websocket import manager
+            await manager.send_personal_message({
+                "type": "webrtc_signal",
+                "signal": signal_data
+            }, to_user_id)
+        except Exception as ws_error:
+            print(f"⚠️ WebSocket delivery failed (user will poll): {ws_error}")
+        
+        return {"status": "ok", "signal_id": str(result.inserted_id)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error storing signal: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/webrtc/signals/{call_id}")
+async def get_webrtc_signals(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Poll for WebRTC signals directed to current user for a specific call"""
+    db = Database.get_db()
+    
+    try:
+        # Find unread signals for this user and call
+        signals = list(db.webrtc_signals.find({
+            "call_id": call_id,
+            "to_user_id": str(current_user.id),
+            "read": False
+        }).sort("created_at", 1))  # Oldest first
+        
+        # Mark signals as read
+        if signals:
+            signal_ids = [s["_id"] for s in signals]
+            db.webrtc_signals.update_many(
+                {"_id": {"$in": signal_ids}},
+                {"$set": {"read": True}}
+            )
+        
+        # Return signal data
+        result = []
+        for s in signals:
+            result.append({
+                "type": s["signal_type"],
+                "signal": s["signal_data"],
+                "from_user_id": s["from_user_id"],
+                "created_at": s["created_at"].isoformat()
+            })
+        
+        return {"signals": result}
+        
+    except Exception as e:
+        print(f"❌ Error fetching signals: {e}")
+        return {"signals": [], "error": str(e)}
+
+
+@router.delete("/webrtc/signals/{call_id}")
+async def clear_webrtc_signals(
+    call_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Clear all WebRTC signals for a call (cleanup after call ends)"""
+    db = Database.get_db()
+    
+    try:
+        result = db.webrtc_signals.delete_many({
+            "call_id": call_id,
+            "$or": [
+                {"from_user_id": str(current_user.id)},
+                {"to_user_id": str(current_user.id)}
+            ]
+        })
+        
+        return {"status": "ok", "deleted": result.deleted_count}
+        
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

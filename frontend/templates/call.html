@@ -996,6 +996,9 @@
                         // Mark user as joined
                         markUserJoined();
                         
+                        // Start call status polling to detect if partner ends call
+                        startCallStatusPolling();
+                        
                         // Update status
                         updateStatus('Call connected!', '🎉');
                     }
@@ -1003,7 +1006,7 @@
                 
                 // Handle ICE candidates
                 peerConnection.onicecandidate = (event) => {
-                    if (event.candidate && ws && ws.readyState === WebSocket.OPEN && partnerUser) {
+                    if (event.candidate && partnerUser) {
                         console.log('🧊 ICE candidate generated');
                         sendWebRTCSignal({
                             type: 'ice-candidate',
@@ -1051,6 +1054,9 @@
                 };
                 
                 console.log('✅ Peer connection initialized');
+                
+                // Start polling for signals from database (cross-instance support)
+                startSignalPolling();
                 
             } catch (error) {
                 console.error('❌ Error initializing WebRTC:', error);
@@ -1135,15 +1141,163 @@
             }
         }
         
-        // Send WebRTC signal
-        function sendWebRTCSignal(signal) {
+        // Send WebRTC signal - uses database API (cross-instance) + WebSocket (same-instance fast path)
+        async function sendWebRTCSignal(signal) {
+            const token = localStorage.getItem('token');
+            
+            // First try database storage (works cross-instance)
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/webrtc/signal`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(signal)
+                });
+                
+                if (response.ok) {
+                    console.log(`📡 Signal stored in DB: ${signal.type}`);
+                } else {
+                    console.error('❌ Failed to store signal in DB');
+                }
+            } catch (error) {
+                console.error('❌ Error storing signal:', error);
+            }
+            
+            // Also send via WebSocket for faster delivery if on same instance
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'webrtc_signal',
                     signal: signal
                 }));
-            } else {
-                console.error('❌ WebSocket not connected');
+            }
+        }
+        
+        // Poll for WebRTC signals from database (cross-instance support)
+        let signalPollInterval = null;
+        
+        function startSignalPolling() {
+            if (signalPollInterval) return;
+            
+            console.log('🔄 Starting signal polling...');
+            signalPollInterval = setInterval(pollForSignals, 1000); // Poll every 1 second
+            
+            // Also poll immediately
+            pollForSignals();
+        }
+        
+        function stopSignalPolling() {
+            if (signalPollInterval) {
+                clearInterval(signalPollInterval);
+                signalPollInterval = null;
+                console.log('🛑 Stopped signal polling');
+            }
+        }
+        
+        async function pollForSignals() {
+            if (!callId) return;
+            
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/webrtc/signals/${callId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.signals && data.signals.length > 0) {
+                        console.log(`📡 Received ${data.signals.length} signal(s) from DB`);
+                        
+                        for (const signalWrapper of data.signals) {
+                            await handleWebRTCSignal(signalWrapper.signal);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.debug('Signal poll error:', error.message);
+            }
+        }
+        
+        // Clean up signals when call ends
+        async function cleanupSignals() {
+            if (!callId) return;
+            
+            const token = localStorage.getItem('token');
+            
+            try {
+                await fetch(`${API_BASE_URL}/api/calls/webrtc/signals/${callId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                console.log('🧹 Cleaned up WebRTC signals');
+            } catch (error) {
+                console.debug('Signal cleanup error:', error.message);
+            }
+        }
+        
+        // Call status polling - detect when partner ends call
+        let callStatusPollInterval = null;
+        let callEnded = false;
+        
+        function startCallStatusPolling() {
+            if (callStatusPollInterval) return;
+            
+            console.log('🔄 Starting call status polling...');
+            callStatusPollInterval = setInterval(pollCallStatus, 2000);
+        }
+        
+        function stopCallStatusPolling() {
+            if (callStatusPollInterval) {
+                clearInterval(callStatusPollInterval);
+                callStatusPollInterval = null;
+            }
+        }
+        
+        async function pollCallStatus() {
+            if (!callId || callEnded) return;
+            
+            const token = localStorage.getItem('token');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/check-status/${callId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'not_found') {
+                        console.log('📞 Call ended by partner');
+                        callEnded = true;
+                        stopCallStatusPolling();
+                        stopSignalPolling();
+                        
+                        // Clean up and redirect
+                        if (peerConnection) {
+                            peerConnection.close();
+                            peerConnection = null;
+                        }
+                        
+                        if (localStream) {
+                            localStream.getTracks().forEach(track => track.stop());
+                            localStream = null;
+                        }
+                        
+                        sessionStorage.removeItem('activeCallId');
+                        sessionStorage.removeItem('activeCallTimestamp');
+                        
+                        updateStatus('Call ended by partner', '📞');
+                        
+                        setTimeout(() => {
+                            window.location.href = `call-results-new.html?callId=${callId}`;
+                        }, 1500);
+                    }
+                }
+            } catch (error) {
+                console.debug('Call status poll error:', error.message);
             }
         }
         
@@ -1270,6 +1424,9 @@
             sessionStorage.removeItem('activeCallTimestamp');
             callActive = false;
             
+            // Stop signal polling
+            stopSignalPolling();
+            
             // Stop timer
             if (callTimer) {
                 clearInterval(callTimer);
@@ -1298,6 +1455,9 @@
             
             // Hide mic indicator
             document.getElementById('micIndicator').style.display = 'none';
+            
+            // Clean up WebRTC signals from database
+            await cleanupSignals();
             
             // Save call data
             if (callStartTime) {
