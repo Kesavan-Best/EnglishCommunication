@@ -193,7 +193,7 @@ const CallManager = {
             const data = JSON.parse(event.data);
             
             switch(data.type) {
-                case 'webrtc-signal':
+                case 'webrtc_signal':
                     this.handleWebRTCSignal(data.signal);
                     break;
                     
@@ -350,7 +350,7 @@ const CallManager = {
     sendWebRTCSignal(signal) {
         if (this.state.ws && this.state.ws.readyState === WebSocket.OPEN) {
             this.state.ws.send(JSON.stringify({
-                type: 'webrtc-signal',
+                type: 'webrtc_signal',
                 signal: signal
             }));
         }

@@ -219,6 +219,66 @@ async def accept_call(
         created_at=call.created_at
     )
 
+@router.post("/reject")
+async def reject_call(
+    reject_data: CallAcceptRequest,  # Reuse same schema - just need call_id
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Reject a call invitation"""
+    db = Database.get_db()
+    
+    try:
+        call_id = ObjectId(reject_data.call_id)
+    except:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+    
+    # Get call
+    call_data = db.calls.find_one({"_id": call_id})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+    
+    # Check if current user is the receiver
+    if str(call_data["receiver_id"]) != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to reject this call"
+        )
+    
+    # Update call status to rejected
+    db.calls.update_one(
+        {"_id": call_id},
+        {"$set": {
+            "status": "rejected",
+            "rejected_at": datetime.utcnow(),
+            "rejected_by": str(current_user.id)
+        }}
+    )
+    
+    # Notify caller via WebSocket if possible
+    try:
+        from backend.app.api.websocket import manager
+        caller_id = str(call_data["caller_id"])
+        rejector_name = current_user.name if hasattr(current_user, 'name') else current_user.username
+        
+        await manager.send_personal_message({
+            "type": "call_rejected",
+            "call_id": str(call_id),
+            "rejected_by": str(current_user.id),
+            "rejected_by_name": rejector_name,
+            "message": f"{rejector_name} declined your call"
+        }, caller_id)
+        print(f"📞 Notified caller {caller_id} that call was rejected")
+    except Exception as e:
+        print(f"⚠️ Could not notify caller via WebSocket: {e}")
+    
+    return {"status": "rejected", "call_id": str(call_id)}
+
 @router.post("/end", response_model=CallResponse)
 async def end_call(
     end_data: CallEndRequest,

@@ -31,8 +31,8 @@ function startPendingCallsPolling() {
     // Check immediately
     checkPendingCallInvites();
     
-    // Then poll every 2 seconds
-    pendingCallsInterval = setInterval(checkPendingCallInvites, 2000);
+    // Then poll every 500ms for fast notification (cross-instance fallback)
+    pendingCallsInterval = setInterval(checkPendingCallInvites, 500);
 }
 
 async function checkPendingCallInvites() {

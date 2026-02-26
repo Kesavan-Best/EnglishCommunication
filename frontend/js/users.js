@@ -51,8 +51,8 @@ function startPendingCallsPolling() {
     // Check immediately
     checkPendingCallInvites();
     
-    // Then poll every 2 seconds
-    pendingCallsInterval = setInterval(checkPendingCallInvites, 2000);
+    // Then poll every 500ms for fast notification (cross-instance fallback)
+    pendingCallsInterval = setInterval(checkPendingCallInvites, 500);
 }
 
 async function checkPendingCallInvites() {
@@ -1290,7 +1290,7 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
     };
     
     // Handle reject
-    document.getElementById('reject-call-btn').onclick = () => {
+    document.getElementById('reject-call-btn').onclick = async () => {
         console.log('❌ Rejecting call:', callId);
         
         // Send reject message via WebSocket to notify the caller
@@ -1301,6 +1301,21 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
                 from_user_id: fromUserId
             }));
             console.log('📤 Sent call rejection notification to caller');
+        }
+        
+        // Also update via API for cross-instance support
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(`${API_BASE_URL}/api/calls/reject`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ call_id: callId })
+            });
+        } catch (e) {
+            console.log('Reject API call failed:', e);
         }
         
         overlay.remove();
