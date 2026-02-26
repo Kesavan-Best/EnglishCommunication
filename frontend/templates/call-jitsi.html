@@ -245,6 +245,8 @@
         let callTimer = null;
         let callStartTime = null;
         let callActive = false;
+        let statusPollInterval = null;
+        let callEnded = false; // Prevent multiple end call actions
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async () => {
@@ -284,6 +286,25 @@
                 updateLoadingMessage('Loading call details...');
                 
                 const token = localStorage.getItem('token');
+                
+                // First check current call status
+                const statusResponse = await fetch(`${API_BASE_URL}/api/calls/check-status/${callId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (statusResponse.ok) {
+                    const statusData = await statusResponse.json();
+                    console.log('📊 Initial call status:', statusData.status);
+                    
+                    // If call is already completed or cancelled, redirect to results
+                    if (statusData.status === 'completed' || statusData.status === 'cancelled' || statusData.status === 'not_found') {
+                        console.log('📞 Call already ended, redirecting to results...');
+                        callEnded = true;
+                        window.location.href = `call-results-new.html?callId=${callId}`;
+                        return;
+                    }
+                }
+                
                 const response = await fetch(`${API_BASE_URL}/api/calls/my-calls`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -295,6 +316,14 @@
                 
                 if (!call) {
                     showError('Call not found. It may have been ended.');
+                    return;
+                }
+                
+                // Check if call status from my-calls shows it's ended
+                if (call.status === 'completed' || call.status === 'cancelled') {
+                    console.log('📞 Call already ended (from my-calls), redirecting...');
+                    callEnded = true;
+                    window.location.href = `call-results-new.html?callId=${callId}`;
                     return;
                 }
                 
@@ -318,6 +347,9 @@
                 
                 // Mark as joined
                 await markUserJoined();
+                
+                // Start status polling early (to detect if call ends during Jitsi setup)
+                startStatusPolling();
                 
                 // Start Jitsi
                 updateLoadingMessage('Starting audio connection...');
@@ -444,6 +476,18 @@
                 
                 console.log('✅ Jitsi API initialized');
                 
+                // Set a timeout for Jitsi connection (30 seconds)
+                setTimeout(() => {
+                    if (!callActive && !callEnded) {
+                        console.log('⚠️ Jitsi connection timeout - checking if still connecting');
+                        const loadingScreen = document.getElementById('loadingScreen');
+                        if (loadingScreen && loadingScreen.style.display !== 'none') {
+                            // Still on loading screen after 30s, show message but don't error yet
+                            document.getElementById('loadingMessage').textContent = 'Taking longer than expected...';
+                        }
+                    }
+                }, 30000);
+                
             } catch (error) {
                 console.error('❌ Failed to initialize Jitsi:', error);
                 showError('Failed to start call: ' + error.message);
@@ -463,6 +507,8 @@
             // Start timer
             startCallTimer();
             
+            // Status polling already started in fetchCallDetailsAndStart
+            
             callActive = true;
         }
         
@@ -476,6 +522,13 @@
         function handleParticipantLeft(data) {
             console.log('👤 Participant left:', data);
             document.getElementById('callStatus').textContent = 'Partner disconnected';
+            
+            // If call was active and partner left, show message and allow ending
+            if (callActive && !callEnded) {
+                // Partner left, but don't auto-end - let the user decide
+                // The status polling will also detect if the call was ended
+                console.log('⚠️ Partner may have left the call');
+            }
         }
         
         // Handle conference left
@@ -493,6 +546,79 @@
         function handleReadyToClose() {
             console.log('📞 Jitsi ready to close');
             endCall();
+        }
+        
+        // Start polling for call status (to detect if other user ends call)
+        function startStatusPolling() {
+            if (statusPollInterval) {
+                clearInterval(statusPollInterval);
+            }
+            
+            statusPollInterval = setInterval(async () => {
+                await checkCallStatus();
+            }, 2000); // Check every 2 seconds
+            
+            console.log('🔄 Started status polling');
+        }
+        
+        // Stop status polling
+        function stopStatusPolling() {
+            if (statusPollInterval) {
+                clearInterval(statusPollInterval);
+                statusPollInterval = null;
+                console.log('🛑 Stopped status polling');
+            }
+        }
+        
+        // Check if call has been ended by other user
+        async function checkCallStatus() {
+            if (callEnded) return;
+            
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}/api/calls/check-status/${callId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) return;
+                
+                const data = await response.json();
+                console.log('📊 Call status:', data.status);
+                
+                // If call has been completed or cancelled, redirect
+                if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'not_found') {
+                    console.log('📞 Call ended by other user or not found');
+                    callEnded = true;
+                    stopStatusPolling();
+                    
+                    // Show message and redirect
+                    document.getElementById('callStatus').textContent = 'Call ended';
+                    
+                    // Dispose Jitsi
+                    if (jitsiApi) {
+                        jitsiApi.dispose();
+                        jitsiApi = null;
+                    }
+                    
+                    // Stop timer
+                    if (callTimer) {
+                        clearInterval(callTimer);
+                        callTimer = null;
+                    }
+                    
+                    // Clear session
+                    sessionStorage.removeItem('activeCallId');
+                    sessionStorage.removeItem('activeCallTimestamp');
+                    callActive = false;
+                    
+                    // Redirect to results after a short delay
+                    setTimeout(() => {
+                        window.location.href = `call-results-new.html?callId=${callId}`;
+                    }, 1000);
+                }
+            } catch (error) {
+                console.error('⚠️ Error checking call status:', error);
+            }
         }
         
         // Start call timer
@@ -521,7 +647,17 @@
         
         // End call
         async function endCall() {
+            // Prevent multiple end call actions
+            if (callEnded) {
+                console.log('📞 Call already ended, skipping...');
+                return;
+            }
+            callEnded = true;
+            
             console.log('📞 Ending call...');
+            
+            // Stop status polling
+            stopStatusPolling();
             
             // Clear session
             sessionStorage.removeItem('activeCallId');
@@ -581,6 +717,9 @@
         
         // Show error
         function showError(msg) {
+            // Stop polling when showing error
+            stopStatusPolling();
+            
             document.getElementById('loadingScreen').style.display = 'none';
             document.getElementById('errorScreen').style.display = 'flex';
             document.getElementById('errorMessage').textContent = msg;
@@ -588,6 +727,7 @@
         
         // Retry connection
         function retryConnection() {
+            callEnded = false; // Reset flag for retry
             document.getElementById('errorScreen').style.display = 'none';
             document.getElementById('loadingScreen').style.display = 'flex';
             fetchCallDetailsAndStart();
@@ -595,12 +735,14 @@
         
         // Go back
         function goBack() {
+            stopStatusPolling();
             window.location.href = 'users.html';
         }
         
         // Handle page unload
         window.addEventListener('beforeunload', (e) => {
-            if (callActive) {
+            stopStatusPolling();
+            if (callActive && !callEnded) {
                 e.preventDefault();
                 e.returnValue = 'You have an active call.';
                 endCall();
