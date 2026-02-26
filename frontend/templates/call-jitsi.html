@@ -121,6 +121,14 @@
         #jitsi-container {
             flex: 1;
             background: #1a1a2e;
+            width: 100%;
+            min-height: 400px;
+        }
+        
+        #jitsi-container iframe {
+            width: 100% !important;
+            height: 100% !important;
+            min-height: 400px !important;
         }
         
         .loading-screen {
@@ -135,6 +143,11 @@
             align-items: center;
             justify-content: center;
             z-index: 10;
+            pointer-events: none; /* Allow clicks to pass through to Jitsi */
+        }
+        
+        .loading-screen.hidden {
+            display: none;
         }
         
         .loading-spinner {
@@ -423,28 +436,59 @@
         function initializeJitsi() {
             console.log('🎬 Initializing Jitsi with room:', roomId);
             
+            // Get container dimensions
+            const container = document.getElementById('jitsi-container');
+            const containerHeight = Math.max(container.clientHeight, 400);
+            const containerWidth = container.clientWidth || '100%';
+            
             const domain = 'meet.jit.si';
             const options = {
                 roomName: roomId,
-                parentNode: document.getElementById('jitsi-container'),
+                width: containerWidth,
+                height: containerHeight,
+                parentNode: container,
                 userInfo: {
-                    displayName: currentUser.name,
-                    email: currentUser.email
+                    displayName: currentUser.name || 'User',
+                    email: currentUser.email || ''
                 },
                 configOverwrite: {
+                    // Audio settings - critically important
                     startWithAudioMuted: false,
                     startWithVideoMuted: true,
+                    
+                    // Disable video completely for audio-only calls
                     disableVideo: true,
+                    videoMuted: true,
+                    
+                    // Skip prejoin screen - go directly to call
                     prejoinPageEnabled: false,
+                    prejoinConfig: {
+                        enabled: false
+                    },
+                    
+                    // Disable features that might block connection
                     disableDeepLinking: true,
                     enableWelcomePage: false,
                     enableClosePage: false,
                     disableInviteFunctions: true,
-                    toolbarButtons: ['microphone', 'hangup', 'tileview'],
-                    notifications: [],
+                    
+                    // Audio optimization
+                    enableNoisyMicDetection: false,
+                    enableNoAudioDetection: false,
+                    
+                    // Reduce complexity
                     disableThirdPartyRequests: true,
-                    enableNoiseSupression: true,
-                    disableAudioLevels: false
+                    analytics: {
+                        disabled: true
+                    },
+                    
+                    // P2P for better direct connection
+                    p2p: {
+                        enabled: true
+                    },
+                    
+                    // Toolbar
+                    toolbarButtons: ['microphone', 'hangup']
                 },
                 interfaceConfigOverwrite: {
                     SHOW_JITSI_WATERMARK: false,
@@ -454,16 +498,18 @@
                     HIDE_INVITE_MORE_HEADER: true,
                     TOOLBAR_BUTTONS: ['microphone', 'hangup'],
                     HIDE_DEEP_LINKING_LOGO: true,
-                    GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
-                    DISPLAY_WELCOME_PAGE_CONTENT: false,
-                    DISPLAY_WELCOME_PAGE_TOOLBAR_ADDITIONAL_CONTENT: false,
                     TOOLBAR_ALWAYS_VISIBLE: true,
-                    filmStripOnly: false,
-                    VERTICAL_FILMSTRIP: false
+                    FILM_STRIP_MAX_HEIGHT: 0,
+                    DISABLE_VIDEO_BACKGROUND: true,
+                    DEFAULT_BACKGROUND: '#1a1a2e',
+                    DISABLE_FOCUS_INDICATOR: true,
+                    DISABLE_DOMINANT_SPEAKER_INDICATOR: true,
+                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: true
                 }
             };
             
             try {
+                console.log('🎬 Creating JitsiMeetExternalAPI...');
                 jitsiApi = new JitsiMeetExternalAPI(domain, options);
                 
                 // Event handlers
@@ -474,7 +520,31 @@
                 jitsiApi.addListener('audioMuteStatusChanged', handleAudioMuteChanged);
                 jitsiApi.addListener('readyToClose', handleReadyToClose);
                 
+                // Additional event for debugging
+                jitsiApi.addListener('browserSupport', (data) => {
+                    console.log('🌐 Browser support:', data);
+                });
+                
+                jitsiApi.addListener('errorOccurred', (data) => {
+                    console.error('❌ Jitsi error:', data);
+                });
+                
                 console.log('✅ Jitsi API initialized');
+                
+                // Auto-hide loading screen after 5 seconds even if event doesn't fire
+                // This ensures users can interact with Jitsi directly
+                setTimeout(() => {
+                    const loadingScreen = document.getElementById('loadingScreen');
+                    if (loadingScreen && loadingScreen.style.display !== 'none') {
+                        console.log('⏰ Auto-hiding loading screen after 5s');
+                        loadingScreen.style.display = 'none';
+                        document.getElementById('callStatus').textContent = 'In Call';
+                        if (!callActive) {
+                            callActive = true;
+                            startCallTimer();
+                        }
+                    }
+                }, 5000);
                 
                 // Set a timeout for Jitsi connection (30 seconds)
                 setTimeout(() => {
@@ -504,12 +574,25 @@
             // Update status
             document.getElementById('callStatus').textContent = 'Connected';
             
+            // Ensure audio is unmuted
+            if (jitsiApi) {
+                jitsiApi.isAudioMuted().then(muted => {
+                    console.log('🔊 Audio muted status:', muted);
+                    if (muted) {
+                        console.log('🔊 Unmuting audio...');
+                        jitsiApi.executeCommand('toggleAudio');
+                    }
+                });
+            }
+            
             // Start timer
             startCallTimer();
             
             // Status polling already started in fetchCallDetailsAndStart
             
             callActive = true;
+            
+            console.log('✅ Call is now active - you should be able to speak');
         }
         
         // Handle participant joined
