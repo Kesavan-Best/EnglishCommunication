@@ -23,8 +23,15 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import Optional, Tuple, Dict, Any
+from pathlib import Path
+from dotenv import load_dotenv
 
-# Try to import requests for Resend API
+# Load .env explicitly so API keys are always available
+_env_file = Path(__file__).parent.parent / '.env'
+if _env_file.exists():
+    load_dotenv(dotenv_path=_env_file, override=True)
+
+# Try to import requests for Brevo/Resend API
 try:
     import requests
     REQUESTS_AVAILABLE = True

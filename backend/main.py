@@ -7,12 +7,21 @@ import uvicorn
 import os
 import sys 
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add parent directory to path for both local and Render deployment
 current_dir = Path(__file__).parent
 parent_dir = current_dir.parent
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
+
+# Load .env explicitly from backend/ directory - MUST be before any other imports
+_env_path = current_dir / '.env'
+if _env_path.exists():
+    load_dotenv(dotenv_path=_env_path, override=True)
+    print(f"✅ Loaded .env from {_env_path}")
+else:
+    load_dotenv(override=True)  # fallback
 
 from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp, nlp_analysis
 from backend.app.database import init_db
