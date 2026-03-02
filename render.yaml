@@ -31,24 +31,25 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
       # Email Configuration - CRITICAL for OTP verification
+      # Brevo Email API (REQUIRED - SMTP is blocked on Render free tier)
+      # Sign up free at https://www.brevo.com -> Settings -> API Keys
+      - key: BREVO_API_KEY
+        sync: false  # Set your Brevo API key in Render dashboard
+      - key: BREVO_FROM
+        sync: false  # Set your verified email in Brevo (e.g. your Gmail)
+      - key: FROM_NAME
+        value: ImproveCommunication
+      # SMTP fallback (only works locally, blocked on Render)
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
         value: "587"
-      - key: SMTP_SSL_PORT
-        value: "465"
       - key: SMTP_USER
-        sync: false  # Set to your Gmail address in Render dashboard
+        sync: false
       - key: SMTP_PASSWORD
-        sync: false  # Set to your Gmail App Password in Render dashboard
+        sync: false
       - key: FROM_EMAIL
-        sync: false  # Set to your Gmail address
-      - key: FROM_NAME
-        value: ImproveCommunication
-      - key: SMTP_TIMEOUT
-        value: "60"
-      - key: SMTP_MAX_RETRIES
-        value: "3"
+        sync: false
     healthCheckPath: /health
     autoDeploy: true
 

@@ -258,7 +258,7 @@ class EmailService:
             return False, error
 
     def _send_with_smtp(self, to_email: str, subject: str, html_content: str, text_content: str = None) -> Tuple[bool, str]:
-        """Send email using SMTP (for local development)"""
+        """Send email using SMTP (tries SSL port 465 first, then TLS port 587)"""
         print(f"\n[SMTP] Attempting to send email to: {to_email}")
         
         if not self.smtp_user or not self.smtp_password:
@@ -266,35 +266,55 @@ class EmailService:
             log_email_status(to_email, subject, 'failed', 'SMTP', error)
             return False, error
         
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"{self.from_name} <{self.from_email}>"
+        message["To"] = to_email
+        
+        if text_content:
+            message.attach(MIMEText(text_content, "plain", "utf-8"))
+        message.attach(MIMEText(html_content, "html", "utf-8"))
+        
+        # Try SSL (port 465) first - more likely to work on cloud platforms
         try:
-            logger.info(f"📧 SMTP: {self.smtp_host}:{self.smtp_port}...")
-            print(f"[SMTP] Connecting to {self.smtp_host}:{self.smtp_port}...")
+            logger.info(f"📧 SMTP SSL: {self.smtp_host}:465...")
+            print(f"[SMTP] Trying SSL connection to {self.smtp_host}:465...")
             
-            message = MIMEMultipart("alternative")
-            message["Subject"] = subject
-            message["From"] = f"{self.from_name} <{self.from_email}>"
-            message["To"] = to_email
-            
-            if text_content:
-                message.attach(MIMEText(text_content, "plain", "utf-8"))
-            message.attach(MIMEText(html_content, "html", "utf-8"))
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(self.smtp_host, 465, timeout=self.timeout, context=context) as server:
+                print("[SMTP SSL] Connected! Authenticating...")
+                server.login(self.smtp_user, self.smtp_password)
+                print("[SMTP SSL] Authenticated. Sending message...")
+                server.send_message(message)
+                logger.info(f"✅ SMTP SSL: Sent to {to_email}")
+                log_email_status(to_email, subject, 'success', 'SMTP SSL', extra_info={'Server': f"{self.smtp_host}:465"})
+                return True, ""
+                
+        except Exception as ssl_error:
+            logger.warning(f"⚠️ SMTP SSL failed: {ssl_error}")
+            print(f"[SMTP] SSL failed: {ssl_error}, trying TLS on port 587...")
+        
+        # Fallback to TLS (port 587)
+        try:
+            logger.info(f"📧 SMTP TLS: {self.smtp_host}:{self.smtp_port}...")
+            print(f"[SMTP] Trying TLS connection to {self.smtp_host}:{self.smtp_port}...")
             
             with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=self.timeout) as server:
-                print("[SMTP] Connected! Starting TLS handshake...")
+                print("[SMTP TLS] Connected! Starting TLS handshake...")
                 server.ehlo()
                 server.starttls(context=ssl.create_default_context())
                 server.ehlo()
-                print("[SMTP] TLS established. Authenticating...")
+                print("[SMTP TLS] TLS established. Authenticating...")
                 server.login(self.smtp_user, self.smtp_password)
-                print("[SMTP] Authenticated. Sending message...")
+                print("[SMTP TLS] Authenticated. Sending message...")
                 server.send_message(message)
-                logger.info(f"✅ SMTP: Sent to {to_email}")
-                log_email_status(to_email, subject, 'success', 'SMTP', extra_info={'Server': f"{self.smtp_host}:{self.smtp_port}"})
+                logger.info(f"✅ SMTP TLS: Sent to {to_email}")
+                log_email_status(to_email, subject, 'success', 'SMTP TLS', extra_info={'Server': f"{self.smtp_host}:{self.smtp_port}"})
                 return True, ""
                 
         except OSError as e:
-            if "Network is unreachable" in str(e) or getattr(e, 'errno', 0) == 101:
-                error = "SMTP blocked on Render. Use BREVO_API_KEY instead."
+            if "Network is unreachable" in str(e) or "Connection refused" in str(e) or getattr(e, 'errno', 0) in [101, 111]:
+                error = "SMTP blocked (both SSL 465 and TLS 587). Set BREVO_API_KEY for cloud deployment."
             else:
                 error = f"SMTP network error: {str(e)}"
             log_email_status(to_email, subject, 'failed', 'SMTP', error)
