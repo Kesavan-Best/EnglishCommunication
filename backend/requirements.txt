@@ -10,6 +10,7 @@ websockets>=12.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+requests>=2.31.0
 
 # ⚡ MEMORY-OPTIMIZED FOR RENDER (< 512MB)
 # NLP/AI Libraries REMOVED - Using instant analyzer instead
