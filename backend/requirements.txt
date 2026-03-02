@@ -1,4 +1,4 @@
-# Core Backend (Required)
+# Core Backend (Required) - OPTIMIZED FOR RENDER FREE TIER (< 512MB RAM)
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 python-multipart>=0.0.6
@@ -21,10 +21,10 @@ python-dotenv>=1.0.0
 # torch>=2.0.0
 # numpy>=1.24.0
 
-# Language Analysis (for advanced speech evaluation)
-# Uncomment these for full language weakness analysis:
-nltk>=3.8.1
-language-tool-python>=2.7.1
+# DISABLED for Render free tier - these require Java + 500MB+ RAM
+# Uncomment ONLY if on paid Render plan:
+# nltk>=3.8.1
+# language-tool-python>=2.7.1
 
 # Optional (install separately if needed)
 # redis==5.0.1
