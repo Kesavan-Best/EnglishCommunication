@@ -152,8 +152,8 @@ const CallManager = {
     async connectWebSocket() {
         return new Promise((resolve, reject) => {
             try {
-                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//${window.location.host}/api/ws/${this.state.currentUser.id}`;
+                // Use the WS_BASE_URL from config (handles localhost vs production)
+                const wsUrl = `${WS_BASE_URL}/api/ws/${this.state.currentUser.id}`;
                 
                 console.log('🔌 Connecting to WebSocket:', wsUrl);
                 

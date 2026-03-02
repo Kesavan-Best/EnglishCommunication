@@ -450,12 +450,12 @@ function setupWebSocket(userId) {
             console.log('📡 Ready to receive notifications');
             
             // Start heartbeat to keep online status updated across environments
+            // Send every 30 seconds for reliable online status detection
             heartbeatInterval = setInterval(() => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'ping' }));
-                    console.log('💓 Dashboard heartbeat sent');
                 }
-            }, 120000); // Every 2 minutes
+            }, 30000); // Every 30 seconds
             
             // Send initial ping immediately
             ws.send(JSON.stringify({ type: 'ping' }));
@@ -478,7 +478,8 @@ function setupWebSocket(userId) {
                 clearInterval(heartbeatInterval);
                 heartbeatInterval = null;
             }
-            setTimeout(() => setupWebSocket(userId), 5000);
+            ws = null;
+            setTimeout(() => setupWebSocket(userId), 3000);
         };
     } catch (error) {
         console.error('❌ Error setting up WebSocket:', error);
@@ -492,8 +493,11 @@ function handleWebSocketMessage(data) {
     switch (data.type) {
         case 'user_online':
         case 'user_offline':
-            // Refresh online friends when someone's status changes
+        case 'user_status_changed':
+            // Refresh online friends immediately when someone's status changes
+            console.log(`🔄 User ${data.user_id} is now ${data.is_online ? 'ONLINE' : 'OFFLINE'}`);
             loadOnlineFriends();
+            loadDashboardData();
             break;
         case 'friend_request':
             showToast('New friend request received!', 'success');

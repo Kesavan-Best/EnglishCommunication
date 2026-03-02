@@ -38,9 +38,12 @@ async def invite_to_call(
                 detail="User not found"
             )
         
-        # Check online status using DATABASE (works across server instances)
+        # Check online status: WebSocket (real-time) + Database (cross-instance)
         from backend.app.api.users import is_user_online_db
-        is_receiver_online = is_user_online_db(str(receiver_id))
+        from backend.app.api.websocket import manager as ws_manager
+        
+        # Check WebSocket first (instant), then DB fallback
+        is_receiver_online = ws_manager.is_user_connected(str(receiver_id)) or is_user_online_db(str(receiver_id))
         
         if not is_receiver_online:
             raise HTTPException(

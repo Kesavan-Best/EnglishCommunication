@@ -50,6 +50,9 @@ class ConnectionManager:
             "is_online": True,
             "timestamp": datetime.now().isoformat()
         }, user_id)
+        
+        # Broadcast online status to ALL other connected users
+        await self._broadcast_status_change(user_id, True)
 
     def disconnect(self, user_id: str):
         """Clean up when user disconnects"""
@@ -91,7 +94,30 @@ class ConnectionManager:
         except Exception as e:
             logger.error(f"Failed to update user offline status in DB: {e}")
         
+        # Broadcast offline status to ALL other connected users
+        asyncio.create_task(self._broadcast_status_change(user_id, False))
+        
         logger.info(f"❌ User {user_id} disconnected")
+
+    async def _broadcast_status_change(self, user_id: str, is_online: bool):
+        """Broadcast a user's online/offline status to all other connected users"""
+        status_message = {
+            "type": "user_online" if is_online else "user_offline",
+            "user_id": user_id,
+            "is_online": is_online,
+            "timestamp": datetime.now().isoformat()
+        }
+        for other_id, ws in list(self.active_connections.items()):
+            if other_id != user_id:
+                try:
+                    await ws.send_json(status_message)
+                except Exception:
+                    pass  # Don't fail broadcast if one send fails
+        logger.info(f"📢 Broadcast: {user_id} is now {'ONLINE' if is_online else 'OFFLINE'} (notified {len(self.active_connections) - 1} users)")
+
+    def is_user_connected(self, user_id: str) -> bool:
+        """Check if a user has an active WebSocket connection (real-time check)"""
+        return user_id in self.active_connections
 
     async def send_personal_message(self, message: dict, user_id: str):
         """Send message to specific user"""

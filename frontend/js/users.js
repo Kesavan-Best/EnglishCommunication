@@ -991,13 +991,12 @@ function setupWebSocket() {
         console.log('📡 Ready to receive call notifications');
         
         // Start heartbeat to keep online status updated across environments
-        // Sends ping every 2 minutes to update last_seen in database
+        // Send every 30 seconds for reliable online status detection
         heartbeatInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'ping' }));
-                console.log('💓 Heartbeat sent');
             }
-        }, 120000); // Every 2 minutes
+        }, 30000); // Every 30 seconds
         
         // Send initial ping immediately
         ws.send(JSON.stringify({ type: 'ping' }));
@@ -1014,13 +1013,14 @@ function setupWebSocket() {
     };
     
     ws.onclose = () => {
-        console.log('⚠️ WebSocket closed, reconnecting in 5s...');
+        console.log('⚠️ WebSocket closed, reconnecting in 3s...');
         // Clear heartbeat interval on close
         if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
         }
-        setTimeout(setupWebSocket, 5000);
+        ws = null;
+        setTimeout(setupWebSocket, 3000);
     };
 }
 
@@ -1120,9 +1120,12 @@ function handleWebSocketMessage(data) {
 function updateUserStatus(userId, isOnline) {
     const card = document.querySelector(`[data-user-id="${userId}"]`);
     if (card) {
-        const badge = card.querySelector('.user-status-badge');
-        badge.className = `user-status-badge ${isOnline ? 'online' : 'offline'}`;
-        badge.textContent = `${isOnline ? '🟢' : '⚫'} ${isOnline ? 'Online' : 'Offline'}`;
+        // Update the status indicator (matches createUserCard CSS classes)
+        const badge = card.querySelector('.online-status, .offline-status');
+        if (badge) {
+            badge.className = isOnline ? 'online-status' : 'offline-status';
+            badge.textContent = isOnline ? 'Online' : 'Offline';
+        }
         
         // Update call button
         const callBtn = card.querySelector('.btn-call, .btn-disabled');
@@ -1130,12 +1133,14 @@ function updateUserStatus(userId, isOnline) {
             if (isOnline) {
                 callBtn.className = 'btn-action btn-call';
                 callBtn.disabled = false;
-                callBtn.textContent = '📞 Call';
+                callBtn.innerHTML = '📞 Call';
+                callBtn.setAttribute('onclick', `initiateCall('${userId}')`);
                 callBtn.title = 'Start Call';
             } else {
                 callBtn.className = 'btn-action btn-disabled';
                 callBtn.disabled = true;
-                callBtn.textContent = '📞 Offline';
+                callBtn.innerHTML = '📞 Offline';
+                callBtn.removeAttribute('onclick');
                 callBtn.title = 'User is offline';
             }
         }

@@ -16,17 +16,26 @@ from datetime import timedelta
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Helper function to check if user is online based on database status
-# This works across different server instances (localhost + Render)
+# Helper function to check if user is online based on WebSocket + database status
+# Priority: WebSocket connection (real-time) > Database flag (cross-instance)
 def is_user_online_db(user_id: str) -> bool:
-    """Check if user is online based on database status (cross-instance compatible)"""
+    """Check if user is online - uses WebSocket first, then DB fallback"""
     try:
+        # FIRST: Check WebSocket manager for real-time connection (same server instance)
+        try:
+            from backend.app.api.websocket import manager
+            if manager.is_user_connected(user_id):
+                return True
+        except Exception:
+            pass  # WebSocket manager not available, fall back to DB
+        
+        # SECOND: Check database status (works across server instances)
         db = Database.get_db()
         user = db.users.find_one({"_id": ObjectId(user_id)})
         if not user:
             return False
         
-        # User must have is_online=True AND last_seen within last 5 minutes
+        # User must have is_online=True AND last_seen within last 2 minutes
         is_online = user.get("is_online", False)
         last_seen = user.get("last_seen")
         
@@ -34,9 +43,14 @@ def is_user_online_db(user_id: str) -> bool:
             return False
         
         if last_seen:
-            # Check if last_seen is within the last 5 minutes
-            time_threshold = datetime.utcnow() - timedelta(minutes=5)
+            # Check if last_seen is within the last 2 minutes (heartbeats every 30s)
+            time_threshold = datetime.utcnow() - timedelta(minutes=2)
             if last_seen < time_threshold:
+                # Stale status - mark as offline in DB to clean up
+                db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"is_online": False}}
+                )
                 return False
         
         return True
