@@ -38,12 +38,13 @@ async function initUsersPage() {
     // Start polling for pending call invites (cross-instance support)
     startPendingCallsPolling();
     
-    // Refresh data every 10 seconds
+    // Refresh data every 30 seconds (WebSocket handles real-time status updates
+    // so frequent full re-renders are not needed and cause flickering)
     setInterval(() => {
         loadAllUsers();
         loadFriends();
         loadPendingRequests();
-    }, 10000);
+    }, 30000);
 }
 
 // Poll for pending call invites (works across server instances)
