@@ -326,26 +326,139 @@
             cursor: pointer;
         }
         
-        /* Custom Scrollbar for Transcription - YouTube Style */
+        /* Custom Scrollbar for Transcription */
         #transcriptionMessages::-webkit-scrollbar {
-            width: 6px;
+            width: 5px;
         }
         
         #transcriptionMessages::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.5);
-            border-radius: 10px;
+            background: transparent;
         }
         
         #transcriptionMessages::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, #6366f1, #8b5cf6);
+            background: rgba(99, 102, 241, 0.3);
             border-radius: 10px;
-            transition: background 0.3s;
         }
         
         #transcriptionMessages::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, #818cf8, #a78bfa);
+            background: rgba(99, 102, 241, 0.5);
+        }
+
+        /* Chat Bubble Styles */
+        .chat-bubble {
+            max-width: 78%;
+            padding: 10px 16px;
+            border-radius: 18px;
+            font-size: 15px;
+            line-height: 1.5;
+            animation: bubbleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        @keyframes bubbleIn {
+            from { opacity: 0; transform: translateY(8px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .chat-bubble.self {
+            background: linear-gradient(135deg, #6366F1, #818CF8);
+            color: #fff;
+            margin-left: auto;
+            border-bottom-right-radius: 6px;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+        }
+
+        .chat-bubble.partner {
+            background: rgba(255, 255, 255, 0.08);
+            color: #E2E8F0;
+            margin-right: auto;
+            border-bottom-left-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-meta {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 3px;
+            letter-spacing: 0.3px;
+        }
+
+        .chat-bubble.self .chat-meta {
+            color: rgba(255, 255, 255, 0.7);
+            text-align: right;
+        }
+
+        .chat-bubble.partner .chat-meta {
+            color: #A78BFA;
+        }
+
+        .chat-text {
+            font-weight: 400;
+        }
+
+        .chat-time {
+            font-size: 10px;
+            margin-top: 4px;
+            opacity: 0.5;
+        }
+
+        .chat-bubble.self .chat-time { text-align: right; }
+
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 18px;
+            border-bottom-left-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.08);
+            margin-right: auto;
+        }
+
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            background: #A78BFA;
+            border-radius: 50%;
+            animation: typingDot 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typingDot {
+            0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+            30% { opacity: 1; transform: translateY(-4px); }
+        }
+
+        .scroll-to-bottom {
+            position: absolute;
+            bottom: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(99, 102, 241, 0.8);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .scroll-to-bottom:hover {
+            background: rgba(99, 102, 241, 1);
+            transform: scale(1.1);
         }
     </style>
+    <link rel="stylesheet" href="/frontend/css/modern-ui.css">
 </head>
 <body>
     <div class="call-container">
@@ -389,53 +502,71 @@
                     🟢 Connected
                 </div>
                 
-                <!-- Real-time Transcription Display - YouTube Music Lyrics Style -->
+                <!-- Real-time Chat Display -->
                 <div id="transcriptionContainer" style="
-                    background: linear-gradient(145deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
-                    border: 1px solid rgba(99, 102, 241, 0.2);
-                    border-radius: 16px;
-                    padding: 28px;
-                    max-width: 750px;
-                    width: 90%;
-                    height: 420px;
+                    background: linear-gradient(160deg, #0F172A 0%, #1E293B 100%);
+                    border: 1px solid rgba(99, 102, 241, 0.15);
+                    border-radius: 20px;
+                    padding: 0;
+                    max-width: 680px;
+                    width: 92%;
+                    height: 440px;
                     margin: 0 auto;
                     display: flex;
                     flex-direction: column;
-                    box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+                    box-shadow: 0 20px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+                    position: relative;
+                    overflow: hidden;
                 ">
-                    <h3 style="
-                        margin: 0 0 24px 0;
-                        font-size: 20px;
-                        opacity: 0.95;
-                        text-align: center;
-                        font-weight: 600;
-                        color: #e2e8f0;
-                        letter-spacing: 0.5px;
-                    ">💬 Live Conversation</h3>
+                    <!-- Chat Header -->
+                    <div style="
+                        padding: 14px 20px;
+                        background: rgba(99, 102, 241, 0.08);
+                        border-bottom: 1px solid rgba(255,255,255,0.06);
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        flex-shrink: 0;
+                    ">
+                        <div style="width: 8px; height: 8px; background: #10B981; border-radius: 50%; box-shadow: 0 0 6px rgba(16,185,129,0.5);"></div>
+                        <span style="font-size: 14px; font-weight: 600; color: #E2E8F0; letter-spacing: 0.3px;">Live Conversation</span>
+                        <span id="messageCount" style="margin-left: auto; font-size: 12px; color: #64748B; font-weight: 500;">0 messages</span>
+                    </div>
+
+                    <!-- Messages Area -->
                     <div id="transcriptionMessages" style="
                         flex: 1;
                         overflow-y: auto;
                         overflow-x: hidden;
                         display: flex;
                         flex-direction: column;
-                        gap: 4px;
-                        padding: 0 8px 0 0;
+                        gap: 8px;
+                        padding: 16px 16px 8px;
                         scroll-behavior: smooth;
                         -webkit-overflow-scrolling: touch;
                     ">
-                        <div style="
-                            opacity: 0.5;
-                            text-align: center;
-                            font-size: 15px;
-                            padding: 40px 20px;
-                            color: #94a3b8;
-                            font-style: italic;
-                        ">Transcription will appear here as you speak...</div>
+                        <div id="chatPlaceholder" style="
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100%;
+                            gap: 12px;
+                            opacity: 0.4;
+                        ">
+                            <div style="font-size: 40px;">🎙️</div>
+                            <div style="font-size: 14px; color: #94A3B8; text-align: center; line-height: 1.6;">
+                                Start speaking and your conversation<br>will appear here in real time
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Scroll to bottom button -->
+                    <button class="scroll-to-bottom" id="scrollToBottomBtn" onclick="scrollToBottom()">↓</button>
                 </div>
                 
-                <div style="opacity: 0.7; margin-top: 25px; font-size: 14px;">
-                    🎤 Speak naturally into your microphone
+                <div style="opacity: 0.6; margin-top: 20px; font-size: 13px; color: #94A3B8;">
+                    🎤 Speak naturally — your words will appear above in real time
                 </div>
             </div>
             
@@ -1736,13 +1867,24 @@
         // Display transcription in UI
         let userIsManuallyScrolling = false;
         let scrollTimeout = null;
+        let messageCounter = 0;
+        
+        function scrollToBottom() {
+            const container = document.getElementById('transcriptionMessages');
+            if (container) {
+                container.scrollTop = container.scrollHeight;
+                userIsManuallyScrolling = false;
+                const btn = document.getElementById('scrollToBottomBtn');
+                if (btn) btn.style.display = 'none';
+            }
+        }
         
         function displayTranscription(speaker, text, speakerName) {
             const messagesContainer = document.getElementById('transcriptionMessages');
             if (!messagesContainer) return;
             
             // Remove placeholder if exists
-            const placeholder = messagesContainer.querySelector('[style*="opacity: 0.5"]');
+            const placeholder = document.getElementById('chatPlaceholder');
             if (placeholder) {
                 placeholder.remove();
             }
@@ -1751,82 +1893,63 @@
             const isCurrentUser = (speaker === 'caller' && isCaller) || (speaker === 'receiver' && !isCaller);
             const displayName = isCurrentUser ? 'You' : (partnerUser?.name || 'Partner');
             
-            // YouTube Music Lyrics Style - Clean and Simple
-            const messageDiv = document.createElement('div');
-            messageDiv.style.cssText = `
-                padding: 12px 20px;
-                margin-bottom: 8px;
-                border-left: 3px solid ${isCurrentUser ? '#6366f1' : '#8b5cf6'};
-                background: ${isCurrentUser ? 'rgba(99, 102, 241, 0.15)' : 'rgba(139, 92, 246, 0.15)'};
-                border-radius: 6px;
-                transition: all 0.3s ease;
-            `;
+            // Get current time
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
-            // On hover, make it more prominent
-            messageDiv.onmouseenter = function() {
-                this.style.background = isCurrentUser ? 'rgba(99, 102, 241, 0.25)' : 'rgba(139, 92, 246, 0.25)';
-                this.style.transform = 'translateX(5px)';
-            };
-            messageDiv.onmouseleave = function() {
-                this.style.background = isCurrentUser ? 'rgba(99, 102, 241, 0.15)' : 'rgba(139, 92, 246, 0.15)';
-                this.style.transform = 'translateX(0)';
-            };
+            // Create chat bubble
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-bubble ${isCurrentUser ? 'self' : 'partner'}`;
             
             messageDiv.innerHTML = `
-                <div style="
-                    font-weight: 700;
-                    font-size: 13px;
-                    color: ${isCurrentUser ? '#818cf8' : '#a78bfa'};
-                    margin-bottom: 6px;
-                    letter-spacing: 0.5px;
-                    text-transform: uppercase;
-                ">${displayName}</div>
-                <div style="
-                    font-size: 16px;
-                    line-height: 1.6;
-                    color: #ffffff;
-                    font-weight: 400;
-                ">${text}</div>
+                <div class="chat-meta">${displayName}</div>
+                <div class="chat-text">${text}</div>
+                <div class="chat-time">${timeStr}</div>
             `;
             
             messagesContainer.appendChild(messageDiv);
             
+            // Update message count
+            messageCounter++;
+            const countEl = document.getElementById('messageCount');
+            if (countEl) countEl.textContent = `${messageCounter} message${messageCounter !== 1 ? 's' : ''}`;
+            
             // Auto-scroll to bottom ONLY if user is not manually scrolling
             if (!userIsManuallyScrolling) {
-                const container = document.getElementById('transcriptionContainer');
-                if (container) {
-                    container.scrollTop = container.scrollHeight;
-                }
+                requestAnimationFrame(() => {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                });
+            } else {
+                // Show scroll-to-bottom button
+                const btn = document.getElementById('scrollToBottomBtn');
+                if (btn) btn.style.display = 'flex';
             }
         }
         
         // Detect manual scrolling
         (function setupScrollDetection() {
             setTimeout(() => {
-                const container = document.getElementById('transcriptionContainer');
+                const container = document.getElementById('transcriptionMessages');
                 if (container) {
                     container.addEventListener('scroll', function() {
-                        // Check if user scrolled up (not at bottom)
-                        const isAtBottom = this.scrollHeight - this.scrollTop <= this.clientHeight + 50;
+                        const isAtBottom = this.scrollHeight - this.scrollTop <= this.clientHeight + 60;
                         userIsManuallyScrolling = !isAtBottom;
                         
-                        // If user scrolls to bottom, resume auto-scroll
-                        if (isAtBottom) {
-                            userIsManuallyScrolling = false;
-                        }
+                        // Toggle scroll-to-bottom button
+                        const btn = document.getElementById('scrollToBottomBtn');
+                        if (btn) btn.style.display = isAtBottom ? 'none' : 'flex';
                         
-                        // Clear previous timeout
+                        // After 5 seconds of no scrolling, resume auto-scroll
                         if (scrollTimeout) clearTimeout(scrollTimeout);
-                        
-                        // After 3 seconds of no scrolling, resume auto-scroll
                         scrollTimeout = setTimeout(() => {
                             userIsManuallyScrolling = false;
-                        }, 3000);
+                            if (btn) btn.style.display = 'none';
+                        }, 5000);
                     });
                     
                     console.log('✅ Scroll detection enabled');
                 }
-            }, 2000);
+            }, 1000);
         })();
         
         // Handle incoming transcription from WebSocket

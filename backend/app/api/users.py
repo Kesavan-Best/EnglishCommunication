@@ -708,6 +708,138 @@ async def get_friends(
     
     return result
 
+@router.post("/unfriend/{user_id}")
+async def unfriend_user(
+    user_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Remove a friend (unfriend)"""
+    db = Database.get_db()
+    
+    if str(current_user.id) == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot unfriend yourself"
+        )
+    
+    target_user = db.users.find_one({"_id": ObjectId(user_id)})
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Remove from both users' friend lists
+    db.users.update_one(
+        {"_id": current_user.id},
+        {"$pull": {"friends": ObjectId(user_id)}}
+    )
+    db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$pull": {"friends": current_user.id}}
+    )
+    
+    # Remove any friend request records between them
+    db.friend_requests.delete_many({
+        "$or": [
+            {"from_user_id": current_user.id, "to_user_id": ObjectId(user_id)},
+            {"from_user_id": ObjectId(user_id), "to_user_id": current_user.id}
+        ]
+    })
+    
+    # Notify via WebSocket
+    try:
+        from backend.app.api.websocket import manager
+        await manager.send_personal_message({
+            "type": "unfriended",
+            "by_user_id": str(current_user.id),
+            "by_user_name": current_user.name,
+            "timestamp": datetime.utcnow().isoformat()
+        }, user_id)
+    except Exception:
+        pass
+    
+    return {"message": "Successfully unfriended"}
+
+@router.get("/friend-status/{user_id}")
+async def get_friend_status(
+    user_id: str,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get the friendship status between current user and target user.
+    Returns: 'friends', 'pending_sent', 'pending_received', or 'none'
+    """
+    db = Database.get_db()
+    
+    # Check if they are already friends
+    current = db.users.find_one({"_id": current_user.id})
+    current_friends = current.get("friends", [])
+    
+    # Convert to string list for comparison  
+    friend_id_strs = [str(fid) for fid in current_friends]
+    
+    if user_id in friend_id_strs:
+        return {"status": "friends"}
+    
+    # Check if there's a pending request FROM current user TO target
+    pending_sent = db.friend_requests.find_one({
+        "from_user_id": current_user.id,
+        "to_user_id": ObjectId(user_id),
+        "status": "pending"
+    })
+    if pending_sent:
+        return {"status": "pending_sent", "request_id": str(pending_sent["_id"])}
+    
+    # Check if there's a pending request FROM target TO current user
+    pending_received = db.friend_requests.find_one({
+        "from_user_id": ObjectId(user_id),
+        "to_user_id": current_user.id,
+        "status": "pending"
+    })
+    if pending_received:
+        return {"status": "pending_received", "request_id": str(pending_received["_id"])}
+    
+    return {"status": "none"}
+
+@router.get("/friend-statuses")
+async def get_all_friend_statuses(
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Get friendship status for all users in one call (batch).
+    Returns a dict mapping user_id -> status
+    """
+    db = Database.get_db()
+    
+    # Get current user's friends
+    current = db.users.find_one({"_id": current_user.id})
+    current_friends = [str(fid) for fid in current.get("friends", [])]
+    
+    # Get all pending requests sent by current user
+    sent_requests = list(db.friend_requests.find({
+        "from_user_id": current_user.id,
+        "status": "pending"
+    }))
+    sent_map = {str(r["to_user_id"]): str(r["_id"]) for r in sent_requests}
+    
+    # Get all pending requests received by current user
+    received_requests = list(db.friend_requests.find({
+        "to_user_id": current_user.id,
+        "status": "pending"
+    }))
+    received_map = {str(r["from_user_id"]): str(r["_id"]) for r in received_requests}
+    
+    statuses = {}
+    for fid in current_friends:
+        statuses[fid] = {"status": "friends"}
+    for uid, rid in sent_map.items():
+        if uid not in statuses:
+            statuses[uid] = {"status": "pending_sent", "request_id": rid}
+    for uid, rid in received_map.items():
+        if uid not in statuses:
+            statuses[uid] = {"status": "pending_received", "request_id": rid}
+    
+    return {"statuses": statuses}
+
 @router.get("/find-random-partner")
 async def find_random_partner(
     current_user: UserInDB = Depends(AuthHandler.get_current_user)

@@ -488,16 +488,15 @@ function setupWebSocket(userId) {
 
 // Handle WebSocket messages
 function handleWebSocketMessage(data) {
-    console.log('WebSocket message:', data);
+    console.log('WebSocket message:', data.type);
     
     switch (data.type) {
         case 'user_online':
         case 'user_offline':
         case 'user_status_changed':
-            // Refresh online friends immediately when someone's status changes
-            console.log(`🔄 User ${data.user_id} is now ${data.is_online ? 'ONLINE' : 'OFFLINE'}`);
+            // Only update online friends list (lightweight DOM update, no full re-render)
+            console.log(`🔄 User ${data.user_id} is now ${data.is_online || data.type === 'user_online' ? 'ONLINE' : 'OFFLINE'}`);
             loadOnlineFriends();
-            loadDashboardData();
             break;
         case 'friend_request':
             showToast('New friend request received!', 'success');
@@ -512,16 +511,18 @@ function handleWebSocketMessage(data) {
             handleCallInvitation(data);
             break;
         case 'call_rejected':
-            // Handle call rejection notification
             handleCallRejected(data);
             break;
         case 'call_accepted':
-            // Handle call accepted notification
             handleCallAccepted(data);
             break;
+        case 'pong':
+        case 'welcome':
+            // Ignore keep-alive
+            break;
         default:
-            // Refresh dashboard data for other updates
-            loadDashboardData();
+            // Don't reload everything for unknown messages
+            console.log('Unknown WS message:', data.type);
     }
 }
 

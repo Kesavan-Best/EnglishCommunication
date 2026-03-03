@@ -439,6 +439,13 @@ async def end_call(
     
     print(f"✅ AI feedback generated for call {call_id} (duration: {duration}s, valid: {is_valid_call})")
     
+    # Update user AI scores based on real call analysis
+    # Only update scores for valid calls with transcripts
+    if caller_feedback.get("ai_rating") is not None:
+        _update_user_ai_score(db, call.caller_id, caller_feedback["ai_rating"], caller_feedback.get("weaknesses", []))
+    if receiver_feedback.get("ai_rating") is not None:
+        _update_user_ai_score(db, call.receiver_id, receiver_feedback["ai_rating"], receiver_feedback.get("weaknesses", []))
+    
     if not is_valid_call:
         # Log why call was not counted
         reasons = []
@@ -1037,6 +1044,59 @@ async def save_transcription(
         "message": "Transcription saved",
         "transcript_length": len(updated_transcript)
     }
+
+def _update_user_ai_score(db, user_id, new_rating: float, weaknesses: list):
+    """Update user's AI score as a running average and track weaknesses"""
+    try:
+        user = db.users.find_one({"_id": user_id})
+        if not user:
+            return
+        
+        old_score = user.get("ai_score", 0.0)
+        total_calls = user.get("total_calls", 0)
+        
+        # Calculate new score as weighted average (recent calls weighted more)
+        if old_score > 0 and total_calls > 0:
+            # Weighted average: 60% old score, 40% new rating
+            new_score = (old_score * 0.6) + (new_rating * 0.4)
+        else:
+            new_score = new_rating
+        
+        # Round to 1 decimal
+        new_score = round(new_score, 1)
+        
+        # Collect weakness categories
+        weakness_categories = list(set(w.get("category", "") for w in weaknesses if w.get("category")))
+        
+        # Calculate fluency score based on rating
+        fluency_score = min(100, new_rating * 10)
+        
+        # Update user
+        update_data = {
+            "ai_score": new_score,
+            "updated_at": datetime.utcnow()
+        }
+        
+        if weakness_categories:
+            update_data["weaknesses"] = weakness_categories
+        
+        # Update avg_fluency_score as running average
+        old_fluency = user.get("avg_fluency_score", 0.0)
+        if old_fluency > 0 and total_calls > 0:
+            update_data["avg_fluency_score"] = round((old_fluency * 0.6) + (fluency_score * 0.4), 1)
+        else:
+            update_data["avg_fluency_score"] = round(fluency_score, 1)
+        
+        db.users.update_one(
+            {"_id": user_id},
+            {"$set": update_data}
+        )
+        
+        print(f"📊 Updated AI score for user {user_id}: {old_score} → {new_score}")
+        
+    except Exception as e:
+        print(f"❌ Error updating AI score: {e}")
+
 
 # In your invite_to_call function, add after creating the call:
 async def send_call_notification(call_id: str, receiver_id: str, caller_id: str, jitsi_room_id: str):

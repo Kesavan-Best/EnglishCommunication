@@ -513,7 +513,24 @@ function handleRandomMatchFound(data) {
     }, 1500);
 }
 
-function displayUsers(users, containerId) {
+// Cache for friend statuses
+let friendStatusCache = {};
+
+async function fetchFriendStatuses() {
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/users/friend-statuses`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            friendStatusCache = await response.json();
+        }
+    } catch (e) {
+        console.debug('Failed to fetch friend statuses:', e.message);
+    }
+}
+
+async function displayUsers(users, containerId) {
     const container = document.getElementById(containerId);
     
     if (!container) return;
@@ -529,6 +546,11 @@ function displayUsers(users, containerId) {
         return;
     }
     
+    // Fetch friend statuses in batch for all users grid
+    if (containerId === 'all-users-grid') {
+        await fetchFriendStatuses();
+    }
+    
     container.innerHTML = users.map(user => createUserCard(user, containerId === 'friends-grid')).join('');
     
     // Add event listeners
@@ -539,8 +561,11 @@ function createUserCard(user, isFriend) {
     const onlineClass = user.is_online ? 'online-status' : 'offline-status';
     const onlineText = user.is_online ? 'Online' : 'Offline';
     
-    // Check if user is already a friend
-    const isAlreadyFriend = isFriend || friends.some(f => f.id === user.id);
+    // Check friend status from cache or friends array
+    const cachedStatus = friendStatusCache[user.id];
+    const isAlreadyFriend = isFriend || cachedStatus === 'friends' || friends.some(f => f.id === user.id);
+    const isPendingSent = cachedStatus === 'pending_sent';
+    const isPendingReceived = cachedStatus === 'pending_received';
     
     const callBtn = user.is_online ? 
         `<button class="btn-action btn-call" onclick="initiateCall('${user.id}')" title="Start Call">
@@ -550,13 +575,27 @@ function createUserCard(user, isFriend) {
             📞 Offline
         </button>`;
     
-    const friendBtn = isAlreadyFriend ? 
-        `<button class="btn-action btn-disabled" disabled title="Already Friends">
-            ✅ Friends
-        </button>` :
-        `<button class="btn-action btn-add-friend" onclick="sendFriendRequest('${user.id}')" title="Send Friend Request">
+    let friendBtn;
+    if (isAlreadyFriend) {
+        friendBtn = `<button class="btn-action btn-unfriend" onclick="unfriendUser('${user.id}', '${user.name.replace(/'/g, "\\'")}')"
+            title="Unfriend" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none;">
+            💔 Unfriend
+        </button>`;
+    } else if (isPendingSent) {
+        friendBtn = `<button class="btn-action btn-pending" disabled title="Request Pending"
+            style="background: #fef3c7; color: #92400e; border: 1px solid #fbbf24;">
+            ⏳ Pending
+        </button>`;
+    } else if (isPendingReceived) {
+        friendBtn = `<button class="btn-action btn-accept-friend" onclick="acceptFriendByUserId('${user.id}')" title="Accept Request"
+            style="background: linear-gradient(135deg, #38ef7d 0%, #11998e 100%); color: white; border: none;">
+            ✅ Accept
+        </button>`;
+    } else {
+        friendBtn = `<button class="btn-action btn-add-friend" onclick="sendFriendRequest('${user.id}')" title="Send Friend Request">
             ➕ Add Friend
         </button>`;
+    }
     
     // Get user initials for avatar
     const getInitials = (name) => {
@@ -1036,18 +1075,16 @@ function handleWebSocketMessage(data) {
     } else if (data.type === 'user_online') {
         console.log(`✅ User ${data.user_id} is now ONLINE`);
         updateUserStatus(data.user_id, true);
-        // Reload user lists to reflect online status
-        loadAllUsers();
-        loadFriends();
     } else if (data.type === 'user_offline') {
         console.log(`⚫ User ${data.user_id} is now OFFLINE`);
         updateUserStatus(data.user_id, false);
-        // Reload user lists to reflect offline status
-        loadAllUsers();
-        loadFriends();
     } else if (data.type === 'user_status_changed') {
         console.log(`🔄 User ${data.user_id} status changed: ${data.is_online ? 'ONLINE' : 'OFFLINE'}`);
         updateUserStatus(data.user_id, data.is_online);
+    } else if (data.type === 'unfriended') {
+        showMessage(`${data.by_name || 'A user'} removed you from friends`, 'info');
+        loadFriends();
+        loadAllUsers();
     } else if (data.type === 'friend_request') {
         showMessage(`🔔 New friend request from ${data.sender_name}`, 'info');
         loadPendingRequests();
@@ -1157,6 +1194,81 @@ function updateUserStatus(userId, isOnline) {
 
 function attachUserCardListeners() {
     // Event listeners are already attached via onclick attributes
+}
+
+// Unfriend a user
+async function unfriendUser(userId, userName) {
+    if (!confirm(`Remove ${userName} from your friends?`)) return;
+    
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE_URL}/api/users/unfriend/${userId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            showMessage(`Removed ${userName} from friends`, 'info');
+            // Remove from local friends array
+            friends = friends.filter(f => f.id !== userId);
+            // Update cache
+            friendStatusCache[userId] = 'none';
+            // Update the card in place
+            const card = document.querySelector(`[data-user-id="${userId}"]`);
+            if (card) {
+                const btn = card.querySelector('.btn-unfriend');
+                if (btn) {
+                    btn.outerHTML = `<button class="btn-action btn-add-friend" onclick="sendFriendRequest('${userId}')" title="Send Friend Request">
+                        ➕ Add Friend
+                    </button>`;
+                }
+            }
+            // Refresh friends tab
+            loadFriends();
+        } else {
+            const error = await response.json();
+            showMessage(`Failed: ${error.detail || 'Unknown error'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error unfriending:', error);
+        showMessage('Network error', 'error');
+    }
+}
+
+// Accept friend request by user ID (from user card)
+async function acceptFriendByUserId(userId) {
+    try {
+        const token = localStorage.getItem('token');
+        // First get pending requests to find the request ID
+        const response = await fetch(API_ENDPOINTS.friendRequests, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+            const requests = await response.json();
+            const req = requests.find(r => r.from_user.id === userId || r.from_user_id === userId);
+            if (req) {
+                await acceptFriendRequest(req.request_id);
+                // Update cache
+                friendStatusCache[userId] = 'friends';
+                // Update the card
+                const card = document.querySelector(`[data-user-id="${userId}"]`);
+                if (card) {
+                    const btn = card.querySelector('.btn-accept-friend');
+                    if (btn) {
+                        btn.outerHTML = `<button class="btn-action btn-unfriend" onclick="unfriendUser('${userId}', '')" title="Unfriend"
+                            style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border: none;">
+                            💔 Unfriend
+                        </button>`;
+                    }
+                }
+            } else {
+                showMessage('Friend request not found', 'error');
+            }
+        }
+    } catch (error) {
+        console.error('Error accepting friend:', error);
+        showMessage('Network error', 'error');
+    }
 }
 
 function showMessage(text, type = 'info') {

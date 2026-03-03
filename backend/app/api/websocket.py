@@ -303,28 +303,22 @@ class ConnectionManager:
         return {"status": "rejected"}
 
     async def handle_webrtc_signal(self, from_user: str, signal_data: dict):
-        """Handle WebRTC signaling messages"""
+        """Handle WebRTC signaling messages - forward directly to target user"""
         try:
             signal_type = signal_data.get("type")
             to_user = signal_data.get("to_user_id")
             call_id = signal_data.get("call_id")
             
-            logger.debug(f"🔧 WebRTC {signal_type} from {from_user} to {to_user}")
+            logger.info(f"🔧 WebRTC {signal_type} from {from_user} to {to_user}")
             
-            # Validate both users are in the same call
-            if call_id not in self.active_calls:
-                return {"error": "Call not found"}
+            if not to_user:
+                return {"error": "No target user specified"}
             
-            if from_user not in self.active_calls[call_id]["participants"]:
-                return {"error": "User not in call"}
-            
-            if to_user not in self.active_calls[call_id]["participants"]:
-                return {"error": "Target not in call"}
-            
-            # Forward the signal
+            # Forward the signal directly - don't require active_calls validation
+            # This ensures signals always get through for call establishment
             success = await self.send_personal_message({
                 "type": "webrtc_signal",
-                "signal": signal_data,
+                "signal": {**signal_data, "from": from_user},
                 "from_user": from_user,
                 "timestamp": datetime.now().isoformat()
             }, to_user)
@@ -623,22 +617,21 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     logger.info(f"✅ Notified {from_user_id} that call was rejected by {user_id}")
                 
             elif message_type == "webrtc_signal":
-                # Handle WebRTC signaling
+                # Handle WebRTC signaling - forward directly without strict validation
                 signal_data = data.get("signal", {})
                 call_id = data.get("call_id") or signal_data.get("call_id")
                 
-                # Ensure call is in active_calls for transcription broadcasting
+                # Register call in active_calls for transcription broadcasting  
                 if call_id and call_id not in manager.active_calls:
-                    # Get call info to determine participants
-                    from backend.app.database import Database
-                    from bson import ObjectId
-                    db = Database.get_db()
                     try:
+                        from backend.app.database import Database
+                        from bson import ObjectId
+                        db = Database.get_db()
                         call_data = db.calls.find_one({"_id": ObjectId(call_id)})
                         if call_data:
                             manager.active_calls[call_id] = {
                                 "participants": [str(call_data["caller_id"]), str(call_data["receiver_id"])],
-                                "room_id": call_data["jitsi_room_id"],
+                                "room_id": call_data.get("jitsi_room_id", ""),
                                 "started_at": datetime.now().isoformat(),
                                 "status": "active"
                             }
@@ -646,12 +639,11 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     except Exception as e:
                         logger.warning(f"⚠️ Could not add call to active_calls: {e}")
                 
+                # Forward signal directly
                 result = await manager.handle_webrtc_signal(user_id, signal_data)
-                await manager.send_personal_message({
-                    "type": "signal_result",
-                    "data": result,
-                    "timestamp": datetime.now().isoformat()
-                }, user_id)
+                if result.get("error"):
+                    logger.warning(f"⚠️ Signal forwarding: {result}")
+                
             
             elif message_type == "transcription":
                 # Handle incoming transcription to broadcast to partner

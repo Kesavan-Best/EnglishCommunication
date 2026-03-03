@@ -26,6 +26,7 @@ else:
 from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp, nlp_analysis
 from backend.app.database import init_db
 from backend.app.core.config import settings
+from datetime import datetime
 import asyncio
 import logging
 
@@ -107,11 +108,22 @@ async def websocket_route(websocket: WebSocket, user_id: str):
             message_type = data.get("type")
             
             if message_type == "ping":
+                # Update last_seen in database for online status
+                try:
+                    from backend.app.database import Database
+                    from bson import ObjectId
+                    db = Database.get_db()
+                    db.users.update_one(
+                        {"_id": ObjectId(user_id)},
+                        {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
+                    )
+                except Exception:
+                    pass
                 await manager.send_personal_message({
                     "type": "pong",
                     "timestamp": "now"
                 }, user_id)
-            elif message_type == "webrtc-signal":
+            elif message_type == "webrtc-signal" or message_type == "webrtc_signal":
                 signal_data = data.get("signal", {})
                 await manager.handle_webrtc_signal(user_id, signal_data)
                 

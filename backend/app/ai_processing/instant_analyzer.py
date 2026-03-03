@@ -1,10 +1,12 @@
 """
 Instant AI Analysis Generator
 Provides feedback based on ACTUAL conversation transcript - NO FAKE DATA
+Uses LanguageTool-style grammar checking, WordNet-style vocabulary analysis, and filler detection
 """
 import re
 from typing import Dict, List
 from datetime import datetime
+from collections import Counter
 
 class InstantAnalyzer:
     """Generate AI feedback based on actual transcript analysis only"""
@@ -306,17 +308,52 @@ Connect ideas smoothly:
         }
     }
     
-    # Common filler words to detect
-    FILLER_WORDS = ['um', 'uh', 'uhm', 'like', 'you know', 'i mean', 'so like', 'basically', 'actually', 'literally']
+    # Common filler words to detect (comprehensive list)
+    FILLER_WORDS = [
+        'um', 'uh', 'uhm', 'umm', 'uhh', 'hmm',
+        'like', 'you know', 'i mean', 'so like', 'basically', 'actually', 'literally',
+        'kind of', 'sort of', 'right', 'okay so', 'well like', 'i guess',
+        'you see', 'to be honest', 'at the end of the day', 'in a way'
+    ]
     
-    # Grammar patterns to check
+    # Grammar patterns to check (LanguageTool-style)
     GRAMMAR_ISSUES = {
-        r'\bi am\b.+\bsince\b': 'Consider using present perfect with "since" (e.g., "I have been" instead of "I am")',
+        r'\bi am\b.+\bsince\b': 'Use present perfect with "since" (e.g., "I have been" instead of "I am")',
         r'\bhave went\b': 'Use "have gone" instead of "have went"',
-        r'\bmore better\b': 'Use either "more" or "better", not both',
-        r'\bdon\'t has\b|\bdoesn\'t has\b': 'Use "have" after "don\'t", "has" after "doesn\'t"',
-        r'\bI goed\b': 'Use "I went" instead of "I goed"',
-        r'\bmore bigger\b|\bmore smaller\b': 'Remove "more" before comparative adjectives ending in -er',
+        r'\bmore better\b': 'Use either "more" or "better", not both (double comparative)',
+        r'\bdon\'t has\b|\bdoesn\'t has\b': 'Use "have" after "don\'t"; "has" only with "doesn\'t"',
+        r'\bI goed\b': 'Use "I went" instead of "I goed" (irregular past tense)',
+        r'\bmore bigger\b|\bmore smaller\b|\bmore faster\b|\bmore slower\b': 'Remove "more" before comparative adjectives ending in -er',
+        r'\bhe don\'t\b|\bshe don\'t\b|\bit don\'t\b': 'Use "doesn\'t" with he/she/it (third person singular)',
+        r'\bthey was\b|\bwe was\b': 'Use "were" with they/we (subject-verb agreement)',
+        r'\bi has\b': 'Use "I have" instead of "I has"',
+        r'\bcould of\b|\bshould of\b|\bwould of\b': 'Use "could have" / "should have" / "would have" (not "of")',
+        r'\bmuch\s+\w+s\b': 'Use "many" instead of "much" with countable nouns',
+        r'\bless\s+\w+s\b': 'Use "fewer" instead of "less" with countable nouns',
+        r'\bme and\b.+\b(went|go|are|is|was|were)\b': 'Put yourself last: "X and I" (not "me and X") as subject',
+        r'\bdid\s+\w+ed\b': 'Don\'t use past tense after "did" (e.g., "did go" not "did went")',
+        r'\btheir\s+is\b|\btheir\s+was\b': 'Did you mean "there is" / "there was"?',
+        r'\byour\s+welcome\b': 'Use "you\'re welcome" (you are welcome)',
+        r'\bits\s+a\s+\w+\s+then\b': 'Did you mean "than" (comparison) instead of "then"?',
+        r'\bi\s+seen\b': 'Use "I saw" (simple past) or "I have seen" (present perfect)',
+        r'\bwent\s+to\s+went\b': 'Repeated word: "went to went"',
+    }
+    
+    # Word synonyms for vocabulary richness (WordNet-style)
+    COMMON_WORDS_WITH_ALTERNATIVES = {
+        'good': ['excellent', 'outstanding', 'remarkable', 'superb', 'wonderful'],
+        'bad': ['poor', 'terrible', 'awful', 'dreadful', 'unsatisfactory'],
+        'big': ['large', 'enormous', 'substantial', 'immense', 'massive'],
+        'small': ['tiny', 'compact', 'miniature', 'modest', 'petite'],
+        'happy': ['delighted', 'thrilled', 'content', 'pleased', 'joyful'],
+        'sad': ['unhappy', 'melancholy', 'disheartened', 'gloomy', 'sorrowful'],
+        'nice': ['pleasant', 'delightful', 'agreeable', 'lovely', 'charming'],
+        'said': ['stated', 'mentioned', 'expressed', 'remarked', 'commented'],
+        'think': ['believe', 'consider', 'suppose', 'reckon', 'assume'],
+        'very': ['extremely', 'incredibly', 'remarkably', 'exceptionally', 'significantly'],
+        'thing': ['item', 'object', 'element', 'aspect', 'matter'],
+        'get': ['obtain', 'acquire', 'receive', 'gain', 'retrieve'],
+        'make': ['create', 'produce', 'construct', 'generate', 'develop'],
     }
     
     def analyze_transcript(self, transcript: str) -> Dict:
@@ -364,16 +401,45 @@ Connect ideas smoothly:
         sentence_count = len(sentences)
         avg_sentence_length = word_count / sentence_count if sentence_count > 0 else 0
         
+        # Vocabulary richness: check for overuse of common words
+        word_freq = Counter(w.lower().strip('.,!?;:') for w in words if len(w) > 2)
+        overused_words = []
+        vocabulary_suggestions = []
+        for word, count in word_freq.most_common(10):
+            if count >= 3 and word in self.COMMON_WORDS_WITH_ALTERNATIVES:
+                overused_words.append({"word": word, "count": count})
+                alts = self.COMMON_WORDS_WITH_ALTERNATIVES[word][:3]
+                vocabulary_suggestions.append({
+                    "overused": word,
+                    "count": count,
+                    "alternatives": alts,
+                    "suggestion": f"Instead of '{word}' (used {count} times), try: {', '.join(alts)}"
+                })
+        
+        # Sentence complexity: check for variety
+        short_sentences = sum(1 for s in sentences if len(s.split()) <= 5)
+        long_sentences = sum(1 for s in sentences if len(s.split()) >= 15)
+        
         # Determine strengths based on actual analysis
         strengths = []
-        if word_count >= 50:
-            strengths.append("Good speaking participation - you contributed substantially to the conversation")
-        if vocabulary_ratio >= 0.5:
-            strengths.append("Good vocabulary variety - you used diverse words")
-        if filler_count < 3:
+        if word_count >= 100:
+            strengths.append("Excellent speaking participation - you contributed substantially to the conversation")
+        elif word_count >= 50:
+            strengths.append("Good speaking participation - you were actively engaged")
+        if vocabulary_ratio >= 0.6:
+            strengths.append("Rich vocabulary variety - you used diverse and expressive words")
+        elif vocabulary_ratio >= 0.5:
+            strengths.append("Good vocabulary variety - you used reasonably diverse words")
+        if filler_count == 0:
+            strengths.append("Very fluent speech - no filler words detected!")
+        elif filler_count <= 2:
             strengths.append("Fluent speech - minimal filler words used")
-        if sentence_count >= 3 and 5 <= avg_sentence_length <= 20:
-            strengths.append("Well-structured sentences - good sentence length and variety")
+        if sentence_count >= 5 and 5 <= avg_sentence_length <= 20:
+            strengths.append("Well-structured sentences with good length and variety")
+        if len(grammar_issues_found) == 0 and word_count >= 30:
+            strengths.append("Clean grammar - no common grammatical errors detected")
+        if long_sentences >= 2:
+            strengths.append("Good use of complex sentences - shows advanced speaking ability")
         
         # Determine weaknesses based on actual findings
         weaknesses = []
@@ -406,6 +472,16 @@ Connect ideas smoothly:
                 "tip": "Try learning synonyms for common words you use often."
             })
         
+        # Vocabulary suggestions weakness
+        if vocabulary_suggestions:
+            top_suggestion = vocabulary_suggestions[0]
+            weaknesses.append({
+                "category": "vocabulary",
+                "title": f"Overuse of '{top_suggestion['overused']}'",
+                "description": top_suggestion["suggestion"],
+                "tip": f"Expand your word choice. Instead of '{top_suggestion['overused']}', try using words like {', '.join(top_suggestion['alternatives'])}."
+            })
+        
         # Short responses weakness
         if word_count < 30 and sentence_count < 3:
             weaknesses.append({
@@ -413,6 +489,15 @@ Connect ideas smoothly:
                 "title": "Brief Responses",
                 "description": "Your responses were quite short",
                 "tip": "Try elaborating more on your thoughts - give examples, share opinions, ask follow-up questions."
+            })
+        
+        # Sentence complexity weakness
+        if sentence_count >= 3 and short_sentences / sentence_count > 0.7:
+            weaknesses.append({
+                "category": "grammar",
+                "title": "Sentence Complexity",
+                "description": "Most of your sentences were short and simple",
+                "tip": "Try using linking words (however, therefore, although) to combine ideas into longer, more complex sentences."
             })
         
         return {
@@ -424,69 +509,209 @@ Connect ideas smoothly:
                 "unique_words": len(unique_words),
                 "vocabulary_ratio": round(vocabulary_ratio, 2),
                 "sentence_count": sentence_count,
-                "avg_sentence_length": round(avg_sentence_length, 1)
+                "avg_sentence_length": round(avg_sentence_length, 1),
+                "overused_words": overused_words,
+                "vocabulary_suggestions": vocabulary_suggestions
             },
             "strengths": strengths,
             "weaknesses": weaknesses
         }
     
+    def _analyze_conversation_context(self, user_id: str, conversation: list) -> Dict:
+        """
+        Analyze the user's role within the full conversation context.
+        Extracts individual interaction patterns, turn-taking, responsiveness, etc.
+        """
+        if not conversation:
+            return {
+                "user_messages": 0,
+                "partner_messages": 0,
+                "initiated_topics": 0,
+                "asked_questions": 0,
+                "avg_response_length": 0,
+                "conversation_balance": 0.5,
+                "context_strengths": [],
+                "context_weaknesses": []
+            }
+        
+        user_msgs = []
+        partner_msgs = []
+        user_questions = 0
+        user_word_counts = []
+        
+        for msg in conversation:
+            speaker_id = str(msg.get("speaker_id", msg.get("user_id", "")))
+            text = msg.get("text", msg.get("message", "")).strip()
+            if not text:
+                continue
+            
+            if speaker_id == str(user_id):
+                user_msgs.append(text)
+                user_word_counts.append(len(text.split()))
+                if '?' in text:
+                    user_questions += 1
+            else:
+                partner_msgs.append(text)
+        
+        total_msgs = len(user_msgs) + len(partner_msgs)
+        user_msg_count = len(user_msgs)
+        partner_msg_count = len(partner_msgs)
+        conversation_balance = user_msg_count / total_msgs if total_msgs > 0 else 0
+        avg_response_len = sum(user_word_counts) / len(user_word_counts) if user_word_counts else 0
+        
+        # Check for one-word / very short responses
+        short_responses = sum(1 for wc in user_word_counts if wc <= 3)
+        short_ratio = short_responses / user_msg_count if user_msg_count > 0 else 0
+        
+        # Detect if user initiated topics (spoke first or after long gap)
+        initiated = 0
+        for i, msg in enumerate(conversation):
+            speaker_id = str(msg.get("speaker_id", msg.get("user_id", "")))
+            if speaker_id == str(user_id):
+                if i == 0:
+                    initiated += 1
+                elif i >= 2:
+                    # Check if previous 2 messages were from partner (user broke silence)
+                    prev1 = str(conversation[i-1].get("speaker_id", conversation[i-1].get("user_id", "")))
+                    if prev1 != str(user_id):
+                        initiated += 1
+        
+        context_strengths = []
+        context_weaknesses = []
+        
+        # Conversation balance analysis
+        if 0.35 <= conversation_balance <= 0.65:
+            context_strengths.append("Balanced conversation — you contributed equally with your partner")
+        elif conversation_balance > 0.65:
+            context_weaknesses.append({
+                "category": "confidence",
+                "title": "Dominated the conversation",
+                "description": f"You spoke {user_msg_count} times vs partner's {partner_msg_count} — try giving your partner more space to share",
+                "tip": "Practice active listening: after making a point, ask a follow-up question to invite your partner's perspective."
+            })
+        elif conversation_balance < 0.35 and total_msgs >= 4:
+            context_weaknesses.append({
+                "category": "confidence",
+                "title": "Could contribute more",
+                "description": f"You spoke {user_msg_count} times vs partner's {partner_msg_count} — try sharing more of your thoughts",
+                "tip": "Don't wait for the perfect thing to say. Share opinions, ask questions, and build on what your partner says."
+            })
+        
+        # Question-asking analysis
+        if user_questions >= 2:
+            context_strengths.append(f"Great engagement — you asked {user_questions} questions, showing genuine interest in the conversation")
+        elif user_questions == 0 and user_msg_count >= 3:
+            context_weaknesses.append({
+                "category": "fluency",
+                "title": "No questions asked",
+                "description": "You didn't ask any questions during the conversation",
+                "tip": "Asking questions keeps conversations flowing naturally. Try 'What do you think about...?' or 'Can you tell me more about...?'"
+            })
+        
+        # Response length analysis
+        if avg_response_len >= 12:
+            context_strengths.append(f"Detailed responses — averaging {avg_response_len:.0f} words per message shows strong elaboration skills")
+        elif short_ratio > 0.6 and user_msg_count >= 3:
+            context_weaknesses.append({
+                "category": "confidence",
+                "title": "Responses are too brief",
+                "description": f"{short_responses} of your {user_msg_count} messages were very short (1-3 words)",
+                "tip": "Expand your responses: explain why, give examples, or share related experiences."
+            })
+        
+        # Topic initiation
+        if initiated >= 2:
+            context_strengths.append("Good initiative — you proactively introduced new topics into the conversation")
+        
+        return {
+            "user_messages": user_msg_count,
+            "partner_messages": partner_msg_count,
+            "initiated_topics": initiated,
+            "asked_questions": user_questions,
+            "avg_response_length": round(avg_response_len, 1),
+            "conversation_balance": round(conversation_balance, 2),
+            "context_strengths": context_strengths,
+            "context_weaknesses": context_weaknesses
+        }
+    
     def generate_instant_feedback(self, duration_seconds: int, user_id: str, transcript: str = None, conversation: list = None) -> Dict:
         """
-        Generate AI feedback based ONLY on actual transcript data
-        NO random/fake feedback - only real analysis
+        Generate AI feedback based ONLY on actual transcript data.
+        Uses INDIVIDUAL transcript for language analysis + CONVERSATION for context analysis.
         
         Args:
             duration_seconds: Call duration in seconds
-            user_id: User ID
-            transcript: User's actual transcript text
-            conversation: Full conversation array
+            user_id: User ID (to identify their messages in conversation)
+            transcript: User's individual transcript text
+            conversation: Full conversation array (for context analysis)
             
         Returns:
-            Real AI feedback based on actual speech, or clear message if no data
+            Personalized AI feedback based on actual speech
         """
         
         # Check if we have actual transcript data
         has_transcript = transcript and len(transcript.strip()) > 10
         
         if not has_transcript:
-            # No transcript = no fake feedback, just a clear message
             return {
-                "ai_rating": None,  # No rating without data
+                "ai_rating": None,
                 "overall_message": "No speech data was captured for analysis. To get AI feedback, make sure you're speaking clearly during the call and your microphone is working.",
                 "strengths": [],
                 "weaknesses": [],
                 "recommended_topics": [self._get_topic_data("daily_conversation")],
                 "generated_at": datetime.utcnow().isoformat(),
-                "analysis_version": "instant_v3_real_only",
+                "analysis_version": "instant_v4_individual",
                 "transcript_analyzed": False,
                 "no_data_reason": "No transcript captured during the call"
             }
         
-        # Analyze the actual transcript
+        # 1. Analyze the individual transcript (grammar, fillers, vocabulary)
         analysis = self.analyze_transcript(transcript)
         
-        # Calculate rating based on REAL metrics
+        # 2. Analyze conversation context (turn-taking, balance, questions, responsiveness)
+        conv_context = self._analyze_conversation_context(user_id, conversation)
+        
+        # Merge conversation-level strengths and weaknesses into the analysis
+        all_strengths = analysis["strengths"] + conv_context["context_strengths"]
+        all_weaknesses = analysis["weaknesses"] + conv_context["context_weaknesses"]
+        
+        # Calculate rating based on REAL metrics + conversation context
         rating = self._calculate_real_rating(analysis, duration_seconds)
         
-        # Generate message based on actual analysis
-        overall_message = self._generate_real_message(analysis, rating, duration_seconds)
+        # Adjust rating based on conversation context
+        if conv_context["asked_questions"] >= 2:
+            rating = min(10.0, rating + 0.3)
+        if 0.35 <= conv_context["conversation_balance"] <= 0.65:
+            rating = min(10.0, rating + 0.3)
+        if conv_context["avg_response_length"] >= 12:
+            rating = min(10.0, rating + 0.2)
+        if conv_context["conversation_balance"] < 0.25:
+            rating = max(1.0, rating - 0.5)
+        
+        rating = round(rating, 1)
+        
+        # Generate personalized message
+        overall_message = self._generate_real_message(analysis, rating, duration_seconds, conv_context)
         
         # Get recommended topics based on actual weaknesses found
-        recommended_topics = self._get_relevant_topics(analysis["weaknesses"])
+        recommended_topics = self._get_relevant_topics(all_weaknesses)
         
         return {
             "ai_rating": rating,
             "overall_message": overall_message,
-            "strengths": analysis["strengths"] if analysis["strengths"] else ["Participated in the conversation"],
-            "weaknesses": analysis["weaknesses"],
+            "strengths": all_strengths if all_strengths else ["Participated in the conversation"],
+            "weaknesses": all_weaknesses,
             "recommended_topics": recommended_topics,
             "generated_at": datetime.utcnow().isoformat(),
-            "analysis_version": "instant_v3_real_only",
+            "analysis_version": "instant_v4_individual",
             "transcript_analyzed": True,
             "transcript_stats": {
                 "word_count": analysis["word_count"],
                 "filler_count": analysis["filler_count"],
-                "vocabulary_ratio": analysis["vocabulary_stats"].get("vocabulary_ratio", 0)
+                "vocabulary_ratio": analysis["vocabulary_stats"].get("vocabulary_ratio", 0),
+                "messages_sent": conv_context["user_messages"],
+                "questions_asked": conv_context["asked_questions"],
+                "conversation_balance": conv_context["conversation_balance"]
             }
         }
     
@@ -543,35 +768,72 @@ Connect ideas smoothly:
         # Clamp to valid range
         return round(max(1.0, min(10.0, rating)), 1)
     
-    def _generate_real_message(self, analysis: Dict, rating: float, duration_seconds: int) -> str:
-        """Generate feedback message based on actual analysis"""
+    def _generate_real_message(self, analysis: Dict, rating: float, duration_seconds: int, conv_context: Dict = None) -> str:
+        """Generate personalized feedback message based on actual analysis + conversation context"""
         
         word_count = analysis["word_count"]
         weakness_count = len(analysis["weaknesses"])
         strength_count = len(analysis["strengths"])
+        filler_count = analysis["filler_count"]
+        vocab_stats = analysis["vocabulary_stats"]
         
         if rating >= 8.0:
-            base = "Excellent conversation! Your English communication was strong."
+            base = "Excellent conversation! Your English communication was strong and confident."
         elif rating >= 6.5:
-            base = "Good job! You communicated effectively."
+            base = "Good job! You communicated effectively with clear speech."
         elif rating >= 5.0:
-            base = "Nice effort! You're making progress."
+            base = "Nice effort! You're making steady progress in your English skills."
+        elif rating >= 3.5:
+            base = "Keep practicing! Regular conversations will help you build confidence."
         else:
-            base = "Keep practicing! Regular conversations will help you improve."
+            base = "Don't give up! Every conversation is a step toward improvement."
         
         # Add specific observations
         details = []
         
-        if word_count >= 50:
+        if word_count >= 100:
+            details.append(f"You spoke {word_count} words — great engagement!")
+        elif word_count >= 50:
             details.append(f"You contributed {word_count} words to the conversation.")
         elif word_count > 0:
-            details.append(f"Try to speak more - you only said about {word_count} words.")
+            details.append(f"Try to speak more — you only said about {word_count} words.")
         
-        if weakness_count > 0:
-            details.append(f"We found {weakness_count} area(s) to work on.")
+        if filler_count > 5:
+            details.append(f"Watch your filler words ({filler_count} detected) — try pausing instead.")
+        elif filler_count > 0:
+            details.append(f"Only {filler_count} filler word(s) — that's good control!")
         
-        if strength_count > 0:
-            details.append(f"You showed {strength_count} strength(s) in your speech.")
+        if vocab_stats.get("vocabulary_suggestions"):
+            details.append("We found some vocabulary you can diversify — see suggestions below.")
+        
+        # Add conversation-context specific feedback
+        if conv_context:
+            user_msgs = conv_context.get("user_messages", 0)
+            partner_msgs = conv_context.get("partner_messages", 0)
+            questions = conv_context.get("asked_questions", 0)
+            balance = conv_context.get("conversation_balance", 0.5)
+            
+            if user_msgs > 0 and partner_msgs > 0:
+                if 0.35 <= balance <= 0.65:
+                    details.append(f"Your conversation was well-balanced ({user_msgs} messages from you, {partner_msgs} from your partner).")
+                elif balance > 0.65:
+                    details.append(f"You spoke significantly more ({user_msgs} vs {partner_msgs} messages) — try to listen and let your partner share more.")
+                elif balance < 0.35:
+                    details.append(f"Your partner spoke more ({partner_msgs} vs your {user_msgs} messages) — don't hesitate to share your thoughts!")
+            
+            if questions >= 2:
+                details.append(f"Great conversational skill — you asked {questions} questions to keep the dialogue going!")
+            elif questions == 0 and user_msgs >= 3:
+                details.append("Try asking more questions next time — it shows interest and keeps conversations engaging.")
+        
+        total_weaknesses = weakness_count + len(conv_context.get("context_weaknesses", [])) if conv_context else weakness_count
+        total_strengths = strength_count + len(conv_context.get("context_strengths", [])) if conv_context else strength_count
+        
+        if total_weaknesses > 0:
+            details.append(f"We identified {total_weaknesses} area(s) to work on — check below for personalized tips.")
+        
+        if total_strengths >= 3:
+            details.append(f"You showed {total_strengths} strengths — well done!")
         
         return base + " " + " ".join(details)
     
