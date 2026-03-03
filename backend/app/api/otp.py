@@ -95,14 +95,24 @@ async def send_otp(request: SendOTPRequest):
             }
         
         # Email sent successfully
-        logger.info(f"✅ OTP sent to {request.email} from {email_service.smtp_user}")
+        logger.info(f"✅ OTP sent to {request.email} from {email_service.brevo_from or email_service.smtp_user}")
+        
+        # Warn if sender is @gmail.com – Gmail's SPF blocks Brevo sending as Gmail,
+        # so the email may land in spam even though Brevo reports success.
+        sender_email = email_service.brevo_from or email_service.smtp_user or ""
+        gmail_sender = sender_email.lower().endswith("@gmail.com")
         
         return {
-            "message": f"✅ OTP sent successfully to {request.email}",
+            "message": f"Verification code sent to {request.email}",
             "email": request.email,
             "expires_in_minutes": 10,
             "email_sent": True,
-            "instructions": "Check your email inbox (and spam folder) for the verification code."
+            "spam_warning": gmail_sender,
+            "instructions": (
+                "IMPORTANT: Check your SPAM / JUNK folder if the email does not appear in your inbox within 2 minutes."
+                if gmail_sender
+                else "Check your email inbox (and spam folder) for the verification code."
+            )
         }
         
     except HTTPException:

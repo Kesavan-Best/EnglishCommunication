@@ -305,10 +305,16 @@
                     
                     <!-- Step 2: OTP Verification -->
                     <div id="step-2" class="form-step" style="display: none;">
+                        <!-- Spam warning banner -->
+                        <div id="spam-warning-banner" style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #856404;">
+                            <strong>⚠️ Can't find the email?</strong><br>
+                            Check your <strong>Spam / Junk</strong> folder in Gmail. The code was sent from ImproveCommunication.
+                            <div style="margin-top: 4px; font-size: 12px; color: #6c757d;">Gmail → Left sidebar → Spam (scroll down if needed)</div>
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Verification Code</label>
                             <input type="text" id="otp" class="form-input" placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}" required>
-                            <div class="form-hint">Check your email for the verification code (expires in 10 minutes)</div>
+                            <div class="form-hint">Enter the 6-digit code from your email (expires in 10 minutes)</div>
                         </div>
                         
                         <button type="button" id="verify-otp-btn" class="btn-primary">
@@ -451,16 +457,24 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    let message = '✅ Verification code sent to ' + email + '\n\n';
-                    
-                    // If email service is not configured, show the OTP directly
-                    if (data.otp) {
-                        message += '⚠️ Email service not configured.\n\nYour OTP code is: ' + data.otp + '\n\nEnter this code in the next step.';
+                    if (data.otp_for_testing || data.otp) {
+                        // Email service not configured – show OTP directly
+                        alert('⚠️ Email service not configured.\n\nYour OTP code is: ' + (data.otp_for_testing || data.otp) + '\n\nEnter this code in the next step.');
+                    } else if (data.spam_warning) {
+                        // Gmail sender via Brevo – very likely to land in spam
+                        alert(
+                            '📨 Verification code sent to ' + email + '\n\n' +
+                            '⚠️  IMPORTANT: The email may be in your SPAM / JUNK folder.\n\n' +
+                            'Steps to find it:\n' +
+                            '1. Open Gmail → click "Spam" or "Junk" in the left sidebar\n' +
+                            '2. Look for an email from ImproveCommunication\n' +
+                            '3. Open it and copy the 6-digit code\n\n' +
+                            'If it is not there after 2 minutes, click "Resend Code" on the next screen.'
+                        );
                     } else {
-                        message += 'Please check your email (and spam folder)';
+                        alert('✅ Verification code sent to ' + email + '\n\nCheck your email inbox (and spam folder) for the 6-digit code.');
                     }
                     
-                    alert(message);
                     document.getElementById('step-1').style.display = 'none';
                     document.getElementById('step-2').style.display = 'block';
                 } else {
@@ -534,7 +548,7 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    alert('✅ New verification code sent to ' + userEmail);
+                    alert('New verification code sent to ' + userEmail + '\n\n⚠️ Check your SPAM / JUNK folder in Gmail if you do not see it in your inbox within 2 minutes.');
                     document.getElementById('otp').value = '';
                 } else {
                     alert('❌ ' + (data.detail || 'Failed to resend code'));

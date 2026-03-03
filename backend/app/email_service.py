@@ -174,10 +174,19 @@ class EmailService:
                         "name": self.from_name,
                         "email": self.brevo_from
                     },
+                    "replyTo": {
+                        "email": self.brevo_from,
+                        "name": self.from_name
+                    },
                     "to": [{"email": to_email}],
                     "subject": subject,
                     "htmlContent": html_content,
-                    "textContent": text_content or ""
+                    "textContent": text_content or "",
+                    "tags": ["otp", "transactional"],
+                    "headers": {
+                        "X-Mailin-custom": "transactional",
+                        "charset": "utf-8"
+                    }
                 },
                 timeout=30
             )
@@ -413,41 +422,59 @@ class EmailService:
         print(f"   Name: {name or 'Not provided'}")
         print(f"   OTP: {otp}")
         
-        subject = "Verify Your Email - ImproveCommunication"
+        # Avoid spam-trigger words like "Verify Your Email"
+        subject = f"Your ImproveCommunication code: {otp}"
         
         html_content = f"""
         <!DOCTYPE html>
-        <html>
+        <html lang="en">
         <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ImproveCommunication - Verification Code</title>
             <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-                .content {{ background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }}
-                .otp-box {{ background: white; border: 2px dashed #667eea; border-radius: 10px; padding: 20px; text-align: center; margin: 20px 0; }}
-                .otp-code {{ font-size: 36px; font-weight: bold; color: #667eea; letter-spacing: 8px; }}
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f0f0f0; margin: 0; padding: 0; }}
+                .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+                .header {{ background: #667eea; color: white; padding: 28px 30px; text-align: center; }}
+                .header h1 {{ margin: 0; font-size: 22px; font-weight: 600; }}
+                .content {{ padding: 30px; }}
+                .otp-box {{ background: #f8f9ff; border: 2px solid #667eea; border-radius: 10px; padding: 20px; text-align: center; margin: 24px 0; }}
+                .otp-code {{ font-size: 38px; font-weight: bold; color: #667eea; letter-spacing: 10px; font-family: 'Courier New', monospace; }}
+                .footer {{ background: #f8f9fa; padding: 16px 30px; text-align: center; font-size: 12px; color: #999; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <div class="header">
-                    <h1>🎯 Email Verification</h1>
+                    <h1>ImproveCommunication - Verification Code</h1>
                 </div>
                 <div class="content">
-                    <p>Hi {name or 'there'},</p>
-                    <p>Use this code to verify your email:</p>
+                    <p>Hello {name or 'there'},</p>
+                    <p>You requested a verification code to complete your registration on ImproveCommunication. Enter the code below:</p>
                     <div class="otp-box">
                         <div class="otp-code">{otp}</div>
-                        <p style="color: #666;">Expires in 10 minutes</p>
+                        <p style="color: #666; margin: 8px 0 0 0; font-size: 13px;">This code expires in 10 minutes.</p>
                     </div>
-                    <p style="color: #999; font-size: 12px;">If you didn't request this, ignore this email.</p>
+                    <p>If you did not request this code, you can safely ignore this email.</p>
+                </div>
+                <div class="footer">
+                    This is an automated message from ImproveCommunication. Please do not reply to this email.
                 </div>
             </div>
         </body>
         </html>
         """
         
-        text_content = f"Your verification code: {otp}\nExpires in 10 minutes."
+        text_content = f"""Hello {name or 'there'},
+
+Your ImproveCommunication verification code is: {otp}
+
+This code expires in 10 minutes.
+
+If you did not request this code, please ignore this email.
+
+- ImproveCommunication Team
+"""
         
         success, error = self.send_email(to_email, subject, html_content, text_content)
         if success:
