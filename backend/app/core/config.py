@@ -1,9 +1,15 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from backend/ directory explicitly
+_env_path = Path(__file__).parent.parent.parent / '.env'
+if _env_path.exists():
+    load_dotenv(dotenv_path=_env_path, override=True)
+else:
+    load_dotenv(override=True)
 
 class Settings(BaseSettings):
     # Application
@@ -50,7 +56,12 @@ class Settings(BaseSettings):
     from_email: str = os.getenv("FROM_EMAIL", "")
     from_name: str = os.getenv("FROM_NAME", "ImproveCommunication")
     
+    # Brevo API (for Render - SMTP is blocked on free tier)
+    brevo_api_key: str = os.getenv("BREVO_API_KEY", "")
+    brevo_from: str = os.getenv("BREVO_FROM", "")
+    
     class Config:
-        env_file = ".env"
+        env_file = str(Path(__file__).parent.parent.parent / '.env')
+        extra = "allow"
 
 settings = Settings()

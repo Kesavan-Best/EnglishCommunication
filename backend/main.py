@@ -19,7 +19,7 @@ if str(parent_dir) not in sys.path:
 _env_path = current_dir / '.env'
 if _env_path.exists():
     load_dotenv(dotenv_path=_env_path, override=True)
-    print(f"✅ Loaded .env from {_env_path}")
+    print(f"[OK] Loaded .env from {_env_path}")
 else:
     load_dotenv(override=True)  # fallback
 
