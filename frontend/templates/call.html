@@ -497,9 +497,14 @@
         let isCaller = false;
         let incomingCallData = null;
         let callActive = false;
-        let callWasAccepted = false; // Track if call was accepted (for auto-start)
+        let callWasAccepted = false;
+        let signalPollInterval = null;
+        let callStatusPollInterval = null;
+        let callEnded = false;
+        let wsHeartbeatInterval = null;
+        let readySignalSent = false; // track if we sent ready signal
         
-        // WebRTC Configuration
+        // WebRTC Configuration - using reliable STUN/TURN servers
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -516,10 +521,17 @@
                     urls: 'turn:openrelay.metered.ca:443',
                     username: 'openrelayproject',
                     credential: 'openrelayproject'
+                },
+                {
+                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                    username: 'openrelayproject',
+                    credential: 'openrelayproject'
                 }
             ],
             iceCandidatePoolSize: 10,
-            iceTransportPolicy: 'all'
+            iceTransportPolicy: 'all',
+            bundlePolicy: 'max-bundle',
+            rtcpMuxPolicy: 'require'
         };
         
         // Initialize on page load
@@ -549,18 +561,18 @@
                 console.log('📞 Auto-start:', callWasAccepted);
                 await fetchCallDetails();
                 
-                // If call was accepted, auto-start immediately
+                // If call was accepted (autoStart=true), auto-start immediately
                 if (callWasAccepted) {
-                    console.log('🚀 Auto-starting call (was accepted)');
+                    console.log('🚀 Auto-starting call');
                     document.getElementById('preCallScreen').style.display = 'none';
                     document.getElementById('loadingScreen').style.display = 'block';
                     updateStatus('Connecting to call...', '📞');
-                    setTimeout(startWebRTCCall, 1500);
+                    // Start WebSocket FIRST, then WebRTC after WS is connected
+                    await connectWebSocketAndStart();
                 }
             } else {
                 console.log('⚠️ No call ID in URL - waiting for incoming call');
                 updatePreCallMessage('Waiting for incoming call or start a new one');
-                // Connect to WebSocket to receive notifications
                 connectWebSocket();
             }
         });
@@ -1175,8 +1187,6 @@
         }
         
         // Poll for WebRTC signals from database (cross-instance support)
-        let signalPollInterval = null;
-        
         function startSignalPolling() {
             if (signalPollInterval) return;
             
@@ -1239,9 +1249,6 @@
         }
         
         // Call status polling - detect when partner ends call
-        let callStatusPollInterval = null;
-        let callEnded = false;
-        
         function startCallStatusPolling() {
             if (callStatusPollInterval) return;
             
