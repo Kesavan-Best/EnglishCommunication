@@ -450,12 +450,12 @@ function setupWebSocket(userId) {
             console.log('📡 Ready to receive notifications');
             
             // Start heartbeat to keep online status updated across environments
-            // Send every 30 seconds for reliable online status detection
+            // Send every 15 seconds to prevent Render proxy timeout and keep status fresh
             heartbeatInterval = setInterval(() => {
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'ping' }));
                 }
-            }, 30000); // Every 30 seconds
+            }, 15000); // Every 15 seconds
             
             // Send initial ping immediately
             ws.send(JSON.stringify({ type: 'ping' }));
@@ -472,14 +472,14 @@ function setupWebSocket(userId) {
         };
         
         ws.onclose = () => {
-            console.log('⚠️ WebSocket closed, reconnecting...');
+            console.log('⚠️ WebSocket closed, reconnecting in 1.5s...');
             // Clear heartbeat interval on close
             if (heartbeatInterval) {
                 clearInterval(heartbeatInterval);
                 heartbeatInterval = null;
             }
             ws = null;
-            setTimeout(() => setupWebSocket(userId), 3000);
+            setTimeout(() => setupWebSocket(userId), 1500);
         };
     } catch (error) {
         console.error('❌ Error setting up WebSocket:', error);

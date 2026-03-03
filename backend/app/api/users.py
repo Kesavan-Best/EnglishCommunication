@@ -35,7 +35,7 @@ def is_user_online_db(user_id: str) -> bool:
         if not user:
             return False
         
-        # User must have is_online=True AND last_seen within last 2 minutes
+        # User must have is_online=True AND last_seen within last 45 seconds
         is_online = user.get("is_online", False)
         last_seen = user.get("last_seen")
         
@@ -43,8 +43,8 @@ def is_user_online_db(user_id: str) -> bool:
             return False
         
         if last_seen:
-            # Check if last_seen is within the last 2 minutes (heartbeats every 30s)
-            time_threshold = datetime.utcnow() - timedelta(minutes=2)
+            # Check if last_seen is within the last 45 seconds (heartbeats every 15s)
+            time_threshold = datetime.utcnow() - timedelta(seconds=45)
             if last_seen < time_threshold:
                 # Stale status - mark as offline in DB to clean up
                 db.users.update_one(

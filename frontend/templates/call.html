@@ -778,7 +778,7 @@
                         if (ws && ws.readyState === WebSocket.OPEN) {
                             ws.send(JSON.stringify({ type: 'ping' }));
                         }
-                    }, 25000);
+                    }, 15000);
                 };
                 
                 ws.onmessage = handleWebSocketMessage;
@@ -792,7 +792,7 @@
                     clearInterval(wsHeartbeatInterval);
                     wsHeartbeatInterval = null;
                     if (!callEnded) {
-                        setTimeout(connectWebSocket, 3000);
+                        setTimeout(connectWebSocket, 1500);
                     }
                 };
                 
@@ -826,14 +826,14 @@
                             if (ws && ws.readyState === WebSocket.OPEN) {
                                 ws.send(JSON.stringify({ type: 'ping' }));
                             }
-                        }, 25000);
+                        }, 15000);
                         
                         ws.onmessage = handleWebSocketMessage;
                         ws.onerror = (e) => console.error('WS error:', e);
                         ws.onclose = () => {
                             clearInterval(wsHeartbeatInterval);
                             wsHeartbeatInterval = null;
-                            if (!callEnded) setTimeout(connectWebSocket, 3000);
+                            if (!callEnded) setTimeout(connectWebSocket, 1500);
                         };
                         
                         await startWebRTCCall();

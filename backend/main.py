@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
@@ -26,8 +26,6 @@ else:
 from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp, nlp_analysis
 from backend.app.database import init_db
 from backend.app.core.config import settings
-from datetime import datetime
-import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -95,43 +93,10 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
-# Add WebSocket endpoint directly
-@app.websocket("/api/ws/{user_id}")
-async def websocket_route(websocket: WebSocket, user_id: str):
-    """Direct WebSocket endpoint for compatibility"""
-    from backend.app.api.websocket import manager
-    await manager.connect(websocket, user_id)
-    
-    try: 
-        while True:
-            data = await websocket.receive_json()
-            message_type = data.get("type")
-            
-            if message_type == "ping":
-                # Update last_seen in database for online status
-                try:
-                    from backend.app.database import Database
-                    from bson import ObjectId
-                    db = Database.get_db()
-                    db.users.update_one(
-                        {"_id": ObjectId(user_id)},
-                        {"$set": {"is_online": True, "last_seen": datetime.utcnow()}}
-                    )
-                except Exception:
-                    pass
-                await manager.send_personal_message({
-                    "type": "pong",
-                    "timestamp": "now"
-                }, user_id)
-            elif message_type == "webrtc-signal" or message_type == "webrtc_signal":
-                signal_data = data.get("signal", {})
-                await manager.handle_webrtc_signal(user_id, signal_data)
-                
-    except WebSocketDisconnect:
-        manager.disconnect(user_id)
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-        manager.disconnect(user_id)
+# WebSocket endpoint is handled by websocket.router (included above with /api prefix)
+# The comprehensive handler in websocket.py handles ALL message types:
+# ping, accept_call, reject_call_invitation, webrtc_signal, transcription,
+# call invitations, check_online, random_queue, etc.
 
 if __name__ == "__main__":
     uvicorn.run(

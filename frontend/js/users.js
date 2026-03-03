@@ -38,13 +38,17 @@ async function initUsersPage() {
     // Start polling for pending call invites (cross-instance support)
     startPendingCallsPolling();
     
-    // Refresh data every 30 seconds (WebSocket handles real-time status updates
+    // Refresh data every 15 seconds (WebSocket handles real-time status updates
     // so frequent full re-renders are not needed and cause flickering)
     setInterval(() => {
         loadAllUsers();
         loadFriends();
+    }, 15000);
+    
+    // Poll for friend requests more frequently (cross-instance support)
+    setInterval(() => {
         loadPendingRequests();
-    }, 30000);
+    }, 5000);
 }
 
 // Poll for pending call invites (works across server instances)
@@ -1031,12 +1035,12 @@ function setupWebSocket() {
         console.log('📡 Ready to receive call notifications');
         
         // Start heartbeat to keep online status updated across environments
-        // Send every 30 seconds for reliable online status detection
+        // Send every 15 seconds to prevent Render proxy timeout and keep status fresh
         heartbeatInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'ping' }));
             }
-        }, 30000); // Every 30 seconds
+        }, 15000); // Every 15 seconds
         
         // Send initial ping immediately
         ws.send(JSON.stringify({ type: 'ping' }));
@@ -1053,14 +1057,14 @@ function setupWebSocket() {
     };
     
     ws.onclose = () => {
-        console.log('⚠️ WebSocket closed, reconnecting in 3s...');
+        console.log('⚠️ WebSocket closed, reconnecting in 1.5s...');
         // Clear heartbeat interval on close
         if (heartbeatInterval) {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
         }
         ws = null;
-        setTimeout(setupWebSocket, 3000);
+        setTimeout(setupWebSocket, 1500);
     };
 }
 
