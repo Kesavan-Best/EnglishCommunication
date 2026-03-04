@@ -162,6 +162,31 @@ class EmailService:
             logger.info(f"📧 Brevo: Sending to {to_email}...")
             print(f"[BREVO API] Making HTTP POST request to api.brevo.com...")
             
+            # Determine sender: if BREVO_FROM is gmail.com, that can cause SPF failures
+            # because Gmail's SPF record doesn't authorize Brevo to send on its behalf.
+            # Solution: keep the from email but also add reply-to.
+            sender_email = self.brevo_from
+            
+            payload = {
+                "sender": {
+                    "name": self.from_name,
+                    "email": sender_email
+                },
+                "replyTo": {
+                    "email": self.brevo_from,
+                    "name": self.from_name
+                },
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": html_content,
+                "textContent": text_content or "",
+                "tags": ["otp", "transactional"],
+                "headers": {
+                    "X-Mailin-custom": "transactional",
+                    "charset": "utf-8"
+                }
+            }
+            
             response = requests.post(
                 "https://api.brevo.com/v3/smtp/email",
                 headers={
@@ -169,41 +194,38 @@ class EmailService:
                     "Content-Type": "application/json",
                     "Accept": "application/json"
                 },
-                json={
-                    "sender": {
-                        "name": self.from_name,
-                        "email": self.brevo_from
-                    },
-                    "replyTo": {
-                        "email": self.brevo_from,
-                        "name": self.from_name
-                    },
-                    "to": [{"email": to_email}],
-                    "subject": subject,
-                    "htmlContent": html_content,
-                    "textContent": text_content or "",
-                    "tags": ["otp", "transactional"],
-                    "headers": {
-                        "X-Mailin-custom": "transactional",
-                        "charset": "utf-8"
-                    }
-                },
+                json=payload,
                 timeout=30
             )
             
             print(f"[BREVO API] Response Status Code: {response.status_code}")
+            print(f"[BREVO API] Response Body: {response.text[:500]}")
             
             if response.status_code in [200, 201]:
                 result = response.json()
                 message_id = result.get('messageId', 'ok')
                 logger.info(f"✅ Brevo: Sent! ID: {message_id}")
                 log_email_status(to_email, subject, 'success', 'Brevo API', extra_info={'Message ID': message_id})
+                
+                # Warn about potential deliverability issues with gmail sender
+                if sender_email.lower().endswith('@gmail.com'):
+                    logger.warning(f"⚠️ Brevo sent email but using @gmail.com sender ({sender_email}) - "
+                                   "may land in spam due to SPF. Consider verifying a custom domain in Brevo.")
+                    print(f"[BREVO API] ⚠️ WARNING: Sending from @gmail.com may cause spam/deliverability issues.")
+                    print(f"[BREVO API] The email was accepted by Brevo but might land in SPAM folder.")
+                    print(f"[BREVO API] TIP: Tell recipients to check SPAM folder!")
+                
                 return True, ""
             else:
                 error_data = response.json() if response.text else {}
                 error_msg = error_data.get('message', f"HTTP {response.status_code}")
-                logger.error(f"❌ Brevo: {error_msg}")
-                log_email_status(to_email, subject, 'failed', 'Brevo API', error_msg, {'HTTP Code': response.status_code})
+                error_code = error_data.get('code', '')
+                logger.error(f"❌ Brevo: {error_msg} (code: {error_code})")
+                log_email_status(to_email, subject, 'failed', 'Brevo API', error_msg, {
+                    'HTTP Code': response.status_code,
+                    'Error Code': error_code,
+                    'Full Response': response.text[:300]
+                })
                 return False, f"Brevo: {error_msg}"
                 
         except requests.exceptions.Timeout:
@@ -371,48 +393,49 @@ class EmailService:
             log_email_status(to_email, subject, 'failed', 'Validation', error)
             return False, error
         
-        # Try Brevo API first (RECOMMENDED - works on Render, 300 emails/day FREE)
-        if self.use_brevo:
-            success, error = self._send_with_brevo(to_email, subject, html_content, text_content)
-            if success:
-                self.total_sent += 1
-                self.last_success_time = datetime.utcnow()
-                self.last_error = None
-                print(f"\n✅ EMAIL SUCCESSFULLY SENT via Brevo API")
-                print(f"   Total emails sent: {self.total_sent}")
-                return True, ""
-            logger.warning(f"Brevo failed: {error}")
-            print(f"\n⚠️ Brevo API failed, trying Resend fallback...")
+        errors = []
         
-        # Try Resend API (requires domain verification)
-        if self.use_resend:
-            success, error = self._send_with_resend(to_email, subject, html_content, text_content)
-            if success:
-                self.total_sent += 1
-                self.last_success_time = datetime.utcnow()
-                self.last_error = None
-                print(f"\n✅ EMAIL SUCCESSFULLY SENT via Resend API")
-                print(f"   Total emails sent: {self.total_sent}")
-                return True, ""
-            logger.warning(f"Resend failed: {error}")
-            print(f"\n⚠️ Resend API failed, trying SMTP fallback...")
+        # Determine execution order based on environment
+        # On Render (production), try Brevo first since SMTP may be blocked
+        # On local, try SMTP first since it's usually faster
+        is_render = os.getenv('RENDER', '') == 'true' or os.getenv('ENVIRONMENT', '') == 'production'
         
-        # Fallback to SMTP (local dev)
-        if self.use_smtp:
-            success, error = self._send_with_smtp(to_email, subject, html_content, text_content)
+        if is_render:
+            # Production order: Brevo > Resend > SMTP
+            send_order = []
+            if self.use_brevo:
+                send_order.append(('Brevo', self._send_with_brevo))
+            if self.use_resend:
+                send_order.append(('Resend', self._send_with_resend))
+            if self.use_smtp:
+                send_order.append(('SMTP', self._send_with_smtp))
+        else:
+            # Local order: SMTP > Brevo > Resend  (SMTP is faster locally)
+            send_order = []
+            if self.use_smtp:
+                send_order.append(('SMTP', self._send_with_smtp))
+            if self.use_brevo:
+                send_order.append(('Brevo', self._send_with_brevo))
+            if self.use_resend:
+                send_order.append(('Resend', self._send_with_resend))
+        
+        for name, send_fn in send_order:
+            success, error = send_fn(to_email, subject, html_content, text_content)
             if success:
                 self.total_sent += 1
                 self.last_success_time = datetime.utcnow()
                 self.last_error = None
-                print(f"\n✅ EMAIL SUCCESSFULLY SENT via SMTP")
+                print(f"\n✅ EMAIL SUCCESSFULLY SENT via {name}")
                 print(f"   Total emails sent: {self.total_sent}")
                 return True, ""
-            self.last_error = error
+            errors.append(f"{name}: {error}")
+            print(f"\n⚠️ {name} failed, trying next method...")
         
         self.total_failed += 1
-        print(f"\n❌ EMAIL SEND FAILED")
+        self.last_error = "; ".join(errors)
+        print(f"\n❌ EMAIL SEND FAILED via all methods")
         print(f"   Total failed: {self.total_failed}")
-        print(f"   Last error: {self.last_error}")
+        print(f"   Errors: {self.last_error}")
         return False, self.last_error or "Email send failed"
     
     def send_otp_email(self, to_email: str, otp: str, name: str = "") -> Tuple[bool, str]:

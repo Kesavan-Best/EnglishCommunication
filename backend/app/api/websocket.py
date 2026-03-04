@@ -23,10 +23,19 @@ class ConnectionManager:
         self.user_status: Dict[str, dict] = {}
         # Random matching queue: list of {user_id, joined_at, user_name}
         self.random_queue: List[dict] = []
+        # Pending offline tasks: user_id -> asyncio.Task (grace period before marking offline)
+        self._offline_tasks: Dict[str, asyncio.Task] = {}
 
     async def connect(self, websocket: WebSocket, user_id: str):
         """Accept WebSocket connection"""
         await websocket.accept()
+        
+        # Cancel any pending offline task for this user (they reconnected!)
+        if user_id in self._offline_tasks:
+            self._offline_tasks[user_id].cancel()
+            del self._offline_tasks[user_id]
+            logger.info(f"✅ Cancelled offline timer for {user_id} (reconnected)")
+        
         self.active_connections[user_id] = websocket
         self.user_status[user_id] = {"is_online": True, "current_call": None}
         logger.info(f"✅ User {user_id} connected. Total: {len(self.active_connections)}")
@@ -55,7 +64,7 @@ class ConnectionManager:
         await self._broadcast_status_change(user_id, True)
 
     def disconnect(self, user_id: str):
-        """Clean up when user disconnects"""
+        """Clean up when user disconnects - uses grace period to avoid flicker on page navigation"""
         if user_id in self.active_connections:
             del self.active_connections[user_id]
         
@@ -63,9 +72,8 @@ class ConnectionManager:
         self.random_queue = [q for q in self.random_queue if q["user_id"] != user_id]
         
         if user_id in self.user_status:
-            self.user_status[user_id]["is_online"] = False
-            # Notify others in same call
-            current_call = self.user_status[user_id]["current_call"]
+            # Notify others in same call immediately
+            current_call = self.user_status[user_id].get("current_call")
             if current_call and current_call in self.active_calls:
                 participants = self.active_calls[current_call]["participants"]
                 for participant in participants:
@@ -82,22 +90,55 @@ class ConnectionManager:
                 if user_id in participants:
                     participants.remove(user_id)
         
-        # Update database to set user offline
+        # Start grace period before marking offline
+        # This prevents flicker when user navigates between pages
+        # (e.g. users.html -> call.html causes disconnect then reconnect)
+        if user_id in self._offline_tasks:
+            self._offline_tasks[user_id].cancel()
+        
+        self._offline_tasks[user_id] = asyncio.create_task(
+            self._delayed_offline(user_id)
+        )
+        
+        logger.info(f"⏳ User {user_id} disconnected, 8s grace period started")
+    
+    async def _delayed_offline(self, user_id: str):
+        """Wait before marking user offline to allow page navigation reconnects"""
         try:
-            from backend.app.database import Database
-            from bson import ObjectId
-            db = Database.get_db()
-            db.users.update_one(
-                {"_id": ObjectId(user_id)},
-                {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
-            )
-        except Exception as e:
-            logger.error(f"Failed to update user offline status in DB: {e}")
-        
-        # Broadcast offline status to ALL other connected users
-        asyncio.create_task(self._broadcast_status_change(user_id, False))
-        
-        logger.info(f"❌ User {user_id} disconnected")
+            await asyncio.sleep(8)  # 8 second grace period
+            
+            # Check if user reconnected during grace period
+            if user_id in self.active_connections:
+                logger.info(f"✅ User {user_id} reconnected during grace period, staying online")
+                return
+            
+            # User did NOT reconnect - mark offline
+            if user_id in self.user_status:
+                self.user_status[user_id]["is_online"] = False
+            
+            # Update database to set user offline
+            try:
+                from backend.app.database import Database
+                from bson import ObjectId
+                db = Database.get_db()
+                db.users.update_one(
+                    {"_id": ObjectId(user_id)},
+                    {"$set": {"is_online": False, "last_seen": datetime.utcnow()}}
+                )
+            except Exception as e:
+                logger.error(f"Failed to update user offline status in DB: {e}")
+            
+            # Broadcast offline status to ALL other connected users
+            await self._broadcast_status_change(user_id, False)
+            
+            logger.info(f"❌ User {user_id} confirmed offline after grace period")
+            
+        except asyncio.CancelledError:
+            # Grace period was cancelled (user reconnected)
+            pass
+        finally:
+            # Clean up the task reference
+            self._offline_tasks.pop(user_id, None)
 
     async def _broadcast_status_change(self, user_id: str, is_online: bool):
         """Broadcast a user's online/offline status to all other connected users"""

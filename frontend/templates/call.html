@@ -634,29 +634,36 @@
         let callEnded = false;
         let wsHeartbeatInterval = null;
         let readySignalSent = false; // track if we sent ready signal
+        let webrtcStarted = false; // guard against double start
         
-        // WebRTC Configuration - using reliable STUN/TURN servers
-        const rtcConfig = {
+        // WebRTC Configuration - fetched dynamically from backend, with hardcoded fallback
+        let rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
                 { urls: 'stun:stun1.l.google.com:19302' },
                 { urls: 'stun:stun2.l.google.com:19302' },
                 { urls: 'stun:stun3.l.google.com:19302' },
                 { urls: 'stun:stun4.l.google.com:19302' },
+                // Fallback TURN servers (will be replaced by dynamic fetch below)
                 {
-                    urls: 'turn:openrelay.metered.ca:80',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
+                    urls: 'turn:a.relay.metered.ca:80',
+                    username: 'e8dd65b92add87306a510286',
+                    credential: 'DjxR8C/gCPJAL8DR'
                 },
                 {
-                    urls: 'turn:openrelay.metered.ca:443',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
+                    urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+                    username: 'e8dd65b92add87306a510286',
+                    credential: 'DjxR8C/gCPJAL8DR'
                 },
                 {
-                    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                    username: 'openrelayproject',
-                    credential: 'openrelayproject'
+                    urls: 'turn:a.relay.metered.ca:443',
+                    username: 'e8dd65b92add87306a510286',
+                    credential: 'DjxR8C/gCPJAL8DR'
+                },
+                {
+                    urls: 'turns:a.relay.metered.ca:443?transport=tcp',
+                    username: 'e8dd65b92add87306a510286',
+                    credential: 'DjxR8C/gCPJAL8DR'
                 }
             ],
             iceCandidatePoolSize: 10,
@@ -665,12 +672,34 @@
             rtcpMuxPolicy: 'require'
         };
         
+        // Fetch ICE servers from backend (overrides hardcoded fallback)
+        async function fetchIceServers() {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${API_BASE_URL}/api/calls/ice-servers`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.iceServers && data.iceServers.length > 0) {
+                        rtcConfig.iceServers = data.iceServers;
+                        console.log('✅ ICE servers loaded from backend:', data.iceServers.length, 'servers');
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ Could not fetch ICE servers from backend, using fallback:', e.message);
+            }
+        }
+        
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async () => {
             console.log('🚀 Page loaded - Initializing call system');
             
             // Check authentication
             await checkAuthentication();
+            
+            // Fetch ICE servers from backend (non-blocking, falls back to hardcoded)
+            fetchIceServers();
             
             // Get call ID from URL
             const urlParams = new URLSearchParams(window.location.search);
@@ -690,7 +719,9 @@
             if (callId) {
                 console.log('📞 Call ID from URL:', callId);
                 console.log('📞 Auto-start:', callWasAccepted);
-                await fetchCallDetails();
+                
+                // Fetch call details WITHOUT connecting WebSocket (we'll do that in connectWebSocketAndStart)
+                await fetchCallDetailsOnly();
                 
                 // If call was accepted (autoStart=true), auto-start immediately
                 if (callWasAccepted) {
@@ -698,8 +729,25 @@
                     document.getElementById('preCallScreen').style.display = 'none';
                     document.getElementById('loadingScreen').style.display = 'block';
                     updateStatus('Connecting to call...', '📞');
-                    // Start WebSocket FIRST, then WebRTC after WS is connected
-                    await connectWebSocketAndStart();
+                    
+                    // Try auto-start, but if mic fails show button for user gesture
+                    try {
+                        await connectWebSocketAndStart();
+                    } catch (autoStartError) {
+                        console.warn('⚠️ Auto-start failed, showing manual start button:', autoStartError);
+                        // Hide error screen (showError may have been called) and loading
+                        document.getElementById('errorScreen').style.display = 'none';
+                        document.getElementById('loadingScreen').style.display = 'none';
+                        // Show pre-call screen with manual mic button
+                        document.getElementById('preCallScreen').style.display = 'flex';
+                        document.getElementById('preCallMessage').textContent = 'Click the button below to start (microphone permission required)';
+                        document.getElementById('startCallBtn').textContent = '🎤 Allow Mic & Start Call';
+                        // Reset the flag so manual start can work
+                        webrtcStarted = false;
+                    }
+                } else {
+                    // Not auto-start, connect WebSocket for notifications
+                    connectWebSocket();
                 }
             } else {
                 console.log('⚠️ No call ID in URL - waiting for incoming call');
@@ -804,18 +852,27 @@
         // Connect WebSocket first, then start WebRTC once WS is open (or timeout)
         // This was missing entirely and caused the call page to be stuck.
         async function connectWebSocketAndStart() {
-            return new Promise((resolve) => {
+            return new Promise((resolve, reject) => {
                 try {
                     const wsUrl = `${WS_BASE_URL}/api/ws/${currentUser.id}`;
                     console.log('🔌 [AutoStart] Connecting WebSocket:', wsUrl);
                     ws = new WebSocket(wsUrl);
                     
-                    // If WS doesn't open within 5 s, start WebRTC without it
+                    // Set up message handler IMMEDIATELY (before onopen fires)
+                    // This prevents missing any signals during the race between onopen and first message
+                    ws.onmessage = handleWebSocketMessage;
+                    
+                    // If WS doesn't open within 8 s, start WebRTC without it (relies on DB polling)
                     const wsTimeout = setTimeout(async () => {
-                        console.warn('⚠️ WebSocket timeout – starting WebRTC directly');
-                        await startWebRTCCall();
+                        console.warn('⚠️ WebSocket timeout – starting WebRTC with DB polling only');
+                        try {
+                            await startWebRTCCall();
+                        } catch (e) {
+                            reject(e);
+                            return;
+                        }
                         resolve();
-                    }, 5000);
+                    }, 8000);
                     
                     ws.onopen = async () => {
                         clearTimeout(wsTimeout);
@@ -828,7 +885,6 @@
                             }
                         }, 15000);
                         
-                        ws.onmessage = handleWebSocketMessage;
                         ws.onerror = (e) => console.error('WS error:', e);
                         ws.onclose = () => {
                             clearInterval(wsHeartbeatInterval);
@@ -836,21 +892,28 @@
                             if (!callEnded) setTimeout(connectWebSocket, 1500);
                         };
                         
-                        await startWebRTCCall();
-                        resolve();
+                        try {
+                            await startWebRTCCall();
+                            resolve();
+                        } catch (e) {
+                            reject(e);
+                        }
                     };
                     
                     ws.onerror = async (e) => {
                         clearTimeout(wsTimeout);
-                        console.error('WS error on connect – starting WebRTC anyway:', e);
-                        ws.onmessage = handleWebSocketMessage;
-                        await startWebRTCCall();
-                        resolve();
+                        console.error('WS error on connect – starting WebRTC with DB polling:', e);
+                        try {
+                            await startWebRTCCall();
+                            resolve();
+                        } catch (err) {
+                            reject(err);
+                        }
                     };
                     
                 } catch (err) {
                     console.error('connectWebSocketAndStart error:', err);
-                    startWebRTCCall().then(resolve).catch(resolve);
+                    startWebRTCCall().then(resolve).catch(reject);
                 }
             });
         }
@@ -863,14 +926,15 @@
                 
                 switch(data.type) {
                     case 'call_invitation':
+                    case 'call_invite':
                         handleIncomingCall(data);
                         break;
                         
                     case 'call_accepted':
                         console.log('✅ Call accepted by partner');
-                        if (isCaller) {
+                        if (isCaller && !webrtcStarted) {
                             updateStatus('Partner joined! Starting call...', '🎉');
-                            setTimeout(startWebRTCCall, 1000);
+                            setTimeout(() => startWebRTCCall().catch(e => console.error('call_accepted start failed:', e)), 1000);
                         }
                         break;
                         
@@ -879,7 +943,9 @@
                         isCaller = false;
                         partnerUser = { id: data.partner_id };
                         updateStatus('Call started. Connecting...', '📞');
-                        setTimeout(startWebRTCCall, 1000);
+                        if (!webrtcStarted) {
+                            setTimeout(() => startWebRTCCall().catch(e => console.error('call_started start failed:', e)), 1000);
+                        }
                         break;
                         
                     case 'webrtc_signal':
@@ -966,7 +1032,7 @@
             updateStatus('Accepting call...', '📞');
             
             // Wait a moment then start WebRTC
-            setTimeout(startWebRTCCall, 1000);
+            setTimeout(() => startWebRTCCall().catch(e => console.error('Accept start failed:', e)), 1000);
         }
         
         // Reject incoming call
@@ -999,8 +1065,8 @@
             }, 500);
         }
         
-        // Fetch call details from backend
-        async function fetchCallDetails() {
+        // Fetch call details WITHOUT connecting WebSocket (to avoid double-connection)
+        async function fetchCallDetailsOnly() {
             try {
                 updateStatus('Loading call details...', '🔄');
                 
@@ -1029,13 +1095,19 @@
                 // Update UI
                 updateCallUI();
                 
-                // Connect to WebSocket
-                connectWebSocket();
+                // NOTE: Do NOT connect WebSocket here.
+                // It will be connected in connectWebSocketAndStart() or connectWebSocket() from DOMContentLoaded.
                 
             } catch (error) {
                 console.error('❌ Error fetching call details:', error);
                 showError('Failed to load call details. Please try again.', false);
             }
+        }
+        
+        // Legacy wrapper that also connects WebSocket (used by non-autoStart flow)
+        async function fetchCallDetails() {
+            await fetchCallDetailsOnly();
+            connectWebSocket();
         }
         
         // Fetch partner details
@@ -1079,21 +1151,37 @@
         async function initializeCall() {
             console.log('🎬 initializeCall – role:', isCaller ? 'Caller' : 'Receiver');
             
+            // Reset guard in case this is a manual retry after failed auto-start
+            webrtcStarted = false;
+            
             // Show loading
             document.getElementById('preCallScreen').style.display = 'none';
+            document.getElementById('errorScreen').style.display = 'none';
             document.getElementById('loadingScreen').style.display = 'block';
             updateStatus('Starting call...', '🎤');
             
-            // Ensure WebSocket is connected, then start WebRTC
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                await startWebRTCCall();
-            } else {
-                await connectWebSocketAndStart();
+            try {
+                // Ensure WebSocket is connected, then start WebRTC
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    await startWebRTCCall();
+                } else {
+                    await connectWebSocketAndStart();
+                }
+            } catch (e) {
+                console.error('initializeCall error:', e);
+                // Error screen is already shown by startWebRTCCall
             }
         }
         
         // Start WebRTC call
         async function startWebRTCCall() {
+            // Guard against double initialization
+            if (webrtcStarted) {
+                console.log('⚠️ WebRTC already started, skipping duplicate call');
+                return;
+            }
+            webrtcStarted = true;
+            
             console.log('🎬 Starting WebRTC call...');
             console.log('Role:', isCaller ? 'Caller' : 'Receiver');
             
@@ -1113,43 +1201,72 @@
                 
             } catch (error) {
                 console.error('❌ Failed to start call:', error);
+                webrtcStarted = false; // Allow retry
                 showError(`Failed to start call: ${error.message}`, false);
+                throw error; // RE-THROW so callers (connectWebSocketAndStart) can handle it
             }
         }
         
-        // Get local microphone stream
+        // Get local microphone stream with fallback constraints
         async function getLocalStream() {
             updateStatus('Requesting microphone...', '🎤');
             
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({
+            // Check if mediaDevices API is available (requires HTTPS or localhost)
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                console.error('❌ mediaDevices API not available');
+                throw new Error('Microphone API not available. Make sure you are using HTTPS.');
+            }
+            
+            // Try with preferred constraints first, then fall back to basic
+            const constraintSets = [
+                {
                     audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true,
-                        channelCount: 1,
-                        sampleRate: 48000,
-                        sampleSize: 16
+                        echoCancellation: { ideal: true },
+                        noiseSuppression: { ideal: true },
+                        autoGainControl: { ideal: true }
                     },
                     video: false
-                });
-                
-                console.log('✅ Microphone access granted');
-                updateStatus('Microphone ready', '✅');
-                
-                // Play local audio (muted) for monitoring
-                const localAudio = document.getElementById('localAudio');
-                if (localAudio) {
-                    localAudio.srcObject = localStream;
+                },
+                {
+                    audio: true,
+                    video: false
                 }
-                
-                // Show mic indicator
-                document.getElementById('micIndicator').style.display = 'flex';
-                updateMicStatus();
-                
-            } catch (error) {
-                console.error('❌ Microphone access denied:', error);
-                throw new Error('Microphone access is required. Please allow microphone permissions and refresh the page.');
+            ];
+            
+            let lastError = null;
+            for (const constraints of constraintSets) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                    console.log('✅ Microphone access granted');
+                    updateStatus('Microphone ready', '✅');
+                    
+                    // Play local audio (muted) for monitoring
+                    const localAudio = document.getElementById('localAudio');
+                    if (localAudio) {
+                        localAudio.srcObject = localStream;
+                    }
+                    
+                    // Show mic indicator
+                    document.getElementById('micIndicator').style.display = 'flex';
+                    updateMicStatus();
+                    return; // success!
+                    
+                } catch (error) {
+                    lastError = error;
+                    console.warn('⚠️ getUserMedia failed with constraints:', JSON.stringify(constraints), error.name, error.message);
+                }
+            }
+            
+            // All attempts failed
+            console.error('❌ Microphone access denied after all attempts:', lastError);
+            if (lastError.name === 'NotAllowedError' || lastError.name === 'PermissionDeniedError') {
+                throw new Error('Microphone permission denied. Please click the camera/mic icon in your browser address bar and allow access, then refresh.');
+            } else if (lastError.name === 'NotFoundError' || lastError.name === 'DevicesNotFoundError') {
+                throw new Error('No microphone found. Please connect a microphone and try again.');
+            } else if (lastError.name === 'NotReadableError' || lastError.name === 'TrackStartError') {
+                throw new Error('Microphone is in use by another app. Close other apps using the mic and try again.');
+            } else {
+                throw new Error('Could not access microphone: ' + (lastError.message || lastError.name));
             }
         }
         
@@ -1695,10 +1812,12 @@
             if (element) element.textContent = message;
         }
         
-        // Show error
+        // Show error - hides ALL other screens to prevent overlapping
         function showError(message, redirect = false) {
             document.getElementById('loadingScreen').style.display = 'none';
             document.getElementById('preCallScreen').style.display = 'none';
+            document.getElementById('callActive').style.display = 'none';
+            document.getElementById('incomingCallScreen').style.display = 'none';
             document.getElementById('errorScreen').style.display = 'block';
             document.getElementById('errorMessage').textContent = message;
             
@@ -1709,21 +1828,58 @@
             }
         }
         
-        // Attempt reconnect
+        // Attempt reconnect when ICE fails
         function attemptReconnect() {
             console.log('🔄 Attempting reconnect...');
             setTimeout(() => {
                 if (peerConnection && peerConnection.connectionState === 'failed') {
-                    console.log('🔄 Reinitializing WebRTC...');
-                    initializeWebRTC().catch(console.error);
+                    console.log('🔄 Reinitializing WebRTC (ICE failed)...');
+                    // Close old connection
+                    peerConnection.close();
+                    peerConnection = null;
+                    stopSignalPolling();
+                    // Re-initialize with existing stream
+                    if (localStream) {
+                        initializeWebRTC().then(() => {
+                            if (isCaller) {
+                                setTimeout(() => createOffer(), 1000);
+                            }
+                        }).catch(e => console.error('Reconnect failed:', e));
+                    } else {
+                        webrtcStarted = false;
+                        startWebRTCCall().catch(e => console.error('Reconnect failed:', e));
+                    }
                 }
             }, 2000);
         }
         
-        // Retry connection
+        // Retry connection - properly cleans up and retries
         function retryConnection() {
             console.log('🔄 Retrying connection...');
-            startWebRTCCall();
+            
+            // Reset the guard so we can start again
+            webrtcStarted = false;
+            
+            // Clean up existing connections
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+                localStream = null;
+            }
+            stopSignalPolling();
+            
+            // Reset UI: hide error, show loading
+            document.getElementById('errorScreen').style.display = 'none';
+            document.getElementById('loadingScreen').style.display = 'block';
+            updateStatus('Retrying connection...', '🔄');
+            
+            // Retry with proper error handling
+            startWebRTCCall().catch(err => {
+                console.error('❌ Retry failed:', err);
+            });
         }
         
         // Handle page unload
@@ -1733,6 +1889,8 @@
                 e.returnValue = 'You have an active call. Are you sure you want to leave?';
                 endCall();
             }
+            // Do NOT explicitly close WebSocket - let server grace period handle it
+            // This prevents online status flicker during page navigation
         });
         
         // ============================================

@@ -744,9 +744,10 @@ async function initiateCall(userId) {
     }
 }
 
-// Cleanup on page unload
+// Cleanup on page unload - do NOT close WebSocket (server grace period handles it)
 window.addEventListener('beforeunload', () => {
-    if (ws) ws.close();
+    // Just clear intervals, let WebSocket close naturally
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
     if (statsRefreshInterval) clearInterval(statsRefreshInterval);
 });
 

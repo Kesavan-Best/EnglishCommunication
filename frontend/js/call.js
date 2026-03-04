@@ -8,7 +8,28 @@ const CallManager = {
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
+            { urls: 'stun:stun4.l.google.com:19302' },
+            // Free TURN servers via Metered
+            {
+                urls: 'turn:a.relay.metered.ca:80',
+                username: 'e8dd65b92add87306a510286',
+                credential: 'DjxR8C/gCPJAL8DR'
+            },
+            {
+                urls: 'turn:a.relay.metered.ca:80?transport=tcp',
+                username: 'e8dd65b92add87306a510286',
+                credential: 'DjxR8C/gCPJAL8DR'
+            },
+            {
+                urls: 'turn:a.relay.metered.ca:443',
+                username: 'e8dd65b92add87306a510286',
+                credential: 'DjxR8C/gCPJAL8DR'
+            },
+            {
+                urls: 'turns:a.relay.metered.ca:443?transport=tcp',
+                username: 'e8dd65b92add87306a510286',
+                credential: 'DjxR8C/gCPJAL8DR'
+            }
         ],
         sdpSemantics: 'unified-plan'
     },
@@ -128,24 +149,31 @@ const CallManager = {
         }
     },
     
-    // Get local microphone stream
+    // Get local microphone stream with fallback
     async getLocalStream() {
-        try {
-            this.state.localStream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true
-                },
-                video: false
-            });
-            
-            console.log('✅ Microphone access granted');
-            
-        } catch (error) {
-            console.error('❌ Microphone access denied:', error);
-            throw new Error('Microphone access is required. Please allow microphone permissions.');
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Microphone API not available. Make sure you are using HTTPS.');
         }
+        
+        const constraintSets = [
+            { audio: { echoCancellation: { ideal: true }, noiseSuppression: { ideal: true }, autoGainControl: { ideal: true } }, video: false },
+            { audio: true, video: false }
+        ];
+        
+        let lastError = null;
+        for (const constraints of constraintSets) {
+            try {
+                this.state.localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('✅ Microphone access granted');
+                return;
+            } catch (error) {
+                lastError = error;
+                console.warn('⚠️ getUserMedia failed:', error.name, error.message);
+            }
+        }
+        
+        console.error('❌ Microphone access denied:', lastError);
+        throw new Error('Microphone access is required. Please allow microphone permissions.');
     },
     
     // Connect to WebSocket signaling server

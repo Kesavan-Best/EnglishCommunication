@@ -1123,6 +1123,50 @@ async def send_call_notification(call_id: str, receiver_id: str, caller_id: str,
         return False
 
 
+# ==================== ICE / TURN Server Configuration ====================
+
+@router.get("/ice-servers")
+async def get_ice_servers(
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Return ICE server configuration for WebRTC.
+    
+    Checks for TURN credentials in environment variables first,
+    falls back to free public STUN/TURN servers.
+    """
+    ice_servers = [
+        {"urls": "stun:stun.l.google.com:19302"},
+        {"urls": "stun:stun1.l.google.com:19302"},
+        {"urls": "stun:stun2.l.google.com:19302"},
+        {"urls": "stun:stun3.l.google.com:19302"},
+        {"urls": "stun:stun4.l.google.com:19302"},
+    ]
+    
+    # Check for TURN credentials in environment
+    turn_url = os.environ.get("TURN_SERVER_URL")
+    turn_username = os.environ.get("TURN_USERNAME")
+    turn_credential = os.environ.get("TURN_CREDENTIAL")
+    
+    if turn_url and turn_username and turn_credential:
+        # Use configured TURN server
+        ice_servers.extend([
+            {"urls": f"turn:{turn_url}:80", "username": turn_username, "credential": turn_credential},
+            {"urls": f"turn:{turn_url}:80?transport=tcp", "username": turn_username, "credential": turn_credential},
+            {"urls": f"turn:{turn_url}:443", "username": turn_username, "credential": turn_credential},
+            {"urls": f"turns:{turn_url}:443?transport=tcp", "username": turn_username, "credential": turn_credential},
+        ])
+    else:
+        # Fallback: Metered free TURN (may have limits/expire)
+        ice_servers.extend([
+            {"urls": "turn:a.relay.metered.ca:80", "username": "e8dd65b92add87306a510286", "credential": "DjxR8C/gCPJAL8DR"},
+            {"urls": "turn:a.relay.metered.ca:80?transport=tcp", "username": "e8dd65b92add87306a510286", "credential": "DjxR8C/gCPJAL8DR"},
+            {"urls": "turn:a.relay.metered.ca:443", "username": "e8dd65b92add87306a510286", "credential": "DjxR8C/gCPJAL8DR"},
+            {"urls": "turns:a.relay.metered.ca:443?transport=tcp", "username": "e8dd65b92add87306a510286", "credential": "DjxR8C/gCPJAL8DR"},
+        ])
+    
+    return {"iceServers": ice_servers}
+
+
 # ==================== WebRTC Signaling API (Database-based) ====================
 # These endpoints enable cross-instance WebRTC signaling by storing signals in MongoDB
 

@@ -38,14 +38,11 @@ async function initUsersPage() {
     // Start polling for pending call invites (cross-instance support)
     startPendingCallsPolling();
     
-    // Refresh data every 15 seconds (WebSocket handles real-time status updates
-    // so frequent full re-renders are not needed and cause flickering)
-    setInterval(() => {
-        loadAllUsers();
-        loadFriends();
-    }, 15000);
+    // Lightweight status refresh every 12 seconds - only updates online/offline badges
+    // WITHOUT full re-render (which causes flickering). Full reload only happens on tab switch.
+    setInterval(refreshOnlineStatuses, 12000);
     
-    // Poll for friend requests more frequently (cross-instance support)
+    // Poll for friend requests (cross-instance support)
     setInterval(() => {
         loadPendingRequests();
     }, 5000);
@@ -301,6 +298,37 @@ async function loadFriends() {
     }
 }
 
+// Lightweight status refresh — only updates online/offline badges without full re-render.
+// This prevents the flickering caused by full DOM replacement every 15 seconds.
+async function refreshOnlineStatuses() {
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        
+        const response = await fetch(API_ENDPOINTS.allUsers, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+            const freshUsers = await response.json();
+            
+            // Only update status badges — do NOT re-render the entire grid
+            freshUsers.forEach(freshUser => {
+                // Update cached arrays silently
+                const cachedAll = allUsers.find(u => u.id === freshUser.id);
+                if (cachedAll) cachedAll.is_online = freshUser.is_online;
+                
+                const cachedFriend = friends.find(f => f.id === freshUser.id);
+                if (cachedFriend) cachedFriend.is_online = freshUser.is_online;
+                
+                // Update DOM badge/button in-place (no full re-render)
+                updateUserStatus(freshUser.id, freshUser.is_online);
+            });
+        }
+    } catch (e) {
+        console.debug('Status refresh failed:', e.message);
+    }
+}
 async function loadPendingRequests() {
     try {
         const token = localStorage.getItem('token');
@@ -694,6 +722,9 @@ async function initiateCall(userId) {
     try {
         console.log('🔵 Initiating call to user:', userId);
         
+        // Reset call accept guard for new call
+        window._callAcceptHandled = false;
+        
         // Ensure WebSocket is connected
         if (!ws || ws.readyState !== WebSocket.OPEN) {
             console.warn('⚠️ WebSocket not connected, reconnecting...');
@@ -878,6 +909,13 @@ function cancelPendingCall(callId, isTimeout = false) {
 
 // Handle call being accepted by receiver
 function handleCallAccepted(callId) {
+    // Guard against double-fire (both WS and polling can trigger this)
+    if (window._callAcceptHandled) {
+        console.log('⚠️ handleCallAccepted already fired, ignoring duplicate');
+        return;
+    }
+    window._callAcceptHandled = true;
+    
     console.log('✅ Call accepted! Redirecting to call page...');
     
     // Clear waiting interval
@@ -1468,9 +1506,12 @@ if (document.readyState === 'loading') {
     initUsersPage();
 }
 
-// Handle page unload - close WebSocket connection
+// Handle page unload - do NOT close WebSocket (grace period on server handles this)
+// Explicitly closing causes immediate offline status, which flickers on page navigation
 window.addEventListener('beforeunload', () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.close();
+    // Just clear heartbeat interval, let WebSocket close naturally
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
     }
 });

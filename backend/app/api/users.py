@@ -26,6 +26,9 @@ def is_user_online_db(user_id: str) -> bool:
             from backend.app.api.websocket import manager
             if manager.is_user_connected(user_id):
                 return True
+            # Also check if user is in grace period (just disconnected, might reconnect)
+            if user_id in manager._offline_tasks:
+                return True  # Still in grace period, treat as online
         except Exception:
             pass  # WebSocket manager not available, fall back to DB
         
@@ -35,7 +38,7 @@ def is_user_online_db(user_id: str) -> bool:
         if not user:
             return False
         
-        # User must have is_online=True AND last_seen within last 45 seconds
+        # User must have is_online=True AND last_seen within last 60 seconds
         is_online = user.get("is_online", False)
         last_seen = user.get("last_seen")
         
@@ -43,8 +46,8 @@ def is_user_online_db(user_id: str) -> bool:
             return False
         
         if last_seen:
-            # Check if last_seen is within the last 45 seconds (heartbeats every 15s)
-            time_threshold = datetime.utcnow() - timedelta(seconds=45)
+            # Check if last_seen is within the last 60 seconds (heartbeats every 15s + grace period)
+            time_threshold = datetime.utcnow() - timedelta(seconds=60)
             if last_seen < time_threshold:
                 # Stale status - mark as offline in DB to clean up
                 db.users.update_one(
