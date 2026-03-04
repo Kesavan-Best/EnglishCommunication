@@ -636,6 +636,13 @@
         let readySignalSent = false; // track if we sent ready signal
         let webrtcStarted = false; // guard against double start
         
+        // WebRTC signal deduplication and ICE buffering
+        let remoteDescriptionSet = false;
+        let iceCandidateBuffer = [];
+        let offerProcessed = false;
+        let answerProcessed = false;
+        let connectionTimeoutId = null;
+        
         // WebRTC Configuration - fetched dynamically from backend, with hardcoded fallback
         let rtcConfig = {
             iceServers: [
@@ -934,7 +941,11 @@
                         console.log('✅ Call accepted by partner');
                         if (isCaller && !webrtcStarted) {
                             updateStatus('Partner joined! Starting call...', '🎉');
-                            setTimeout(() => startWebRTCCall().catch(e => console.error('call_accepted start failed:', e)), 1000);
+                            // Small delay to let partner initialize their WebRTC
+                            setTimeout(() => startWebRTCCall().catch(e => console.error('call_accepted start failed:', e)), 2000);
+                        } else if (isCaller && webrtcStarted) {
+                            // Already started, just update status - signals will arrive via polling
+                            updateStatus('Partner joined! Connecting...', '🎉');
                         }
                         break;
                         
@@ -1391,7 +1402,18 @@
                     call_id: callId
                 });
                 
-                console.log('✅ Offer sent');
+                console.log('✅ Offer sent to partner');
+                updateStatus('Waiting for partner to connect...', '⏳');
+                
+                // Set connection timeout - if no answer in 25 seconds, show retry
+                connectionTimeoutId = setTimeout(() => {
+                    if (!callActive && peerConnection && peerConnection.connectionState !== 'connected') {
+                        console.warn('⏰ Connection timeout - no answer received');
+                        updateStatus('Connection taking too long...', '⏳');
+                        // Show error with retry option
+                        showError('Partner may not have connected yet. They might still be loading the call page.', false);
+                    }
+                }, 25000);
                 
             } catch (error) {
                 console.error('❌ Error creating offer:', error);
@@ -1399,20 +1421,35 @@
             }
         }
         
-        // Handle incoming WebRTC signals
+        // Handle incoming WebRTC signals (with deduplication and ICE buffering)
         async function handleWebRTCSignal(signal) {
             console.log('🔧 Handling signal:', signal.type);
             
             try {
+                // Buffer signals if peer connection isn't ready yet
                 if (!peerConnection) {
-                    console.error('❌ No peer connection');
+                    console.warn('⚠️ No peer connection yet, buffering signal:', signal.type);
+                    if (signal.type === 'ice-candidate' && signal.candidate) {
+                        iceCandidateBuffer.push(signal.candidate);
+                    }
                     return;
                 }
                 
                 switch(signal.type) {
                     case 'offer':
-                        console.log('📥 Received offer');
+                        // Deduplicate: only process the first offer
+                        if (offerProcessed) {
+                            console.log('⚠️ Offer already processed, skipping duplicate');
+                            return;
+                        }
+                        offerProcessed = true;
+                        
+                        console.log('📥 Processing offer from partner');
                         await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.offer));
+                        remoteDescriptionSet = true;
+                        
+                        // Process any ICE candidates that arrived before the offer
+                        await processBufferedIceCandidates();
                         
                         const answer = await peerConnection.createAnswer();
                         await peerConnection.setLocalDescription(answer);
@@ -1420,24 +1457,52 @@
                         sendWebRTCSignal({
                             type: 'answer',
                             answer: answer,
-                            to_user_id: signal.from_user || partnerUser.id,
-                            call_id: signal.call_id
+                            to_user_id: partnerUser.id,
+                            call_id: callId
                         });
                         
-                        console.log('✅ Answer sent');
+                        console.log('✅ Answer created and sent');
+                        updateStatus('Connecting to partner...', '🔄');
                         break;
                         
                     case 'answer':
-                        console.log('📥 Received answer');
+                        // Deduplicate: only process the first answer
+                        if (answerProcessed) {
+                            console.log('⚠️ Answer already processed, skipping duplicate');
+                            return;
+                        }
+                        answerProcessed = true;
+                        
+                        console.log('📥 Processing answer from partner');
                         await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.answer));
+                        remoteDescriptionSet = true;
+                        
+                        // Process any ICE candidates that arrived before the answer
+                        await processBufferedIceCandidates();
+                        
+                        // Clear connection timeout - we got an answer!
+                        if (connectionTimeoutId) {
+                            clearTimeout(connectionTimeoutId);
+                            connectionTimeoutId = null;
+                        }
+                        
+                        updateStatus('Establishing audio connection...', '🔄');
                         break;
                         
                     case 'ice-candidate':
-                        console.log('🧊 Received ICE candidate');
+                        if (!signal.candidate) return;
+                        
+                        // Buffer if remote description not set yet
+                        if (!remoteDescriptionSet) {
+                            console.log('⏳ Buffering ICE candidate (waiting for remote description)');
+                            iceCandidateBuffer.push(signal.candidate);
+                            return;
+                        }
+                        
                         try {
                             await peerConnection.addIceCandidate(new RTCIceCandidate(signal.candidate));
                         } catch (e) {
-                            console.warn('⚠️ Failed to add ICE candidate:', e);
+                            console.warn('⚠️ Failed to add ICE candidate:', e.message);
                         }
                         break;
                 }
@@ -1447,11 +1512,28 @@
             }
         }
         
-        // Send WebRTC signal - uses database API (cross-instance) + WebSocket (same-instance fast path)
+        // Process buffered ICE candidates after remote description is set
+        async function processBufferedIceCandidates() {
+            if (iceCandidateBuffer.length === 0) return;
+            
+            console.log(`🧊 Processing ${iceCandidateBuffer.length} buffered ICE candidates`);
+            
+            for (const candidate of iceCandidateBuffer) {
+                try {
+                    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+                } catch (e) {
+                    console.warn('⚠️ Failed to add buffered ICE candidate:', e.message);
+                }
+            }
+            iceCandidateBuffer = [];
+        }
+        
+        // Send WebRTC signal via REST API (stores in DB + delivers via WS on same instance)
+        // Only uses REST API to prevent duplicate signal delivery
         async function sendWebRTCSignal(signal) {
             const token = localStorage.getItem('token');
             
-            // First try database storage (works cross-instance)
+            // Store in database (cross-instance) - backend also tries WS delivery
             try {
                 const response = await fetch(`${API_BASE_URL}/api/calls/webrtc/signal`, {
                     method: 'POST',
@@ -1463,20 +1545,28 @@
                 });
                 
                 if (response.ok) {
-                    console.log(`📡 Signal stored in DB: ${signal.type}`);
+                    console.log(`📡 Signal sent: ${signal.type}`);
                 } else {
-                    console.error('❌ Failed to store signal in DB');
+                    console.error('❌ Failed to store signal:', response.status);
+                    // Fallback: try WS direct delivery if REST failed
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'webrtc_signal',
+                            signal: signal
+                        }));
+                        console.log(`📡 Signal sent via WS fallback: ${signal.type}`);
+                    }
                 }
             } catch (error) {
-                console.error('❌ Error storing signal:', error);
-            }
-            
-            // Also send via WebSocket for faster delivery if on same instance
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'webrtc_signal',
-                    signal: signal
-                }));
+                console.error('❌ Error sending signal:', error);
+                // Fallback: try WS direct delivery
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'webrtc_signal',
+                        signal: signal
+                    }));
+                    console.log(`📡 Signal sent via WS fallback: ${signal.type}`);
+                }
             }
         }
         
@@ -1485,7 +1575,7 @@
             if (signalPollInterval) return;
             
             console.log('🔄 Starting signal polling...');
-            signalPollInterval = setInterval(pollForSignals, 1000); // Poll every 1 second
+            signalPollInterval = setInterval(pollForSignals, 750); // Poll every 750ms for fast signal exchange
             
             // Also poll immediately
             pollForSignals();
@@ -1513,10 +1603,15 @@
                     const data = await response.json();
                     
                     if (data.signals && data.signals.length > 0) {
-                        console.log(`📡 Received ${data.signals.length} signal(s) from DB`);
+                        console.log(`📡 Received ${data.signals.length} signal(s) from DB polling`);
                         
                         for (const signalWrapper of data.signals) {
-                            await handleWebRTCSignal(signalWrapper.signal);
+                            // Merge from_user_id into signal for proper routing
+                            const signal = signalWrapper.signal;
+                            if (signalWrapper.from_user_id) {
+                                signal.from_user_id = signalWrapper.from_user_id;
+                            }
+                            await handleWebRTCSignal(signal);
                         }
                     }
                 }
@@ -1690,8 +1785,13 @@
             }
         }
         
-        // Start call timer
+        // Start call timer (idempotent - safe to call multiple times)
         function startCallTimer() {
+            // Prevent duplicate intervals
+            if (callTimer) {
+                clearInterval(callTimer);
+            }
+            
             callStartTime = Date.now();
             
             callTimer = setInterval(() => {
@@ -1724,9 +1824,17 @@
             sessionStorage.removeItem('activeCallId');
             sessionStorage.removeItem('activeCallTimestamp');
             callActive = false;
+            callEnded = true;
             
             // Stop signal polling
             stopSignalPolling();
+            stopCallStatusPolling();
+            
+            // Clear connection timeout
+            if (connectionTimeoutId) {
+                clearTimeout(connectionTimeoutId);
+                connectionTimeoutId = null;
+            }
             
             // Stop timer
             if (callTimer) {
@@ -1838,6 +1946,17 @@
                     peerConnection.close();
                     peerConnection = null;
                     stopSignalPolling();
+                    
+                    // Reset deduplication state for fresh connection
+                    remoteDescriptionSet = false;
+                    iceCandidateBuffer = [];
+                    offerProcessed = false;
+                    answerProcessed = false;
+                    if (connectionTimeoutId) {
+                        clearTimeout(connectionTimeoutId);
+                        connectionTimeoutId = null;
+                    }
+                    
                     // Re-initialize with existing stream
                     if (localStream) {
                         initializeWebRTC().then(() => {
@@ -1860,6 +1979,16 @@
             // Reset the guard so we can start again
             webrtcStarted = false;
             
+            // Reset deduplication state
+            remoteDescriptionSet = false;
+            iceCandidateBuffer = [];
+            offerProcessed = false;
+            answerProcessed = false;
+            if (connectionTimeoutId) {
+                clearTimeout(connectionTimeoutId);
+                connectionTimeoutId = null;
+            }
+            
             // Clean up existing connections
             if (peerConnection) {
                 peerConnection.close();
@@ -1870,6 +1999,9 @@
                 localStream = null;
             }
             stopSignalPolling();
+            
+            // Clean up old signals from DB to start fresh
+            cleanupSignals();
             
             // Reset UI: hide error, show loading
             document.getElementById('errorScreen').style.display = 'none';

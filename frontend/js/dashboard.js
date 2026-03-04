@@ -725,14 +725,14 @@ async function initiateCall(userId) {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ partner_id: userId })
+            body: JSON.stringify({ receiver_id: userId })
         });
         
         if (response.ok) {
             const data = await response.json();
             showToast('Call initiated!', 'success');
             setTimeout(() => {
-                window.location.href = `call.html?callId=${data.call_id}&autoStart=true`;
+                window.location.href = `call.html?callId=${data.id}&autoStart=true`;
             }, 1000);
         } else {
             const error = await response.json();

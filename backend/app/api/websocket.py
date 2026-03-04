@@ -658,7 +658,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     logger.info(f"✅ Notified {from_user_id} that call was rejected by {user_id}")
                 
             elif message_type == "webrtc_signal":
-                # Handle WebRTC signaling - forward directly without strict validation
+                # Handle WebRTC signaling - forward via WS AND store in DB for cross-instance
                 signal_data = data.get("signal", {})
                 call_id = data.get("call_id") or signal_data.get("call_id")
                 
@@ -680,10 +680,29 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     except Exception as e:
                         logger.warning(f"⚠️ Could not add call to active_calls: {e}")
                 
-                # Forward signal directly
+                # Forward signal directly via WebSocket (fast path, same instance)
                 result = await manager.handle_webrtc_signal(user_id, signal_data)
                 if result.get("error"):
                     logger.warning(f"⚠️ Signal forwarding: {result}")
+                
+                # Also store in DB for cross-instance signaling (fallback path)
+                to_user_id = signal_data.get("to_user_id")
+                signal_type = signal_data.get("type")
+                if call_id and to_user_id and signal_type:
+                    try:
+                        from backend.app.database import Database
+                        db = Database.get_db()
+                        db.webrtc_signals.insert_one({
+                            "call_id": call_id,
+                            "from_user_id": user_id,
+                            "to_user_id": to_user_id,
+                            "signal_type": signal_type,
+                            "signal_data": signal_data,
+                            "created_at": datetime.utcnow(),
+                            "read": False
+                        })
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not store signal in DB: {e}")
                 
             
             elif message_type == "transcription":
