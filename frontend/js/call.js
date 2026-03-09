@@ -31,7 +31,11 @@ const CallManager = {
                 credential: 'DjxR8C/gCPJAL8DR'
             }
         ],
-        sdpSemantics: 'unified-plan'
+        sdpSemantics: 'unified-plan',
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
     },
     
     // State
@@ -48,7 +52,12 @@ const CallManager = {
         callId: null,
         isCaller: false,
         reconnectAttempts: 0,
-        maxReconnectAttempts: 3
+        maxReconnectAttempts: 3,
+        wsReconnectAttempts: 0,
+        maxWsReconnectAttempts: 5,
+        remoteDescriptionSet: false,
+        iceCandidateBuffer: [],
+        partnerJoined: false
     },
     
     // Initialize call
@@ -136,9 +145,18 @@ const CallManager = {
             // Initialize WebRTC
             await this.initializeWebRTC();
             
-            // If caller, create offer
-            if (this.state.isCaller) {
-                setTimeout(() => this.createOffer(), 1000);
+            // If caller, create offer after a delay to give partner time to connect.
+            // If partner_joined was already received, createOffer fires immediately
+            // from the message handler instead.
+            if (this.state.isCaller && !this.state.partnerJoined) {
+                setTimeout(() => {
+                    if (!this.state.partnerJoined) {
+                        console.log('⏳ Partner not yet joined, sending offer anyway');
+                        this.createOffer();
+                    }
+                }, 2000);
+            } else if (this.state.isCaller && this.state.partnerJoined) {
+                this.createOffer();
             }
             
             this.updateStatus('Waiting for partner...', '⏳');
@@ -180,12 +198,20 @@ const CallManager = {
     async connectWebSocket() {
         return new Promise((resolve, reject) => {
             try {
-                // Use the WS_BASE_URL from config (handles localhost vs production)
-                const wsUrl = `${WS_BASE_URL}/api/ws/${this.state.currentUser.id}`;
+                // Build WS URL - use WS_BASE_URL from config.js if available,
+                // otherwise derive from current page protocol
+                let wsUrl;
+                if (typeof WS_BASE_URL !== 'undefined' && WS_BASE_URL) {
+                    wsUrl = `${WS_BASE_URL}/api/ws/${this.state.currentUser.id}`;
+                } else {
+                    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                    wsUrl = `${protocol}://${window.location.host}/api/ws/${this.state.currentUser.id}`;
+                }
                 
                 console.log('🔌 Connecting to WebSocket:', wsUrl);
                 
                 this.state.ws = new WebSocket(wsUrl);
+                this.state.wsReconnectAttempts = 0;
                 
                 this.state.ws.onopen = () => {
                     console.log('✅ WebSocket connected');
@@ -197,16 +223,22 @@ const CallManager = {
                         call_id: this.state.callId,
                         partner_id: this.state.partnerUser.id
                     }));
+                    
+                    // Start heartbeat to keep connection alive on Render
+                    this._startHeartbeat();
                 };
                 
                 this.state.ws.onmessage = this.handleWebSocketMessage.bind(this);
                 
                 this.state.ws.onerror = (error) => {
+                    console.error('❌ WebSocket error:', error);
                     reject(new Error('Failed to connect to signaling server'));
                 };
                 
                 this.state.ws.onclose = () => {
                     console.log('🔌 WebSocket closed');
+                    this._stopHeartbeat();
+                    this._attemptWsReconnect();
                 };
                 
             } catch (error) {
@@ -215,10 +247,64 @@ const CallManager = {
         });
     },
     
+    // WebSocket heartbeat to prevent Render from dropping idle connections
+    _startHeartbeat() {
+        this._stopHeartbeat();
+        this._heartbeatInterval = setInterval(() => {
+            if (this.state.ws && this.state.ws.readyState === WebSocket.OPEN) {
+                this.state.ws.send(JSON.stringify({ type: 'ping' }));
+            }
+        }, 15000);
+    },
+    
+    _stopHeartbeat() {
+        if (this._heartbeatInterval) {
+            clearInterval(this._heartbeatInterval);
+            this._heartbeatInterval = null;
+        }
+    },
+    
+    // Auto-reconnect WebSocket on unexpected close
+    _attemptWsReconnect() {
+        if (this.state.wsReconnectAttempts >= this.state.maxWsReconnectAttempts) return;
+        if (!this.state.callId) return; // call ended, don't reconnect
+        
+        this.state.wsReconnectAttempts++;
+        const delay = 1500 * this.state.wsReconnectAttempts;
+        console.log(`🔄 WS reconnect attempt ${this.state.wsReconnectAttempts} in ${delay}ms`);
+        
+        setTimeout(() => {
+            if (!this.state.callId) return;
+            
+            let wsUrl;
+            if (typeof WS_BASE_URL !== 'undefined' && WS_BASE_URL) {
+                wsUrl = `${WS_BASE_URL}/api/ws/${this.state.currentUser.id}`;
+            } else {
+                const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+                wsUrl = `${protocol}://${window.location.host}/api/ws/${this.state.currentUser.id}`;
+            }
+            
+            this.state.ws = new WebSocket(wsUrl);
+            
+            this.state.ws.onopen = () => {
+                console.log('✅ WebSocket reconnected');
+                this.state.wsReconnectAttempts = 0;
+                this._startHeartbeat();
+            };
+            this.state.ws.onmessage = this.handleWebSocketMessage.bind(this);
+            this.state.ws.onerror = () => {};
+            this.state.ws.onclose = () => {
+                this._stopHeartbeat();
+                this._attemptWsReconnect();
+            };
+        }, delay);
+    },
+    
     // Handle WebSocket messages
     handleWebSocketMessage(event) {
         try {
             const data = JSON.parse(event.data);
+            console.log('📨 WebSocket:', data.type);
             
             switch(data.type) {
                 case 'webrtc_signal':
@@ -227,10 +313,32 @@ const CallManager = {
                     
                 case 'partner_joined':
                     console.log('✅ Partner joined call');
+                    this.state.partnerJoined = true;
+                    // If we're the caller, now create the offer (partner is ready)
+                    if (this.state.isCaller && this.state.peerConnection) {
+                        this.createOffer();
+                    }
+                    break;
+                    
+                case 'call_accepted':
+                    console.log('✅ Call accepted by partner');
+                    this.state.partnerJoined = true;
+                    if (this.state.isCaller && this.state.peerConnection) {
+                        this.createOffer();
+                    }
+                    break;
+                    
+                case 'call_ended':
+                    console.log('📞 Call ended by partner');
+                    this.endCall();
                     break;
                     
                 case 'signal_ack':
                     console.log('✅ Signal acknowledged');
+                    break;
+                    
+                case 'pong':
+                    // heartbeat response
                     break;
             }
         } catch (error) {
@@ -255,6 +363,8 @@ const CallManager = {
                 
                 if (remoteAudio) {
                     remoteAudio.srcObject = this.state.remoteStream;
+                    remoteAudio.autoplay = true;
+                    remoteAudio.playsInline = true;
                     
                     // Show active call screen
                     this.showActiveCallScreen();
@@ -269,23 +379,44 @@ const CallManager = {
             
             // Handle ICE candidates
             this.state.peerConnection.onicecandidate = (event) => {
-                if (event.candidate && this.state.ws) {
+                if (event.candidate) {
+                    console.log('🧊 ICE candidate generated:', event.candidate.type, event.candidate.protocol);
                     this.sendWebRTCSignal({
                         type: 'ice-candidate',
                         candidate: event.candidate,
                         to_user_id: this.state.partnerUser.id,
+                        from_user_id: this.state.currentUser.id,
                         call_id: this.state.callId
                     });
+                } else {
+                    console.log('✅ ICE gathering complete');
                 }
+            };
+            
+            // Monitor ICE connection state (critical for debugging Render issues)
+            this.state.peerConnection.oniceconnectionstatechange = () => {
+                console.log('🧊 ICE connection state:', this.state.peerConnection.iceConnectionState);
+            };
+            
+            // Monitor ICE candidate errors (reveals TURN/STUN failures)
+            this.state.peerConnection.onicecandidateerror = (event) => {
+                console.error('🧊 ICE candidate error:', event.errorCode, event.errorText, event.url);
             };
             
             // Monitor connection state
             this.state.peerConnection.onconnectionstatechange = () => {
                 const state = this.state.peerConnection.connectionState;
+                console.log('🔗 Connection state:', state);
                 
                 switch(state) {
                     case 'connected':
                         this.updateStatus('Call connected!', '🎉');
+                        break;
+                    case 'connecting':
+                        this.updateStatus('Connecting...', '🔄');
+                        break;
+                    case 'disconnected':
+                        this.updateStatus('Disconnected', '⚠️');
                         break;
                     case 'failed':
                         this.attemptReconnect();
@@ -315,6 +446,7 @@ const CallManager = {
                 type: 'offer',
                 offer: offer,
                 to_user_id: this.state.partnerUser.id,
+                from_user_id: this.state.currentUser.id,
                 call_id: this.state.callId
             });
             
@@ -326,16 +458,24 @@ const CallManager = {
         }
     },
     
-    // Handle WebRTC signals
+    // Handle WebRTC signals (with ICE candidate buffering)
     async handleWebRTCSignal(signal) {
         try {
-            if (!this.state.peerConnection) return;
+            if (!this.state.peerConnection) {
+                // Buffer ICE candidates if peer connection isn't ready yet
+                if (signal.type === 'ice-candidate' && signal.candidate) {
+                    this.state.iceCandidateBuffer.push(signal.candidate);
+                }
+                return;
+            }
             
             switch(signal.type) {
                 case 'offer':
-                    await this.state.peerConnection.setRemoteDescription(
-                        new RTCSessionDescription(signal.offer)
-                    );
+                    await this.state.peerConnection.setRemoteDescription(signal.offer);
+                    this.state.remoteDescriptionSet = true;
+                    
+                    // Flush buffered ICE candidates
+                    await this._processBufferedIceCandidates();
                     
                     const answer = await this.state.peerConnection.createAnswer();
                     await this.state.peerConnection.setLocalDescription(answer);
@@ -343,24 +483,36 @@ const CallManager = {
                     this.sendWebRTCSignal({
                         type: 'answer',
                         answer: answer,
-                        to_user_id: signal.from,
-                        call_id: signal.call_id
+                        to_user_id: signal.from || signal.from_user_id,
+                        from_user_id: this.state.currentUser.id,
+                        call_id: signal.call_id || this.state.callId
                     });
                     break;
                     
                 case 'answer':
-                    await this.state.peerConnection.setRemoteDescription(
-                        new RTCSessionDescription(signal.answer)
-                    );
+                    await this.state.peerConnection.setRemoteDescription(signal.answer);
+                    this.state.remoteDescriptionSet = true;
+                    
+                    // Flush buffered ICE candidates
+                    await this._processBufferedIceCandidates();
                     break;
                     
                 case 'ice-candidate':
+                    if (!signal.candidate) return;
+                    
+                    // Buffer if remote description not set yet
+                    if (!this.state.remoteDescriptionSet) {
+                        console.log('⏳ Buffering ICE candidate (waiting for remote description)');
+                        this.state.iceCandidateBuffer.push(signal.candidate);
+                        return;
+                    }
+                    
                     try {
                         await this.state.peerConnection.addIceCandidate(
                             new RTCIceCandidate(signal.candidate)
                         );
                     } catch (e) {
-                        console.warn('⚠️ Failed to add ICE candidate:', e);
+                        console.warn('⚠️ Failed to add ICE candidate:', e.message);
                     }
                     break;
                     
@@ -374,13 +526,35 @@ const CallManager = {
         }
     },
     
-    // Send WebRTC signal
+    // Process buffered ICE candidates after remote description is set
+    async _processBufferedIceCandidates() {
+        if (this.state.iceCandidateBuffer.length === 0) return;
+        
+        console.log(`🧊 Processing ${this.state.iceCandidateBuffer.length} buffered ICE candidates`);
+        for (const candidate of this.state.iceCandidateBuffer) {
+            try {
+                await this.state.peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+                console.warn('⚠️ Failed to add buffered ICE candidate:', e.message);
+            }
+        }
+        this.state.iceCandidateBuffer = [];
+    },
+    
+    // Send WebRTC signal via WebSocket
     sendWebRTCSignal(signal) {
+        // Ensure from_user_id is always present
+        if (!signal.from_user_id && this.state.currentUser) {
+            signal.from_user_id = this.state.currentUser.id;
+        }
+        
         if (this.state.ws && this.state.ws.readyState === WebSocket.OPEN) {
             this.state.ws.send(JSON.stringify({
                 type: 'webrtc_signal',
                 signal: signal
             }));
+        } else {
+            console.warn('⚠️ WebSocket not open, signal not sent:', signal.type);
         }
     },
     
@@ -402,6 +576,12 @@ const CallManager = {
     async endCall() {
         console.log('📞 Ending call...');
         
+        const callId = this.state.callId;
+        this.state.callId = null; // prevent WS reconnect
+        
+        // Stop heartbeat
+        this._stopHeartbeat();
+        
         // Stop timer
         if (this.state.callTimer) {
             clearInterval(this.state.callTimer);
@@ -413,7 +593,7 @@ const CallManager = {
             this.sendWebRTCSignal({
                 type: 'call-end',
                 to_user_id: this.state.partnerUser.id,
-                call_id: this.state.callId
+                call_id: callId
             });
         }
         
@@ -433,13 +613,18 @@ const CallManager = {
             this.state.localStream = null;
         }
         
+        // Reset state
+        this.state.remoteDescriptionSet = false;
+        this.state.iceCandidateBuffer = [];
+        this.state.partnerJoined = false;
+        
         // Save call data
         if (this.state.callStartTime) {
             const duration = Math.floor((Date.now() - this.state.callStartTime) / 1000);
             await this.saveCallData(duration);
         }
         
-        return this.state.callId;
+        return callId;
     },
     
     // Save call data
@@ -545,14 +730,28 @@ const CallManager = {
         }
     },
     
-    // Attempt reconnect
+    // Attempt reconnect - properly renegotiate
     attemptReconnect() {
         if (this.state.reconnectAttempts < this.state.maxReconnectAttempts) {
             this.state.reconnectAttempts++;
+            console.log(`🔄 Reconnect attempt ${this.state.reconnectAttempts}`);
             
             setTimeout(() => {
                 if (this.state.peerConnection && this.state.peerConnection.connectionState === 'failed') {
-                    this.initializeWebRTC().catch(console.error);
+                    // Close old connection
+                    this.state.peerConnection.close();
+                    this.state.peerConnection = null;
+                    
+                    // Reset ICE state
+                    this.state.remoteDescriptionSet = false;
+                    this.state.iceCandidateBuffer = [];
+                    
+                    // Re-initialize and renegotiate
+                    this.initializeWebRTC().then(() => {
+                        if (this.state.isCaller) {
+                            setTimeout(() => this.createOffer(), 1000);
+                        }
+                    }).catch(console.error);
                 }
             }, 2000 * this.state.reconnectAttempts);
         }

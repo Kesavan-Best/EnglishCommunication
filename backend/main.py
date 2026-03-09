@@ -62,12 +62,12 @@ app.add_middleware(
 )
 
 # Mount static files for audio storage
-static_path = os.path.join(os.path.dirname(__file__), "..", "static")
+static_path = str(Path(__file__).resolve().parent.parent / "static")
 os.makedirs(os.path.join(static_path, "audio"), exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 # Mount frontend files
-frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+frontend_path = str(Path(__file__).resolve().parent.parent / "frontend")
 if os.path.exists(frontend_path):
     print(f"Mounting frontend from: {frontend_path}")
     app.mount("/frontend", StaticFiles(directory=frontend_path, html=True), name="frontend")
@@ -99,10 +99,13 @@ async def health_check():
 # call invitations, check_online, random_queue, etc.
 
 if __name__ == "__main__":
+    is_production = os.getenv('ENVIRONMENT', '') == 'production' or os.getenv('RENDER', '') == 'true'
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
-        log_level="info"
+        reload=not is_production,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*"
     )
