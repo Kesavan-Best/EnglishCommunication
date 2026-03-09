@@ -125,16 +125,21 @@ async def invite_to_call(
         call_id = result.inserted_id
         
         # Send WebSocket notification to receiver (may not work cross-instance)
+        ws_delivered = False
         try:
             from backend.app.api.websocket import manager
             
-            await manager.send_call_invite(
+            ws_delivered = await manager.send_call_invite(
                 from_user_id=str(caller_id),
                 to_user_id=str(receiver_id),
                 call_id=str(call_id),
                 caller_name=caller_name
             )
-            print(f"📞 Sent WebSocket call invite to user {receiver_id}")
+            if ws_delivered:
+                print(f"📞 ✅ WebSocket call invite DELIVERED to user {receiver_id}")
+            else:
+                print(f"📞 ⚠️ WebSocket call invite NOT delivered to user {receiver_id} (not connected via WS)")
+                print(f"📞 Receiver will be notified via DB polling fallback")
         except Exception as ws_error:
             print(f"⚠️ WebSocket notification failed (cross-instance): {ws_error}")
             # This is OK - receiver will poll for pending calls
@@ -1180,7 +1185,7 @@ async def store_webrtc_signal(
     
     try:
         call_id = signal_data.get("call_id")
-        to_user_id = signal_data.get("to_user_id")
+        to_user_id = str(signal_data.get("to_user_id", ""))  # Normalize to string
         signal_type = signal_data.get("type")  # offer, answer, ice-candidate
         
         if not all([call_id, to_user_id, signal_type]):

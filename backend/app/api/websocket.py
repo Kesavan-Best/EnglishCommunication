@@ -29,6 +29,7 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, user_id: str):
         """Accept WebSocket connection"""
         await websocket.accept()
+        user_id = str(user_id)  # Normalize to string to prevent ObjectId mismatch
         
         # Cancel any pending offline task for this user (they reconnected!)
         if user_id in self._offline_tasks:
@@ -65,6 +66,7 @@ class ConnectionManager:
 
     def disconnect(self, user_id: str):
         """Clean up when user disconnects - uses grace period to avoid flicker on page navigation"""
+        user_id = str(user_id)  # Normalize to string
         if user_id in self.active_connections:
             del self.active_connections[user_id]
         
@@ -158,10 +160,11 @@ class ConnectionManager:
 
     def is_user_connected(self, user_id: str) -> bool:
         """Check if a user has an active WebSocket connection (real-time check)"""
-        return user_id in self.active_connections
+        return str(user_id) in self.active_connections
 
     async def send_personal_message(self, message: dict, user_id: str):
         """Send message to specific user"""
+        user_id = str(user_id)  # Normalize to string
         if user_id in self.active_connections:
             try:
                 await self.active_connections[user_id].send_json(message)
@@ -176,7 +179,10 @@ class ConnectionManager:
 
     async def send_call_invite(self, from_user_id: str, to_user_id: str, call_id: str, caller_name: str = None):
         """Simple call invite notification (used by /api/calls/invite endpoint)"""
+        from_user_id = str(from_user_id)  # Normalize to string
+        to_user_id = str(to_user_id)  # Normalize to string
         logger.info(f"📞 Sending call invite from {from_user_id} to {to_user_id} for call {call_id}")
+        logger.info(f"📞 Active connections: {list(self.active_connections.keys())}")
         
         # Check if receiver is actually online
         if to_user_id not in self.active_connections:
@@ -347,8 +353,9 @@ class ConnectionManager:
         """Handle WebRTC signaling messages - forward directly to target user"""
         try:
             signal_type = signal_data.get("type")
-            to_user = signal_data.get("to_user_id")
+            to_user = str(signal_data.get("to_user_id", ""))  # Normalize to string
             call_id = signal_data.get("call_id")
+            from_user = str(from_user)  # Normalize to string
             
             logger.info(f"🔧 WebRTC {signal_type} from {from_user} to {to_user}")
             
@@ -532,7 +539,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 
             elif message_type == "send_call_invitation":
                 # Send call invitation
-                to_user = data.get("to_user")
+                to_user = str(data.get("to_user", ""))  # Normalize to string
                 call_id = data.get("call_id")
                 call_data = data.get("call_data", {})
                 
@@ -558,7 +565,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
             elif message_type == "accept_call":
                 # Accept call (new direct call_id based)
                 call_id = data.get("call_id")
-                from_user_id = data.get("from_user_id")
+                from_user_id = str(data.get("from_user_id", ""))  # Normalize to string
                 
                 logger.info(f"✅ User {user_id} accepting call {call_id} from {from_user_id}")
                 
@@ -585,7 +592,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                         logger.error(f"Failed to update call status: {e}")
                 
                 # Notify the caller that the call was accepted
-                if from_user_id and from_user_id in manager.active_connections:
+                if from_user_id:
                     await manager.send_personal_message({
                         "type": "call_accepted",
                         "call_id": call_id,
@@ -608,7 +615,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 # Reject call invitation
                 invitation_id = data.get("invitation_id")
                 call_id = data.get("call_id")
-                from_user_id = data.get("from_user_id")
+                from_user_id = str(data.get("from_user_id", ""))  # Normalize to string
                 
                 # Get rejector's name
                 from backend.app.database import Database
@@ -646,7 +653,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 }, user_id)
                 
                 # Notify sender that call was rejected
-                if from_user_id and from_user_id in manager.active_connections:
+                if from_user_id:
                     await manager.send_personal_message({
                         "type": "call_rejected",
                         "call_id": call_id,
@@ -708,7 +715,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 # User joined the call page and has WebRTC ready
                 # Notify their partner so the caller can create an offer
                 call_id = data.get("call_id")
-                partner_id = data.get("partner_id")
+                partner_id = str(data.get("partner_id", ""))  # Normalize to string
                 
                 logger.info(f"📞 User {user_id} joined call {call_id}, notifying partner {partner_id}")
                 
