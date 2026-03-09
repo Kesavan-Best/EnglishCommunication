@@ -639,9 +639,13 @@
         // WebRTC signal deduplication and ICE buffering
         let remoteDescriptionSet = false;
         let iceCandidateBuffer = [];
+        let signalBuffer = [];  // Buffer ALL signal types when peerConnection is null
         let offerProcessed = false;
         let answerProcessed = false;
+        let offerCreated = false; // Guard against creating offer multiple times
         let connectionTimeoutId = null;
+        let processedSignalIds = new Set(); // Deduplicate signals from WS + polling
+        let partnerReady = false; // Track if partner's WebRTC is initialized
         
         // WebRTC Configuration - fetched dynamically from backend, with hardcoded fallback
         let rtcConfig = {
@@ -959,6 +963,15 @@
                         }
                         break;
                         
+                    case 'partner_joined':
+                        console.log('✅ Partner joined call - they are ready');
+                        partnerReady = true;
+                        if (isCaller && webrtcStarted && peerConnection && !offerCreated) {
+                            console.log('✅ Partner joined - creating offer now');
+                            createOffer();
+                        }
+                        break;
+                        
                     case 'webrtc_signal':
                         handleWebRTCSignal(data.signal);
                         break;
@@ -1203,9 +1216,28 @@
                 // Initialize WebRTC
                 await initializeWebRTC();
                 
-                // If caller, create offer after delay
+                // Process any signals that were buffered before peerConnection was ready
+                await processSignalBuffer();
+                
+                // Send join-call signal to notify partner we are ready
+                sendJoinCallSignal();
+                
+                // If caller, wait for partner to be ready OR create offer after timeout
                 if (isCaller) {
-                    setTimeout(() => createOffer(), 1500);
+                    if (partnerReady) {
+                        console.log('✅ Partner already ready, creating offer now');
+                        setTimeout(() => createOffer(), 500);
+                    } else {
+                        console.log('⏳ Waiting for partner to be ready before creating offer...');
+                        // Create offer after 3s even if partner hasn't signaled ready
+                        // (partner may be on a different instance without WS)
+                        setTimeout(() => {
+                            if (!offerCreated) {
+                                console.log('⏳ Creating offer (timeout - partner may not have signaled ready)');
+                                createOffer();
+                            }
+                        }, 3000);
+                    }
                 }
                 
                 updateStatus('Setting up audio connection...', '🎤');
@@ -1215,6 +1247,49 @@
                 webrtcStarted = false; // Allow retry
                 showError(`Failed to start call: ${error.message}`, false);
                 throw error; // RE-THROW so callers (connectWebSocketAndStart) can handle it
+            }
+        }
+        
+        // Send join-call signal via WebSocket to notify partner
+        function sendJoinCallSignal() {
+            if (ws && ws.readyState === WebSocket.OPEN && partnerUser) {
+                ws.send(JSON.stringify({
+                    type: 'join-call',
+                    call_id: callId,
+                    partner_id: partnerUser.id
+                }));
+                console.log('📤 Sent join-call signal');
+            }
+            
+            // Also store in DB so partner can detect via polling
+            if (callId && partnerUser) {
+                const token = localStorage.getItem('token');
+                fetch(`${API_BASE_URL}/api/calls/webrtc/signal`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        type: 'ready',
+                        to_user_id: partnerUser.id,
+                        call_id: callId,
+                        from_user_id: currentUser.id
+                    })
+                }).catch(e => console.debug('Ready signal store failed:', e));
+            }
+        }
+        
+        // Process buffered signals after peerConnection is created
+        async function processSignalBuffer() {
+            if (signalBuffer.length === 0) return;
+            
+            console.log(`📦 Processing ${signalBuffer.length} buffered signals`);
+            const buffered = [...signalBuffer];
+            signalBuffer = [];
+            
+            for (const signal of buffered) {
+                await handleWebRTCSignal(signal);
             }
         }
         
@@ -1329,6 +1404,7 @@
                             type: 'ice-candidate',
                             candidate: event.candidate,
                             to_user_id: partnerUser.id,
+                            from_user_id: currentUser.id,
                             call_id: callId
                         });
                     } else if (!event.candidate) {
@@ -1383,6 +1459,13 @@
         
         // Create WebRTC offer
         async function createOffer() {
+            // Guard against creating offer multiple times
+            if (offerCreated) {
+                console.log('⚠️ Offer already created, skipping');
+                return;
+            }
+            offerCreated = true;
+            
             try {
                 console.log('📞 Creating offer...');
                 updateStatus('Establishing connection...', '🔄');
@@ -1399,10 +1482,7 @@
                     type: 'offer',
                     offer: offer,
                     to_user_id: partnerUser.id,
-                    call_id: callId
-                });
-                
-                console.log('✅ Offer sent to partner');
+                        from_user_id: currentUser.id,
                 updateStatus('Waiting for partner to connect...', '⏳');
                 
                 // Set connection timeout - if no answer in 25 seconds, show retry
@@ -1425,13 +1505,22 @@
         async function handleWebRTCSignal(signal) {
             console.log('🔧 Handling signal:', signal.type);
             
+            // Handle 'ready' signal from partner (join-call acknowledgment)
+            if (signal.type === 'ready') {
+                console.log('✅ Partner is ready (WebRTC initialized)');
+                partnerReady = true;
+                if (isCaller && webrtcStarted && peerConnection && !offerCreated) {
+                    console.log('✅ Partner ready - creating offer now');
+                    createOffer();
+                }
+                return;
+            }
+            
             try {
-                // Buffer signals if peer connection isn't ready yet
+                // Buffer ALL signal types if peer connection isn't ready yet
                 if (!peerConnection) {
                     console.warn('⚠️ No peer connection yet, buffering signal:', signal.type);
-                    if (signal.type === 'ice-candidate' && signal.candidate) {
-                        iceCandidateBuffer.push(signal.candidate);
-                    }
+                    signalBuffer.push(signal);
                     return;
                 }
                 
@@ -1458,6 +1547,7 @@
                             type: 'answer',
                             answer: answer,
                             to_user_id: partnerUser.id,
+                            from_user_id: currentUser.id,
                             call_id: callId
                         });
                         
@@ -1950,8 +2040,12 @@
                     // Reset deduplication state for fresh connection
                     remoteDescriptionSet = false;
                     iceCandidateBuffer = [];
+                    signalBuffer = [];
                     offerProcessed = false;
                     answerProcessed = false;
+                    offerCreated = false;
+                    processedSignalIds.clear();
+                    partnerReady = false;
                     if (connectionTimeoutId) {
                         clearTimeout(connectionTimeoutId);
                         connectionTimeoutId = null;
@@ -1960,6 +2054,8 @@
                     // Re-initialize with existing stream
                     if (localStream) {
                         initializeWebRTC().then(() => {
+                            processSignalBuffer();
+                            sendJoinCallSignal();
                             if (isCaller) {
                                 setTimeout(() => createOffer(), 1000);
                             }
@@ -1982,8 +2078,12 @@
             // Reset deduplication state
             remoteDescriptionSet = false;
             iceCandidateBuffer = [];
+            signalBuffer = [];
             offerProcessed = false;
             answerProcessed = false;
+            offerCreated = false;
+            processedSignalIds.clear();
+            partnerReady = false;
             if (connectionTimeoutId) {
                 clearTimeout(connectionTimeoutId);
                 connectionTimeoutId = null;

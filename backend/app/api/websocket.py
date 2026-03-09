@@ -359,7 +359,7 @@ class ConnectionManager:
             # This ensures signals always get through for call establishment
             success = await self.send_personal_message({
                 "type": "webrtc_signal",
-                "signal": {**signal_data, "from": from_user},
+                "signal": {**signal_data, "from": from_user, "from_user_id": from_user},
                 "from_user": from_user,
                 "timestamp": datetime.now().isoformat()
             }, to_user)
@@ -704,6 +704,38 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                     except Exception as e:
                         logger.warning(f"⚠️ Could not store signal in DB: {e}")
                 
+            elif message_type == "join-call":
+                # User joined the call page and has WebRTC ready
+                # Notify their partner so the caller can create an offer
+                call_id = data.get("call_id")
+                partner_id = data.get("partner_id")
+                
+                logger.info(f"📞 User {user_id} joined call {call_id}, notifying partner {partner_id}")
+                
+                # Register call in active_calls for transcription broadcasting
+                if call_id and call_id not in manager.active_calls:
+                    try:
+                        from backend.app.database import Database
+                        from bson import ObjectId
+                        db = Database.get_db()
+                        call_data = db.calls.find_one({"_id": ObjectId(call_id)})
+                        if call_data:
+                            manager.active_calls[call_id] = {
+                                "participants": [str(call_data["caller_id"]), str(call_data["receiver_id"])],
+                                "room_id": call_data.get("jitsi_room_id", ""),
+                                "started_at": datetime.now().isoformat(),
+                                "status": "active"
+                            }
+                    except Exception as e:
+                        logger.warning(f"⚠️ Could not register call in active_calls: {e}")
+                
+                if partner_id:
+                    await manager.send_personal_message({
+                        "type": "partner_joined",
+                        "call_id": call_id,
+                        "partner_id": user_id,
+                        "timestamp": datetime.now().isoformat()
+                    }, partner_id)
             
             elif message_type == "transcription":
                 # Handle incoming transcription to broadcast to partner

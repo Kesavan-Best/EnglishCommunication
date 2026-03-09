@@ -1205,9 +1205,11 @@ async def store_webrtc_signal(
         # Also try WebSocket for faster delivery (may fail if cross-instance)
         try:
             from backend.app.api.websocket import manager
+            # Include from_user_id in WS-pushed signal for proper routing
+            ws_signal = {**signal_data, "from_user_id": str(current_user.id)}
             await manager.send_personal_message({
                 "type": "webrtc_signal",
-                "signal": signal_data
+                "signal": ws_signal
             }, to_user_id)
         except Exception as ws_error:
             print(f"⚠️ WebSocket delivery failed (user will poll): {ws_error}")
