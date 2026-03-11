@@ -40,6 +40,8 @@
         if (!_userId) return;
         // Don't create duplicate connections if page already has WS (e.g. dashboard.js, users.js)
         if (window._globalCallWS) return;
+        // Skip WS on pages that manage their own WebSocket (dashboard, users)
+        if (typeof setupWebSocket === 'function' || typeof connectWebSocket === 'function') return;
 
         try {
             const wsUrl = (typeof WS_BASE_URL !== 'undefined' ? WS_BASE_URL : '') + '/api/ws/' + _userId;

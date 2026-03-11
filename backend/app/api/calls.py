@@ -494,9 +494,12 @@ async def get_pending_invites(
     """Get pending call invitations for current user (for cross-instance polling)"""
     db = Database.get_db()
     
+    # Convert current_user.id to ObjectId to match DB storage
+    receiver_oid = ObjectId(str(current_user.id))
+    
     # Find pending calls where current user is the receiver
     pending_calls = list(db.calls.find({
-        "receiver_id": current_user.id,
+        "receiver_id": receiver_oid,
         "status": "pending",
         "notification_seen": {"$ne": True}
     }).sort("created_at", -1).limit(5))
@@ -546,8 +549,9 @@ async def mark_invite_seen(
     db = Database.get_db()
     
     try:
+        receiver_oid = ObjectId(str(current_user.id))
         db.calls.update_one(
-            {"_id": ObjectId(call_id), "receiver_id": current_user.id},
+            {"_id": ObjectId(call_id), "receiver_id": receiver_oid},
             {"$set": {"notification_seen": True}}
         )
         return {"status": "ok"}
@@ -561,11 +565,12 @@ async def get_my_calls(
     """Get user's call history"""
     db = Database.get_db()
     
+    user_oid = ObjectId(str(current_user.id))
     calls = []
     cursor = db.calls.find({
         "$or": [
-            {"caller_id": current_user.id},
-            {"receiver_id": current_user.id}
+            {"caller_id": user_oid},
+            {"receiver_id": user_oid}
         ]
     }).sort("created_at", -1).limit(50)
     
