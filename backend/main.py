@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from contextlib import asynccontextmanager
 import uvicorn
 import os
@@ -60,6 +61,19 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["*"],  # Expose all headers
 )
+
+# Middleware to ensure text files (HTML/JS/CSS) include charset=utf-8
+# so emojis and special characters render correctly in all browsers
+class CharsetMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        content_type = response.headers.get("content-type", "")
+        if content_type and "charset" not in content_type:
+            if content_type.startswith(("text/html", "text/css", "application/javascript", "text/javascript")):
+                response.headers["content-type"] = content_type + "; charset=utf-8"
+        return response
+
+app.add_middleware(CharsetMiddleware)
 
 # Mount static files for audio storage
 static_path = str(Path(__file__).resolve().parent.parent / "static")

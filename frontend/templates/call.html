@@ -477,10 +477,10 @@
                     <span id="micStatus">Mic: On</span>
                 </div>
                 <button class="control-btn" onclick="toggleMute()" id="muteBtn">
-                    <span id="muteIcon">🔊</span> <span id="muteText">Mute</span>
+                    <span id="muteIcon">&#128266;</span> <span id="muteText">Mute</span>
                 </button>
                 <button class="control-btn end-call-btn" onclick="endCall()" id="endCallBtn">
-                    📞 End Call
+                    &#128222; End Call
                 </button>
             </div>
         </div>
@@ -492,14 +492,14 @@
                 <div class="loading-spinner"></div>
                 <div class="status-message" id="statusMessage">Connecting to call...</div>
                 <div class="status-details" id="statusDetails">Setting up WebRTC connection</div>
-                <div class="connection-status" id="connectionStatus">🔄 Initializing</div>
+                <div class="connection-status" id="connectionStatus">&#128260; Initializing</div>
             </div>
             
             <!-- Active Call Screen -->
             <div class="call-active" id="callActive" style="display: none;">
                 <div class="call-timer" id="callTimer">00:00</div>
                 <div class="connection-status" id="activeStatus" style="margin-bottom: 20px;">
-                    🟢 Connected
+                    &#128994; Connected
                 </div>
                 
                 <!-- Real-time Chat Display -->
@@ -554,7 +554,7 @@
                             gap: 12px;
                             opacity: 0.4;
                         ">
-                            <div style="font-size: 40px;">🎙️</div>
+                            <div style="font-size: 40px;">&#127897;&#65039;</div>
                             <div style="font-size: 14px; color: #94A3B8; text-align: center; line-height: 1.6;">
                                 Start speaking and your conversation<br>will appear here in real time
                             </div>
@@ -566,13 +566,13 @@
                 </div>
                 
                 <div style="opacity: 0.6; margin-top: 20px; font-size: 13px; color: #94A3B8;">
-                    🎤 Speak naturally — your words will appear above in real time
+                    &#127908; Speak naturally — your words will appear above in real time
                 </div>
             </div>
             
             <!-- Pre-call Screen -->
             <div class="pre-call-screen" id="preCallScreen">
-                <h1 style="font-size: 48px; margin-bottom: 20px;">🎤</h1>
+                <h1 style="font-size: 48px; margin-bottom: 20px;">&#127908;</h1>
                 <h1 style="font-size: 36px; margin-bottom: 20px;">Audio Call</h1>
                 <p style="font-size: 18px; opacity: 0.8; margin-bottom: 30px;" id="preCallMessage">
                     Waiting to connect with your partner
@@ -590,10 +590,10 @@
                 <p style="font-size: 18px; opacity: 0.8; margin-bottom: 40px;">is calling you</p>
                 <div class="call-actions">
                     <button class="accept-call-btn" onclick="acceptIncomingCall()">
-                        📞 Accept
+                        &#128222; Accept
                     </button>
                     <button class="reject-call-btn" onclick="rejectIncomingCall()">
-                        ❌ Reject
+                        &#10060; Reject
                     </button>
                 </div>
             </div>

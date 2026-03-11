@@ -503,9 +503,9 @@ async def get_pending_invites(
     
     invites = []
     for call in pending_calls:
-        # Check if call is not too old (< 60 seconds)
+        # Check if call is not too old (< 120 seconds)
         call_age = (datetime.utcnow() - call["created_at"]).total_seconds()
-        if call_age < 60:
+        if call_age < 120:
             invites.append({
                 "call_id": str(call["_id"]),
                 "caller_id": str(call["caller_id"]),
