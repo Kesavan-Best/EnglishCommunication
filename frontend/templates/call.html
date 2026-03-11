@@ -1482,7 +1482,10 @@
                     type: 'offer',
                     offer: offer,
                     to_user_id: partnerUser.id,
-                        from_user_id: currentUser.id,
+                    from_user_id: currentUser.id,
+                    call_id: callId
+                });
+                
                 updateStatus('Waiting for partner to connect...', '⏳');
                 
                 // Set connection timeout - if no answer in 25 seconds, show retry

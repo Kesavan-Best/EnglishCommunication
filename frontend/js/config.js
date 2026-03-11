@@ -27,7 +27,7 @@ const API_ENDPOINTS = {
     // Call endpoints
     inviteCall: `${API_BASE_URL}/api/calls/invite`,
     endCall: `${API_BASE_URL}/api/calls/end`,
-    recentCalls: `${API_BASE_URL}/api/calls/recent`,
+    recentCalls: `${API_BASE_URL}/api/calls/my-calls`,
     
     // Leaderboard endpoints
     leaderboard: `${API_BASE_URL}/api/leaderboard/top`,
