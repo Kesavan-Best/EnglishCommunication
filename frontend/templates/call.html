@@ -1867,6 +1867,9 @@
             document.getElementById('callStatus').textContent = 'In call';
             document.getElementById('endCallBtn').style.display = 'flex';
             
+            // Mark call as active so speech recognition keeps restarting
+            callActive = true;
+            
             // Start the call timer immediately
             startCallTimer();
             
