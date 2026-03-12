@@ -1,0 +1,125 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from contextlib import asynccontextmanager
+import uvicorn
+import os
+import sys 
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Add parent directory to path for both local and Render deployment
+current_dir = Path(__file__).parent
+parent_dir = current_dir.parent
+if str(parent_dir) not in sys.path:
+    sys.path.insert(0, str(parent_dir))
+
+# Load .env explicitly from backend/ directory - MUST be before any other imports
+_env_path = current_dir / '.env'
+if _env_path.exists():
+    load_dotenv(dotenv_path=_env_path, override=True)
+    print(f"[OK] Loaded .env from {_env_path}")
+else:
+    load_dotenv(override=True)  # fallback
+
+from backend.app.api import users, calls, analysis, leaderboard, websocket, oauth, otp, nlp_analysis
+from backend.app.database import init_db
+from backend.app.core.config import settings
+import logging
+
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Initializing database...")
+    await init_db()
+    logger.info("✅ Database initialized")
+    
+    # Language analysis uses LanguageTool + WordNet + Rule-based (no heavy NLP models)
+    logger.info("📊 Language analyzer ready (LanguageTool + WordNet + Filler Detection)")
+    
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+
+app = FastAPI(
+    title="English Communication Platform",
+    description="AI-powered English speaking improvement platform",
+    version="1.0.0",
+    lifespan=lifespan
+)
+
+# CORS middleware - Allow all origins for development and ngrok
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for ngrok and development)
+    allow_credentials=False,  # Must be False when allow_origins is "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers
+)
+
+# Middleware to ensure text files (HTML/JS/CSS) include charset=utf-8
+# so emojis and special characters render correctly in all browsers
+class CharsetMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        content_type = response.headers.get("content-type", "")
+        if content_type and "charset" not in content_type:
+            if content_type.startswith(("text/html", "text/css", "application/javascript", "text/javascript")):
+                response.headers["content-type"] = content_type + "; charset=utf-8"
+        return response
+
+app.add_middleware(CharsetMiddleware)
+
+# Mount static files for audio storage
+static_path = str(Path(__file__).resolve().parent.parent / "static")
+os.makedirs(os.path.join(static_path, "audio"), exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+# Mount frontend files
+frontend_path = str(Path(__file__).resolve().parent.parent / "frontend")
+if os.path.exists(frontend_path):
+    print(f"Mounting frontend from: {frontend_path}")
+    app.mount("/frontend", StaticFiles(directory=frontend_path, html=True), name="frontend")
+else:
+    print(f"WARNING: Frontend path not found: {frontend_path}")
+
+# Include routers
+app.include_router(users.router, prefix="/api/users", tags=["users"])
+app.include_router(calls.router, prefix="/api/calls", tags=["calls"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
+app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
+app.include_router(websocket.router, prefix="/api", tags=["websocket"])  # FIXED: Added prefix
+app.include_router(oauth.router, tags=["oauth"])  # OAuth routes
+app.include_router(otp.router, prefix="/api/otp", tags=["otp"])  # OTP verification
+app.include_router(nlp_analysis.router, tags=["NLP Analysis"])  # NLP/AI Analysis
+
+@app.get("/")
+async def root():
+    """Redirect to frontend"""
+    return RedirectResponse(url="/frontend/index.html")
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}
+
+# WebSocket endpoint is handled by websocket.router (included above with /api prefix)
+# The comprehensive handler in websocket.py handles ALL message types:
+# ping, accept_call, reject_call_invitation, webrtc_signal, transcription,
+# call invitations, check_online, random_queue, etc.
+
+if __name__ == "__main__":
+    is_production = os.getenv('ENVIRONMENT', '') == 'production' or os.getenv('RENDER', '') == 'true'
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=not is_production,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*"
+    )

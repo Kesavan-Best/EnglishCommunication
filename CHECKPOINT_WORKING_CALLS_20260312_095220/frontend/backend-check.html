@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Status Check</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .status-card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .online { color: #28a745; }
+        .offline { color: #dc3545; }
+        .loading { color: #ffc107; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #5568d3; }
+        .log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry { margin: 5px 0; }
+        .success { color: #28a745; }
+        .error { color: #dc3545; }
+        .info { color: #17a2b8; }
+    </style>
+</head>
+<body>
+    <div class="status-card">
+        <h1>🔧 Backend Status Check</h1>
+        <div id="status" class="status loading">⏳ Checking...</div>
+        <p id="message"></p>
+        
+        <div>
+            <button onclick="checkBackend()">🔄 Refresh</button>
+            <button onclick="testLogin()">🔐 Test Login</button>
+            <button onclick="testUsers()">👥 Test Users API</button>
+            <button onclick="clearLog()">🗑️ Clear Log</button>
+        </div>
+        
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:8000';
+        
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            log.insertBefore(entry, log.firstChild);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function checkBackend() {
+            const statusEl = document.getElementById('status');
+            const messageEl = document.getElementById('message');
+            
+            statusEl.className = 'status loading';
+            statusEl.textContent = '⏳ Checking...';
+            messageEl.textContent = 'Connecting to backend...';
+            addLog('Checking backend at ' + API_BASE_URL, 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusEl.className = 'status online';
+                    statusEl.textContent = '✅ Backend is ONLINE';
+                    messageEl.textContent = `Status: ${data.status}`;
+                    addLog('Backend is online and responding', 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+            } catch (error) {
+                statusEl.className = 'status offline';
+                statusEl.textContent = '❌ Backend is OFFLINE';
+                messageEl.textContent = `Error: ${error.message}`;
+                addLog('Backend is offline: ' + error.message, 'error');
+                addLog('Make sure backend is running: cd backend && python main.py', 'info');
+            }
+        }
+        
+        async function testLogin() {
+            addLog('Testing login with john@example.com...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'john@example.com',
+                        password: 'password123'
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    addLog('✅ Login successful! Token received.', 'success');
+                    addLog(`User: ${data.user.name} (${data.user.email})`, 'success');
+                    localStorage.setItem('test_token', data.access_token);
+                } else {
+                    const error = await response.json();
+                    addLog('❌ Login failed: ' + error.detail, 'error');
+                }
+            } catch (error) {
+                addLog('❌ Network error: ' + error.message, 'error');
+            }
+        }
+        
+        async function testUsers() {
+            const token = localStorage.getItem('test_token');
+            if (!token) {
+                addLog('❌ No token found. Please test login first.', 'error');
+                return;
+            }
+            
+            addLog('Testing /api/users/all endpoint...', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/all`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const users = await response.json();
+                    addLog(`✅ Got ${users.length} users`, 'success');
+                    users.forEach(user => {
+                        addLog(`  - ${user.name} (${user.is_online ? '🟢 Online' : '⚫ Offline'})`, 'info');
+                    });
+                } else {
+                    const error = await response.json();
+                    addLog('❌ API error: ' + error.detail, 'error');
+                }
+            } catch (error) {
+                addLog('❌ Network error: ' + error.message, 'error');
+            }
+        }
+        
+        // Check on load
+        window.onload = checkBackend;
+    </script>
+</body>
+</html>

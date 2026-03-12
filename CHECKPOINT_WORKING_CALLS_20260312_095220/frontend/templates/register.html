@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - ImproveCommunication</title>
+    <!-- Updated: Feb 2, 2026 - Full registration functionality -->
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <link rel="stylesheet" href="/frontend/css/auth.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: #f5f5f5;
+        }
+        
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 1px solid #e5e5e5;
+            padding: 15px 0;
+        }
+        
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 20px;
+        }
+
+        .nav-brand h2 {
+            font-size: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .nav-link {
+            color: #666;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .nav-link:hover {
+            background: #f0f0f0;
+        }
+        
+        .btn-outline {
+            border: 1px solid #667eea;
+            color: #667eea;
+            padding: 8px 20px;
+        }
+
+        .btn-outline:hover {
+            background: #667eea;
+            color: white;
+        }
+        
+        .register-container {
+            max-width: 1100px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        
+        .register-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .register-form-section {
+            padding: 50px;
+        }
+        
+        .register-header {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .register-header .icon {
+            font-size: 36px;
+            margin-bottom: 15px;
+            color: #ff6b9d;
+        }
+        
+        .register-header h1 {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .register-header h2 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        
+        .register-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 22px;
+        }
+        
+        .form-label {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: block;
+            font-size: 14px;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 15px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: white;
+        }
+        
+        .form-hint {
+            font-size: 12px;
+            color: #888;
+            margin-top: 6px;
+        }
+
+        .password-strength {
+            margin-top: 8px;
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+        
+        .features-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 50px;
+            color: white;
+        }
+        
+        .features-section h3 {
+            font-size: 26px;
+            margin-bottom: 30px;
+            font-weight: 700;
+        }
+        
+        .feature-list {
+            list-style: none;
+        }
+        
+        .feature-list li {
+            margin-bottom: 22px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            line-height: 1.6;
+        }
+        
+        .feature-list i {
+            color: white;
+            margin-top: 3px;
+            font-size: 18px;
+        }
+        
+        .feature-list span {
+            color: white;
+            font-size: 14px;
+        }
+
+        .feature-list strong {
+            font-weight: 700;
+        }
+
+        @media (max-width: 968px) {
+            .register-wrapper {
+                grid-template-columns: 1fr;
+            }
+            
+            .features-section {
+                padding: 40px;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="/frontend/css/modern-ui.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-logo">
+                    <i class="fas fa-comments"></i>
+                </div>
+                <h2>ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="/frontend/index.html" class="nav-link">
+                    <i class="fas fa-home"></i> Home
+                </a>
+                <a href="/frontend/templates/login.html" class="nav-link btn-outline">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Register Form -->
+    <div class="register-container">
+        <div class="register-wrapper">
+            <!-- Left Side - Form -->
+            <div class="register-form-section">
+                <div class="register-header">
+                    <div class="icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h1>Join</h1>
+                    <h2>ImproveCommunication</h2>
+                    <p>Create your free account and start improving today</p>
+                </div>
+                
+                <form id="register-form">
+                    <!-- Step 1: Email & Name -->
+                    <div id="step-1" class="form-step">
+                        <div class="form-group">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" id="full-name" class="form-input" placeholder="Enter your full name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" id="email" class="form-input" placeholder="Enter your email" required>
+                            <div class="form-hint">We'll send a verification code to this email</div>
+                        </div>
+                        
+                        <button type="button" id="send-otp-btn" class="btn-primary">
+                            <i class="fas fa-paper-plane"></i> Send Verification Code
+                        </button>
+                    </div>
+                    
+                    <!-- Step 2: OTP Verification -->
+                    <div id="step-2" class="form-step" style="display: none;">
+                        <!-- Spam warning banner -->
+                        <div id="spam-warning-banner" style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #856404;">
+                            <strong>⚠️ Can't find the email?</strong><br>
+                            Check your <strong>Spam / Junk</strong> folder in Gmail. The code was sent from ImproveCommunication.
+                            <div style="margin-top: 4px; font-size: 12px; color: #6c757d;">Gmail → Left sidebar → Spam (scroll down if needed)</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Verification Code</label>
+                            <input type="text" id="otp" class="form-input" placeholder="Enter 6-digit code" maxlength="6" pattern="[0-9]{6}" required>
+                            <div class="form-hint">Enter the 6-digit code from your email (expires in 10 minutes)</div>
+                        </div>
+                        
+                        <button type="button" id="verify-otp-btn" class="btn-primary">
+                            <i class="fas fa-check-circle"></i> Verify Email
+                        </button>
+                        
+                        <button type="button" id="resend-otp-btn" class="btn-outline" style="width: 100%; margin-top: 10px; padding: 10px; border: 2px solid #667eea; background: white; color: #667eea; border-radius: 8px; cursor: pointer;">
+                            <i class="fas fa-redo"></i> Resend Code
+                        </button>
+                    </div>
+                    
+                    <!-- Step 3: Password & Complete Registration -->
+                    <div id="step-3" class="form-step" style="display: none;">
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="password" class="form-input" placeholder="Create a password" required>
+                            <div class="password-strength">Minimum 8 characters with letters and numbers</div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Confirm Password</label>
+                            <input type="password" id="confirm-password" class="form-input" placeholder="Confirm your password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-user-plus"></i> Create Account
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 15px; text-align: center;">
+                        <small style="color: #718096;">
+                            Having issues? 
+                            <button type="button" onclick="checkBackend()" style="background: none; border: none; color: #667eea; text-decoration: underline; cursor: pointer; font-size: inherit;">
+                                Test Backend Connection
+                            </button>
+                        </small>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Right Side - Features -->
+            <div class="features-section">
+                <h3>Why Join Our Application?</h3>
+                <ul class="feature-list">
+                    <li>
+                        <i class="fas fa-video"></i>
+                        <span><strong>Real-Time Practice</strong> - Connect with learners worldwide for live English conversations</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-brain"></i>
+                        <span><strong>AI-Powered Analysis</strong> - Get instant feedback on grammar, fluency, vocabulary, and pronunciation</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-chart-line"></i>
+                        <span><strong>Detailed Performance Insights</strong> - Identify weaknesses and track improvement over time</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-route"></i>
+                        <span><strong>Personalized Learning Path</strong> - Receive targeted quizzes based on your specific needs</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-trophy"></i>
+                        <span><strong>Gamified Progress</strong> - Earn scores, compete on leaderboards, and stay motivated</span>
+                    </li>
+                    <li>
+                        <i class="fas fa-lightbulb"></i>
+                        <span><strong>Smart Suggestions</strong> - Get AI-generated tips to improve your communication skills</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="/frontend/js/config.js"></script>
+    <script>
+        let isEmailVerified = false;
+        let userEmail = '';
+        let userName = '';
+        
+        // Test backend connection
+        async function checkBackend() {
+            const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            const baseUrl = isProduction 
+                ? 'https://english-communication-backend.onrender.com'
+                : 'http://127.0.0.1:8000';
+            
+            try {
+                const response = await fetch(baseUrl + '/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    alert('✅ Backend is running!\n\nStatus: ' + data.status + '\nURL: ' + baseUrl);
+                } else {
+                    alert('⚠️ Backend responded but with error status: ' + response.status);
+                }
+            } catch (error) {
+                alert('❌ Backend is NOT running!\n\nError: ' + error.message + '\n\nPlease start the backend:\n1. Open terminal\n2. cd backend\n3. python main.py');
+            }
+        }
+        
+        // Get API Base URL
+        function getApiUrl() {
+            const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+            return isProduction 
+                ? 'https://english-communication-backend.onrender.com'
+                : 'http://127.0.0.1:8000';
+        }
+        
+        // Step 1: Send OTP
+        document.getElementById('send-otp-btn').addEventListener('click', async function() {
+            const name = document.getElementById('full-name').value.trim();
+            const email = document.getElementById('email').value.trim();
+            
+            if (!name || !email) {
+                alert('Please enter your name and email');
+                return;
+            }
+            
+            // Basic email validation
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                alert('Please enter a valid email address');
+                return;
+            }
+            
+            userName = name;
+            userEmail = email;
+            
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending Code...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/send-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email, name: name })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    if (data.otp_for_testing || data.otp) {
+                        // Email service not configured – show OTP directly
+                        alert('⚠️ Email service not configured.\n\nYour OTP code is: ' + (data.otp_for_testing || data.otp) + '\n\nEnter this code in the next step.');
+                    } else if (data.spam_warning) {
+                        // Gmail sender via Brevo – very likely to land in spam
+                        alert(
+                            '📨 Verification code sent to ' + email + '\n\n' +
+                            '⚠️  IMPORTANT: The email may be in your SPAM / JUNK folder.\n\n' +
+                            'Steps to find it:\n' +
+                            '1. Open Gmail → click "Spam" or "Junk" in the left sidebar\n' +
+                            '2. Look for an email from ImproveCommunication\n' +
+                            '3. Open it and copy the 6-digit code\n\n' +
+                            'If it is not there after 2 minutes, click "Resend Code" on the next screen.'
+                        );
+                    } else {
+                        alert('✅ Verification code sent to ' + email + '\n\nCheck your email inbox (and spam folder) for the 6-digit code.');
+                    }
+                    
+                    document.getElementById('step-1').style.display = 'none';
+                    document.getElementById('step-2').style.display = 'block';
+                } else {
+                    alert('❌ Error: ' + (data.detail || 'Failed to send OTP'));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Send OTP error:', error);
+                alert('❌ Network Error: Could not connect to server.\n\n' + error.message + '\n\nPlease check if backend is running.');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Step 2: Verify OTP
+        document.getElementById('verify-otp-btn').addEventListener('click', async function() {
+            const otp = document.getElementById('otp').value.trim();
+            
+            if (!otp || otp.length !== 6) {
+                alert('Please enter the 6-digit verification code');
+                return;
+            }
+            
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/verify-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, otp: otp })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    isEmailVerified = true;
+                    alert('✅ Email verified successfully!\n\nNow create your password to complete registration.');
+                    document.getElementById('step-2').style.display = 'none';
+                    document.getElementById('step-3').style.display = 'block';
+                } else {
+                    alert('❌ ' + (data.detail || 'Invalid verification code'));
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Verify OTP error:', error);
+                alert('❌ Error: ' + error.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Resend OTP
+        document.getElementById('resend-otp-btn').addEventListener('click', async function() {
+            const btn = this;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resending...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/otp/resend-otp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail, name: userName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('New verification code sent to ' + userEmail + '\n\n⚠️ Check your SPAM / JUNK folder in Gmail if you do not see it in your inbox within 2 minutes.');
+                    document.getElementById('otp').value = '';
+                } else {
+                    alert('❌ ' + (data.detail || 'Failed to resend code'));
+                }
+            } catch (error) {
+                alert('❌ Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        });
+        
+        // Step 3: Complete Registration
+        document.getElementById('register-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!isEmailVerified) {
+                alert('Please verify your email first');
+                return;
+            }
+            
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match!');
+                return;
+            }
+            
+            // Validate password strength
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters long');
+                return;
+            }
+            
+            if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+                alert('Password must contain both letters and numbers');
+                return;
+            }
+            
+            // Disable submit button during request
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
+            
+            try {
+                const response = await fetch(getApiUrl() + '/api/users/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: userName,
+                        email: userEmail,
+                        password: password
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    alert('🎉 Registration successful!\n\nWelcome to ImproveCommunication! Please login to continue.');
+                    window.location.href = '/frontend/templates/login.html';
+                } else {
+                    alert('❌ Registration failed: ' + (data.detail || 'Unknown error'));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error('Registration error:', error);
+                alert('❌ Error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        });
+    </script>
+</body>
+</html>

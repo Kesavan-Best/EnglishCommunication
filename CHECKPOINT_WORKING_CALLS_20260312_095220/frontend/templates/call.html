@@ -981,11 +981,6 @@
                         alert('Call ended by partner');
                         endCall();
                         break;
-                    
-                    case 'transcription':
-                        // Receive transcription from partner
-                        handleIncomingTranscription(data);
-                        break;
                         
                     case 'pong':
                         // Keep-alive
@@ -1824,13 +1819,9 @@
                 if (isMuted) {
                     micIcon.classList.add('muted');
                     micStatus.textContent = 'Mic: Off';
-                    // Stop transcription when muted
-                    stopTranscription();
                 } else {
                     micIcon.classList.remove('muted');
                     micStatus.textContent = 'Mic: On';
-                    // Restart transcription when unmuted
-                    if (callActive) startTranscription();
                 }
                 
                 console.log(isMuted ? '🔇 Microphone MUTED' : '🔊 Microphone UNMUTED');
@@ -1869,11 +1860,6 @@
             
             // Start the call timer immediately
             startCallTimer();
-            
-            // Start speech-to-text transcription after a short delay
-            setTimeout(() => {
-                startTranscription();
-            }, 2000);
             
             console.log('✅ Call screen active, timer started');
         }
@@ -2248,33 +2234,26 @@
         
         // Save and broadcast transcription
         async function saveAndBroadcastTranscription(text) {
-            const role = isCaller ? 'caller' : 'receiver';
-            
-            // Display in UI immediately (sender side)
-            displayTranscription(role, text, currentUser.name);
-            
-            // Send via WebSocket for instant delivery to partner
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'transcription',
-                    call_id: callId,
-                    text: text,
-                    speaker_role: role
-                }));
-                console.log('📤 Transcription sent via WebSocket:', text);
-            }
-            
-            // Also save to backend via REST (for persistence, non-blocking)
             try {
                 const token = localStorage.getItem('token');
-                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(text)}`, {
+                const response = await fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(text)}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
-                }).catch(err => console.warn('⚠️ REST transcription save failed:', err));
+                });
+                
+                if (response.ok) {
+                    console.log('✅ Transcription saved:', text);
+                    
+                    // Display in UI immediately (sender side)
+                    const role = isCaller ? 'caller' : 'receiver';
+                    displayTranscription(role, text, currentUser.name);
+                } else {
+                    console.error('❌ Failed to save transcription');
+                }
             } catch (error) {
-                console.warn('⚠️ Error saving transcription to backend:', error);
+                console.error('❌ Error saving transcription:', error);
             }
         }
         
@@ -2378,7 +2357,48 @@
             }
         }
         
-        // Transcription monkey-patching removed - handled directly in functions above
+        // Modified showActiveCallScreen to start transcription
+        const originalShowActiveCallScreen = showActiveCallScreen;
+        showActiveCallScreen = function() {
+            originalShowActiveCallScreen();
+            
+            // Start transcription after a short delay
+            setTimeout(() => {
+                startTranscription();
+            }, 2000);
+        };
+        
+        // Modified toggleMute to control transcription
+        const originalToggleMute = toggleMute;
+        toggleMute = function() {
+            originalToggleMute();
+            
+            // Control transcription based on mute status
+            if (isMuted) {
+                stopTranscription();
+            } else if (callActive) {
+                startTranscription();
+            }
+        };
+        
+        // Modified handleWebSocketMessage to handle transcription
+        const originalHandleWebSocketMessage = handleWebSocketMessage;
+        handleWebSocketMessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                
+                // Handle transcription messages
+                if (data.type === 'transcription') {
+                    handleIncomingTranscription(data);
+                    return;
+                }
+                
+                // Call original handler for other message types
+                originalHandleWebSocketMessage(event);
+            } catch (error) {
+                console.error('❌ Error in message handler:', error);
+            }
+        };
         
         // ============================================
         // END TRANSCRIPTION FUNCTIONALITY

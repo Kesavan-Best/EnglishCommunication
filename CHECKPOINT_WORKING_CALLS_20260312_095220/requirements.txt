@@ -1,0 +1,33 @@
+# Core Backend (Required) - OPTIMIZED FOR RENDER FREE TIER (< 512MB RAM)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
+email-validator>=2.1.0
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+pymongo>=4.5.0
+websockets>=12.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# ⚡ MEMORY-OPTIMIZED FOR RENDER (< 512MB)
+# NLP/AI Libraries REMOVED - Using instant analyzer instead
+# If you need advanced AI: Use OpenAI API or upgrade to paid Render plan
+
+# Optional: Uncomment if you upgrade to paid plan (requires 1GB+ RAM)
+# transformers>=4.30.0
+# sentence-transformers>=2.2.0
+# torch>=2.0.0
+# numpy>=1.24.0
+
+# DISABLED for Render free tier - these require Java + 500MB+ RAM
+# Uncomment ONLY if on paid Render plan:
+# nltk>=3.8.1
+# language-tool-python>=2.7.1
+
+# Optional (install separately if needed)
+# redis==5.0.1
+# langdetect==1.0.9
+# textblob==0.17.1

@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FAQ - ImproveCommunication</title>
+    <link rel="stylesheet" href="/frontend/css/style.css">
+    <link rel="stylesheet" href="/frontend/css/enhanced-theme.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .faq-item {
+            background: white;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+        }
+        .faq-item:hover {
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+            transform: translateY(-2px);
+        }
+        .faq-question {
+            color: #2d3748;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .faq-answer {
+            color: #4a5568;
+            line-height: 1.7;
+            padding-left: 30px;
+        }
+        .faq-icon {
+            color: #667eea;
+            min-width: 20px;
+        }
+    </style>
+    <link rel="stylesheet" href="/frontend/css/modern-ui.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container nav-container">
+            <div class="nav-brand">
+                <i class="fas fa-comments"></i>
+                <h2>ImproveCommunication</h2>
+            </div>
+            <div class="nav-links">
+                <a href="/frontend/index.html" class="nav-link">Home</a>
+                <a href="/frontend/templates/about.html" class="nav-link">About</a>
+                <a href="/frontend/templates/faq.html" class="nav-link active">FAQ</a>
+                <a href="/frontend/templates/login.html" class="nav-link">Login</a>
+                <a href="/frontend/templates/register.html" class="btn btn-primary btn-sm">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main style="min-height: 80vh; padding: 60px 20px;">
+        <div class="container" style="max-width: 900px;">
+            <h1 style="text-align: center; margin-bottom: 20px; color: #667eea;">Frequently Asked Questions</h1>
+            <p style="text-align: center; color: #666; margin-bottom: 50px;">Got questions? We've got answers!</p>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-question-circle faq-icon"></i>
+                    How does ImproveCommunication work?
+                </div>
+                <div class="faq-answer">
+                    After signing up, you can browse available users and start a audio call with anyone online. 
+                    During your conversation, our AI analyzes your speech in real-time. After the call ends, 
+                    you'll receive detailed feedback on your grammar, fluency, and communication skills.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-clock faq-icon"></i>
+                    Is there a time limit for calls?
+                </div>
+                <div class="faq-answer">
+                    Free users can talk for up to 5 minutes per call. You'll receive a warning at 4 minutes, 
+                    and the call will automatically end at 5 minutes. Premium subscribers enjoy unlimited call duration. 
+                    Note: Calls must be at least 1 minute long to receive feedback and count toward your statistics.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-robot faq-icon"></i>
+                    How accurate is the AI feedback?
+                </div>
+                <div class="faq-answer">
+                    Our AI uses advanced speech recognition and natural language processing to analyze your conversations. 
+                    While it provides helpful insights, it's designed to complement, not replace, human learning. 
+                    Use the feedback as a guide to identify areas for improvement.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-dollar-sign faq-icon"></i>
+                    Is ImproveCommunication free?
+                </div>
+                <div class="faq-answer">
+                    Yes! You can create an account and start practicing for free with a 5-minute call limit. 
+                    We also offer premium subscriptions that provide unlimited call duration, advanced analytics, 
+                    and priority support.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-microphone faq-icon"></i>
+                    What if I don't speak during a call?
+                </div>
+                <div class="faq-answer">
+                    Both participants must actively speak during the call for it to be valid. If either person doesn't 
+                    contribute meaningful conversation (at least a few sentences), the call won't count toward your 
+                    statistics and no feedback will be generated. This ensures quality practice sessions.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-shield-alt faq-icon"></i>
+                    Is my data secure?
+                </div>
+                <div class="faq-answer">
+                    Absolutely. We take privacy seriously. Your conversations are processed securely, and we never 
+                    share your personal information with third parties. Call transcripts are used only to generate 
+                    your feedback and are stored securely.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-users faq-icon"></i>
+                    Who will I be matched with?
+                </div>
+                <div class="faq-answer">
+                    You can browse all available users and choose who you'd like to talk to. We recommend practicing 
+                    with different people to experience various accents and communication styles. Everyone on the 
+                    platform is here to learn and improve together!
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-chart-line faq-icon"></i>
+                    How do I track my progress?
+                </div>
+                <div class="faq-answer">
+                    Your dashboard displays your overall AI score, total calls, average fluency score, and call history. 
+                    You can also view the leaderboard to see how you compare with other learners. Remember, your initial 
+                    stats will be zero until you complete your first valid call!
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-headset faq-icon"></i>
+                    What equipment do I need?
+                </div>
+                <div class="faq-answer">
+                    All you need is a computer or mobile device with a working microphone and camera, plus a stable 
+                    internet connection. We recommend using headphones to reduce echo during calls.
+                </div>
+            </div>
+
+            <div class="faq-item">
+                <div class="faq-question">
+                    <i class="fas fa-envelope faq-icon"></i>
+                    What if my question isn't answered here?
+                </div>
+                <div class="faq-answer">
+                    Feel free to reach out to our support team! You can contact us through the help section in your 
+                    dashboard after logging in. We're here to help you succeed!
+                </div>
+            </div>
+
+            <!-- CTA Section -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 15px; text-align: center; color: white; margin-top: 50px;">
+                <h2 style="margin-bottom: 20px;">Ready to Start Learning?</h2>
+                <p style="margin-bottom: 30px; opacity: 0.9;">Join now and have your first practice conversation today!</p>
+                <a href="register.html" class="btn btn-secondary btn-lg" style="background: white; color: #667eea;">
+                    <i class="fas fa-rocket"></i> Create Free Account
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer style="background: #1a202c; color: white; padding: 40px 0; margin-top: 60px;">
+        <div class="container" style="text-align: center;">
+            <p style="color: #a0aec0;">&copy; 2026 ImproveCommunication. All rights reserved.</p>
+        </div>
+    </footer>
+</body>
+</html>

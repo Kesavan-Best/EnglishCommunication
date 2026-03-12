@@ -1038,8 +1038,16 @@ async def save_transcription(
         }
     )
     
-    # Note: Broadcasting is now handled via direct WebSocket messages from the frontend.
-    # This endpoint only persists the transcription to the database.
+    # Broadcast transcription to all participants via WebSocket
+    try:
+        await ws_manager.broadcast_transcription(
+            call_id=call_id,
+            speaker_id=str(current_user.id),
+            speaker_role=speaker_role,
+            text=text
+        )
+    except Exception as e:
+        print(f"⚠️ Failed to broadcast transcription: {e}")
     
     return {
         "success": True,

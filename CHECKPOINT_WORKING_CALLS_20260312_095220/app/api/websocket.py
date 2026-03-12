@@ -750,32 +750,13 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 text = data.get("text")
                 speaker_role = data.get("speaker_role")
                 
-                if call_id and text:
-                    # Register call in active_calls if not present (same as webrtc_signal)
-                    if call_id not in manager.active_calls:
-                        try:
-                            from backend.app.database import Database
-                            from bson import ObjectId
-                            db = Database.get_db()
-                            call_data = db.calls.find_one({"_id": ObjectId(call_id)})
-                            if call_data:
-                                manager.active_calls[call_id] = {
-                                    "participants": [str(call_data["caller_id"]), str(call_data["receiver_id"])],
-                                    "room_id": call_data.get("jitsi_room_id", ""),
-                                    "started_at": datetime.now().isoformat(),
-                                    "status": "active"
-                                }
-                                logger.info(f"✅ Registered call {call_id} in active_calls for transcription")
-                        except Exception as e:
-                            logger.warning(f"⚠️ Could not register call for transcription: {e}")
-                    
-                    if call_id in manager.active_calls:
-                        await manager.broadcast_transcription(
-                            call_id=call_id,
-                            speaker_id=user_id,
-                            speaker_role=speaker_role,
-                            text=text
-                        )
+                if call_id and call_id in manager.active_calls:
+                    await manager.broadcast_transcription(
+                        call_id=call_id,
+                        speaker_id=user_id,
+                        speaker_role=speaker_role,
+                        text=text
+                    )
                 
             elif message_type == "end_call":
                 # End a call
