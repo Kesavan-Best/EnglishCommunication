@@ -2166,8 +2166,6 @@
             recognition.interimResults = true;
             recognition.lang = 'en-US';
             
-            let finalTranscript = '';
-            
             recognition.onstart = () => {
                 console.log('🎤 Speech recognition started');
                 isTranscribing = true;
@@ -2175,29 +2173,34 @@
             
             recognition.onresult = (event) => {
                 let interimTranscript = '';
+                const finalizedChunks = [];
                 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
                     const transcript = event.results[i][0].transcript;
                     
                     if (event.results[i].isFinal) {
-                        finalTranscript += transcript + ' ';
-                        // Save and broadcast transcription
-                        if (transcript.trim().length > 0) {
-                            saveAndBroadcastTranscription(transcript.trim());
+                        const cleanedFinal = transcript.trim();
+                        if (cleanedFinal.length > 0) {
+                            finalizedChunks.push(cleanedFinal);
                         }
                     } else {
                         interimTranscript += transcript;
                     }
                 }
                 
-                // Show interim results in UI (optional)
-                if (interimTranscript.length > 0) {
-                    console.log('📝 Interim:', interimTranscript);
+                const cleanedInterim = interimTranscript.trim();
+                updateInterimTranscription(cleanedInterim);
+
+                // Persist and broadcast finalized chunks only
+                if (finalizedChunks.length > 0) {
+                    updateInterimTranscription('');
+                    finalizedChunks.forEach(chunk => saveAndBroadcastTranscription(chunk));
                 }
             };
             
             recognition.onerror = (event) => {
                 console.error('❌ Speech recognition error:', event.error);
+                updateInterimTranscription('');
                 if (event.error === 'no-speech') {
                     // Automatically restart
                     setTimeout(() => {
@@ -2211,6 +2214,7 @@
             recognition.onend = () => {
                 console.log('🎤 Speech recognition ended');
                 isTranscribing = false;
+                updateInterimTranscription('');
                 
                 // Automatically restart if call is still active and not muted
                 if (callActive && !isMuted) {
@@ -2251,26 +2255,29 @@
         
         // Save and broadcast transcription
         async function saveAndBroadcastTranscription(text) {
+            const cleanedText = (text || '').trim();
+            if (!cleanedText) return;
+
             const role = isCaller ? 'caller' : 'receiver';
             
             // Display in UI immediately (sender side)
-            displayTranscription(role, text, currentUser.name);
+            displayTranscription(role, cleanedText, currentUser?.name || 'You');
             
             // Send via WebSocket for instant delivery to partner
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'transcription',
                     call_id: callId,
-                    text: text,
+                    text: cleanedText,
                     speaker_role: role
                 }));
-                console.log('📤 Transcription sent via WebSocket:', text);
+                console.log('📤 Transcription sent via WebSocket:', cleanedText);
             }
             
             // Also save to backend via REST (for persistence, non-blocking)
             try {
                 const token = localStorage.getItem('token');
-                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(text)}`, {
+                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(cleanedText)}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -2285,6 +2292,66 @@
         let userIsManuallyScrolling = false;
         let scrollTimeout = null;
         let messageCounter = 0;
+
+        function removeChatPlaceholder() {
+            const placeholder = document.getElementById('chatPlaceholder');
+            if (placeholder) placeholder.remove();
+        }
+
+        function createChatBubble(displayName, text, timeText, isCurrentUser, isInterim = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-bubble ${isCurrentUser ? 'self' : 'partner'}`;
+            if (isInterim) {
+                messageDiv.style.opacity = '0.75';
+            }
+
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'chat-meta';
+            metaDiv.textContent = displayName;
+
+            const textDiv = document.createElement('div');
+            textDiv.className = 'chat-text';
+            textDiv.textContent = text;
+
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'chat-time';
+            timeDiv.textContent = timeText;
+
+            messageDiv.appendChild(metaDiv);
+            messageDiv.appendChild(textDiv);
+            messageDiv.appendChild(timeDiv);
+            return messageDiv;
+        }
+
+        function updateInterimTranscription(text) {
+            const messagesContainer = document.getElementById('transcriptionMessages');
+            if (!messagesContainer) return;
+
+            const cleaned = (text || '').trim();
+            let interimBubble = document.getElementById('liveInterimBubble');
+
+            if (!cleaned) {
+                if (interimBubble) interimBubble.remove();
+                return;
+            }
+
+            removeChatPlaceholder();
+
+            if (!interimBubble) {
+                interimBubble = createChatBubble('You', cleaned, 'Listening...', true, true);
+                interimBubble.id = 'liveInterimBubble';
+                messagesContainer.appendChild(interimBubble);
+            } else {
+                const textEl = interimBubble.querySelector('.chat-text');
+                if (textEl) textEl.textContent = cleaned;
+            }
+
+            if (!userIsManuallyScrolling) {
+                requestAnimationFrame(() => {
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                });
+            }
+        }
         
         function scrollToBottom() {
             const container = document.getElementById('transcriptionMessages');
@@ -2299,12 +2366,16 @@
         function displayTranscription(speaker, text, speakerName) {
             const messagesContainer = document.getElementById('transcriptionMessages');
             if (!messagesContainer) return;
+
+            const cleanedText = (text || '').trim();
+            if (!cleanedText) return;
             
             // Remove placeholder if exists
-            const placeholder = document.getElementById('chatPlaceholder');
-            if (placeholder) {
-                placeholder.remove();
-            }
+            removeChatPlaceholder();
+
+            // Remove pending interim bubble before adding a final message
+            const interimBubble = document.getElementById('liveInterimBubble');
+            if (interimBubble) interimBubble.remove();
             
             // Determine if it's the current user
             const isCurrentUser = (speaker === 'caller' && isCaller) || (speaker === 'receiver' && !isCaller);
@@ -2315,14 +2386,7 @@
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
             // Create chat bubble
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `chat-bubble ${isCurrentUser ? 'self' : 'partner'}`;
-            
-            messageDiv.innerHTML = `
-                <div class="chat-meta">${displayName}</div>
-                <div class="chat-text">${text}</div>
-                <div class="chat-time">${timeStr}</div>
-            `;
+            const messageDiv = createChatBubble(displayName, cleanedText, timeStr, isCurrentUser);
             
             messagesContainer.appendChild(messageDiv);
             
@@ -2372,11 +2436,15 @@
         // Handle incoming transcription from WebSocket
         function handleIncomingTranscription(data) {
             console.log('📝 Received transcription:', data);
+
+            if (!data || !data.text) return;
             
             // Only display if it's from the partner (not echoing our own)
-            const isFromPartner = data.speaker_id !== currentUser.id;
+            const currentUserId = String(currentUser?.id || '');
+            const speakerId = String(data.speaker_id || '');
+            const isFromCurrentUser = !!speakerId && speakerId === currentUserId;
             
-            if (isFromPartner) {
+            if (!isFromCurrentUser) {
                 displayTranscription(data.speaker_role, data.text, partnerUser?.name);
             }
         }

@@ -427,6 +427,73 @@ If you did not request this code, please ignore this email.
         else:
             print(f"\n❌ OTP EMAIL FAILED to {to_email}: {error}")
         return success, error
+
+    def send_password_reset_email(self, to_email: str, otp: str, name: str = "") -> Tuple[bool, str]:
+        """Send password reset OTP email"""
+        print(f"\n🔁 PASSWORD RESET EMAIL REQUEST")
+        print(f"   To: {to_email}")
+        print(f"   Name: {name or 'Not provided'}")
+        print(f"   OTP: {otp}")
+
+        subject = f"Reset your ImproveCommunication password: {otp}"
+
+        html_content = f"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ImproveCommunication - Password Reset</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; background: #f0f0f0; margin: 0; padding: 0; }}
+                .container {{ max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }}
+                .header {{ background: #4f46e5; color: white; padding: 28px 30px; text-align: center; }}
+                .header h1 {{ margin: 0; font-size: 22px; font-weight: 600; }}
+                .content {{ padding: 30px; }}
+                .otp-box {{ background: #eef2ff; border: 2px solid #4f46e5; border-radius: 10px; padding: 20px; text-align: center; margin: 24px 0; }}
+                .otp-code {{ font-size: 38px; font-weight: bold; color: #4f46e5; letter-spacing: 10px; font-family: 'Courier New', monospace; }}
+                .footer {{ background: #f8f9fa; padding: 16px 30px; text-align: center; font-size: 12px; color: #999; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Password Reset Request</h1>
+                </div>
+                <div class="content">
+                    <p>Hello {name or 'there'},</p>
+                    <p>Use the code below to reset your ImproveCommunication password:</p>
+                    <div class="otp-box">
+                        <div class="otp-code">{otp}</div>
+                        <p style="color: #666; margin: 8px 0 0 0; font-size: 13px;">This code expires in 10 minutes.</p>
+                    </div>
+                    <p>If you did not request a password reset, ignore this email and your password will stay unchanged.</p>
+                </div>
+                <div class="footer">
+                    This is an automated message from ImproveCommunication. Please do not reply to this email.
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_content = f"""Hello {name or 'there'},
+
+Use this code to reset your ImproveCommunication password: {otp}
+
+This code expires in 10 minutes.
+
+If you did not request a password reset, please ignore this email.
+
+- ImproveCommunication Team
+"""
+
+        success, error = self.send_email(to_email, subject, html_content, text_content)
+        if success:
+            print(f"\n✅ PASSWORD RESET EMAIL DELIVERED to {to_email}")
+        else:
+            print(f"\n❌ PASSWORD RESET EMAIL FAILED to {to_email}: {error}")
+        return success, error
     
     def send_welcome_email(self, to_email: str, name: str) -> Tuple[bool, str]:
         """Send welcome email"""

@@ -65,5 +65,7 @@ async def init_db():
     db.calls.create_index("status")
     db.ai_analysis.create_index("user_id")
     db.ai_analysis.create_index("call_id", unique=True)
+    db.password_resets.create_index("email")
+    db.password_resets.create_index("expires_at", expireAfterSeconds=0)
     
     print("Database indexes created")

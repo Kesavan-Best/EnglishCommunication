@@ -5,13 +5,16 @@ from bson import ObjectId
 import shutil
 import os
 import logging
+import random
+import string
 
-from backend.app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse
+from backend.app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from backend.app.models import UserInDB
 from backend.app.auth import AuthHandler
 from backend.app.database import Database
 from backend.app.core.config import settings
 from datetime import timedelta
+from backend.app.email_service import email_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -68,6 +71,10 @@ async def calculate_user_rank(user_id: str) -> int:
     all_users = list(db.users.find({"email": {"$nin": test_emails}}).sort("ai_score", -1))
     rank = next((i + 1 for i, u in enumerate(all_users) if str(u["_id"]) == user_id), None)
     return rank
+
+def generate_password_reset_otp(length: int = 6) -> str:
+    """Generate numeric OTP for password reset"""
+    return ''.join(random.choices(string.digits, k=length))
 
 @router.post("/register", response_model=UserResponse)
 async def register(user_data: UserRegisterRequest):
@@ -227,6 +234,142 @@ async def login(user_data: UserLoginRequest):
             rank=rank
         )
     }
+
+@router.post("/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    """Send password reset OTP to a registered user's email"""
+    db = Database.get_db()
+    email = request.email.strip()
+
+    # Check if user exists
+    user = db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No account found with this email"
+        )
+
+    otp = generate_password_reset_otp()
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    # Keep only one active reset code per email
+    db.password_resets.delete_many({"email": email, "used": False})
+    db.password_resets.insert_one({
+        "email": email,
+        "user_id": user["_id"],
+        "otp": otp,
+        "created_at": datetime.utcnow(),
+        "expires_at": expires_at,
+        "attempts": 0,
+        "used": False
+    })
+
+    # Send reset email
+    success, error_msg = email_service.send_password_reset_email(
+        to_email=email,
+        otp=otp,
+        name=user.get("name", "")
+    )
+
+    db.password_resets.update_one(
+        {"email": email, "used": False},
+        {"$set": {
+            "email_sent": success,
+            "email_error": error_msg if not success else None
+        }}
+    )
+
+    if not success:
+        logger.error(f"❌ Password reset email failed for {email}: {error_msg}")
+        return {
+            "message": "Reset code generated but email failed to send",
+            "email": email,
+            "email_sent": False,
+            "otp_for_testing": otp,
+            "warning": "Use the OTP below for testing or check email configuration",
+            "error_details": error_msg
+        }
+
+    return {
+        "message": "Password reset code sent successfully",
+        "email": email,
+        "email_sent": True,
+        "expires_in_minutes": 10
+    }
+
+@router.post("/reset-password")
+async def reset_password(request: ResetPasswordRequest):
+    """Reset user password using OTP sent to email"""
+    db = Database.get_db()
+    email = request.email.strip()
+    otp = request.otp.strip()
+    new_password = request.new_password.strip()
+
+    if len(new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters"
+        )
+
+    reset_record = db.password_resets.find_one(
+        {"email": email, "used": False},
+        sort=[("created_at", -1)]
+    )
+
+    if not reset_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active reset request found. Please request a new code."
+        )
+
+    if datetime.utcnow() > reset_record["expires_at"]:
+        db.password_resets.delete_one({"_id": reset_record["_id"]})
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset code has expired. Please request a new code."
+        )
+
+    attempts = reset_record.get("attempts", 0)
+    if attempts >= 5:
+        db.password_resets.delete_one({"_id": reset_record["_id"]})
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Too many failed attempts. Please request a new code."
+        )
+
+    if reset_record.get("otp") != otp:
+        db.password_resets.update_one(
+            {"_id": reset_record["_id"]},
+            {"$inc": {"attempts": 1}}
+        )
+        remaining = max(0, 4 - attempts)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid reset code. {remaining} attempts remaining."
+        )
+
+    user = db.users.find_one({"email": email})
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found"
+        )
+
+    hashed_password = AuthHandler.hash_password(new_password)
+    db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "hashed_password": hashed_password,
+            "updated_at": datetime.utcnow()
+        }}
+    )
+
+    db.password_resets.update_one(
+        {"_id": reset_record["_id"]},
+        {"$set": {"used": True, "used_at": datetime.utcnow()}}
+    )
+
+    return {"message": "Password reset successful. Please login with your new password."}
 
 @router.get("/me", response_model=UserResponse)
 async def get_current_user_info(

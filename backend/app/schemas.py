@@ -12,6 +12,14 @@ class UserLoginRequest(BaseModel):
     email: str
     password: str
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
 class CallInviteRequest(BaseModel):
     receiver_id: str
 

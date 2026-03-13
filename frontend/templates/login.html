@@ -88,6 +88,63 @@
             background: #667eea;
             color: white;
         }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.62);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 20px;
+        }
+
+        .modal-card {
+            width: 100%;
+            max-width: 520px;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.18);
+            padding: 24px;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 12px;
+            right: 14px;
+            border: none;
+            background: transparent;
+            font-size: 24px;
+            color: #64748b;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            color: #1e293b;
+            margin-bottom: 8px;
+            font-weight: 700;
+        }
+
+        .modal-subtitle {
+            color: #64748b;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .modal-actions .btn {
+            flex: 1;
+            min-width: 180px;
+        }
     </style>
     <link rel="stylesheet" href="/frontend/css/modern-ui.css">
 </head>
@@ -156,7 +213,7 @@
                             <span class="checkmark"></span>
                             <span>Remember me</span>
                         </label>
-                        <a href="#" class="link">
+                        <a href="#" class="link" id="forgotPasswordLink">
                             <i class="fas fa-question-circle"></i> Forgot password?
                         </a>
                     </div>
@@ -299,6 +356,66 @@
         </div>
     </div>
 
+    <!-- Forgot Password Modal -->
+    <div id="forgotPasswordModal" class="modal-overlay" aria-hidden="true">
+        <div class="modal-card">
+            <button type="button" class="modal-close" id="closeForgotPasswordModal" aria-label="Close">&times;</button>
+            <h2 class="modal-title">Reset Password</h2>
+            <p class="modal-subtitle">Enter your account email, verify the code, and set a new password.</p>
+
+            <div id="resetMessage" class="message-container" style="display: none;"></div>
+
+            <form id="resetPasswordForm" class="auth-form" style="margin-top: 14px;">
+                <div class="form-group">
+                    <label for="reset-email" class="form-label">
+                        <i class="fas fa-envelope"></i> Email Address
+                    </label>
+                    <input type="email" id="reset-email" class="form-input" placeholder="Enter your registered email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reset-otp" class="form-label">
+                        <i class="fas fa-shield-alt"></i> Reset Code (OTP)
+                    </label>
+                    <input type="text" id="reset-otp" class="form-input" placeholder="Enter 6-digit code" maxlength="6" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="reset-new-password" class="form-label">
+                        <i class="fas fa-key"></i> New Password
+                    </label>
+                    <div class="password-container">
+                        <input type="password" id="reset-new-password" class="form-input" placeholder="Minimum 6 characters" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('reset-new-password')">
+                            <i class="fas fa-eye" id="reset-new-password-toggle-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="reset-confirm-password" class="form-label">
+                        <i class="fas fa-check-circle"></i> Confirm New Password
+                    </label>
+                    <div class="password-container">
+                        <input type="password" id="reset-confirm-password" class="form-input" placeholder="Re-enter new password" required>
+                        <button type="button" class="password-toggle" onclick="togglePassword('reset-confirm-password')">
+                            <i class="fas fa-eye" id="reset-confirm-password-toggle-icon"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline" id="sendResetCodeBtn">
+                        <i class="fas fa-paper-plane"></i> Send Reset Code
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="resetPasswordBtn">
+                        <i class="fas fa-unlock-alt"></i> Reset Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         // Toggle password visibility
         function togglePassword(inputId) {
@@ -341,6 +458,153 @@
                 }, 3000);
             }
         }
+
+        // Forgot-password modal logic
+        const forgotPasswordModal = document.getElementById('forgotPasswordModal');
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        const closeForgotPasswordModalBtn = document.getElementById('closeForgotPasswordModal');
+        const sendResetCodeBtn = document.getElementById('sendResetCodeBtn');
+        const resetPasswordForm = document.getElementById('resetPasswordForm');
+
+        function showResetMessage(text, type = 'error') {
+            const resetMessageDiv = document.getElementById('resetMessage');
+            resetMessageDiv.innerHTML = `<div class="message ${type}"><i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-circle'}"></i> ${text}</div>`;
+            resetMessageDiv.style.display = 'block';
+        }
+
+        function openForgotPasswordModal() {
+            const loginEmail = document.getElementById('email').value.trim();
+            document.getElementById('reset-email').value = loginEmail;
+            document.getElementById('reset-otp').value = '';
+            document.getElementById('reset-new-password').value = '';
+            document.getElementById('reset-confirm-password').value = '';
+            document.getElementById('resetMessage').style.display = 'none';
+
+            forgotPasswordModal.style.display = 'flex';
+            forgotPasswordModal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeForgotPasswordModal() {
+            forgotPasswordModal.style.display = 'none';
+            forgotPasswordModal.setAttribute('aria-hidden', 'true');
+        }
+
+        forgotPasswordLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            openForgotPasswordModal();
+        });
+
+        closeForgotPasswordModalBtn.addEventListener('click', closeForgotPasswordModal);
+
+        forgotPasswordModal.addEventListener('click', function(e) {
+            if (e.target === forgotPasswordModal) {
+                closeForgotPasswordModal();
+            }
+        });
+
+        sendResetCodeBtn.addEventListener('click', async function() {
+            const email = document.getElementById('reset-email').value.trim();
+            if (!validateEmail(email)) {
+                showResetMessage('Please enter a valid email address');
+                return;
+            }
+
+            sendResetCodeBtn.disabled = true;
+            const originalText = sendResetCodeBtn.innerHTML;
+            sendResetCodeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/forgot-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email })
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok) {
+                    if (data.otp_for_testing) {
+                        showResetMessage(`Code generated (email failed). Use OTP: ${data.otp_for_testing}`, 'success');
+                    } else {
+                        showResetMessage('Reset code sent. Check your inbox/spam folder.', 'success');
+                    }
+                } else {
+                    showResetMessage(data.detail || data.message || 'Failed to send reset code');
+                }
+            } catch (error) {
+                showResetMessage(`Network error: ${error.message}`);
+            } finally {
+                sendResetCodeBtn.disabled = false;
+                sendResetCodeBtn.innerHTML = originalText;
+            }
+        });
+
+        resetPasswordForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = document.getElementById('reset-email').value.trim();
+            const otp = document.getElementById('reset-otp').value.trim();
+            const newPassword = document.getElementById('reset-new-password').value;
+            const confirmPassword = document.getElementById('reset-confirm-password').value;
+            const resetPasswordBtn = document.getElementById('resetPasswordBtn');
+
+            if (!validateEmail(email)) {
+                showResetMessage('Please enter a valid email address');
+                return;
+            }
+
+            if (!otp || otp.length !== 6) {
+                showResetMessage('Please enter the 6-digit reset code');
+                return;
+            }
+
+            if (newPassword.length < 6) {
+                showResetMessage('Password must be at least 6 characters long');
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showResetMessage('Passwords do not match');
+                return;
+            }
+
+            resetPasswordBtn.disabled = true;
+            const originalResetText = resetPasswordBtn.innerHTML;
+            resetPasswordBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/users/reset-password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email,
+                        otp,
+                        new_password: newPassword
+                    })
+                });
+
+                const data = await response.json().catch(() => ({}));
+
+                if (response.ok) {
+                    showResetMessage('Password reset successful. You can login now.', 'success');
+                    showMessage('Password reset successful. Please login with your new password.', 'success');
+                    setTimeout(() => {
+                        closeForgotPasswordModal();
+                    }, 1200);
+                } else {
+                    showResetMessage(data.detail || data.message || 'Failed to reset password');
+                }
+            } catch (error) {
+                showResetMessage(`Network error: ${error.message}`);
+            } finally {
+                resetPasswordBtn.disabled = false;
+                resetPasswordBtn.innerHTML = originalResetText;
+            }
+        });
         
         // Handle form submission
         document.getElementById('login-form').addEventListener('submit', async function(e) {
