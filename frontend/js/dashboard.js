@@ -53,12 +53,6 @@ async function checkPendingCallInvites() {
                 if (!document.getElementById('incoming-call-notification')) {
                     console.log('📞 Found pending call invite via polling:', invite);
                     showIncomingCallNotification(invite.caller_name, invite.call_id, invite.caller_id);
-                    
-                    // Mark as seen
-                    await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${invite.call_id}`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
                 }
             }
         }
@@ -141,6 +135,11 @@ async function acceptCall(callId, fromUserId) {
             },
             body: JSON.stringify({ call_id: callId })
         });
+
+        await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => {});
     } catch (e) {
         console.error('Accept API call failed:', e);
     }
@@ -149,7 +148,7 @@ async function acceptCall(callId, fromUserId) {
     window.location.href = `call.html?callId=${callId}&autoStart=true`;
 }
 
-function rejectCall(callId, fromUserId) {
+async function rejectCall(callId, fromUserId) {
     // Send reject via WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({
@@ -157,6 +156,25 @@ function rejectCall(callId, fromUserId) {
             call_id: callId,
             from_user_id: fromUserId
         }));
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        await fetch(`${API_BASE_URL}/api/calls/reject`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ call_id: callId })
+        });
+
+        await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }).catch(() => {});
+    } catch (e) {
+        console.error('Reject API call failed:', e);
     }
     
     document.getElementById('incoming-call-notification')?.remove();
@@ -623,41 +641,17 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
     // Handle accept
     document.getElementById('accept-call-btn').onclick = async () => {
         console.log('✅ Accepting call:', callId);
-        
-        // Send accept message via WebSocket to notify the caller
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'accept_call',
-                call_id: callId,
-                from_user_id: fromUserId
-            }));
-            console.log('📤 Sent call accept notification to caller');
-        }
-        
+
         overlay.remove();
-        showToast('✅ Call accepted! Connecting...', 'success');
-        
-        // Redirect to WebRTC call page with autoStart
-        setTimeout(() => {
-            window.location.href = `call.html?callId=${callId}&autoStart=true`;
-        }, 500);
+        await acceptCall(callId, fromUserId);
     };
     
     // Handle reject
-    document.getElementById('reject-call-btn').onclick = () => {
+    document.getElementById('reject-call-btn').onclick = async () => {
         console.log('❌ Rejecting call:', callId);
-        
-        // Send reject message via WebSocket to notify the caller
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'reject_call_invitation',
-                call_id: callId,
-                from_user_id: fromUserId
-            }));
-            console.log('📤 Sent call rejection notification to caller');
-        }
-        
+
         overlay.remove();
+        await rejectCall(callId, fromUserId);
         showToast('Call declined', 'info');
     };
     
@@ -672,6 +666,15 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
                     from_user_id: fromUserId
                 }));
             }
+
+            const token = localStorage.getItem('token');
+            if (token) {
+                fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => {});
+            }
+
             overlay.remove();
             showToast('Missed call from ' + callerName, 'info');
         }
@@ -680,7 +683,15 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
 
 // Handle call rejection notification
 function handleCallRejected(data) {
+    if (window._dashboardCallResolved) return;
+    window._dashboardCallResolved = true;
+
     console.log('❌ Call was rejected:', data);
+
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
+    }
     
     // Remove waiting overlay if exists
     const waitingDiv = document.getElementById('call-waiting');
@@ -697,6 +708,9 @@ function handleCallRejected(data) {
 
 // Handle call accepted notification  
 function handleCallAccepted(data) {
+    if (window._dashboardCallResolved) return;
+    window._dashboardCallResolved = true;
+
     console.log('✅ Call was accepted:', data);
     
     const callId = data.call_id;
@@ -705,6 +719,11 @@ function handleCallAccepted(data) {
     const waitingDiv = document.getElementById('call-waiting');
     if (waitingDiv) {
         waitingDiv.remove();
+    }
+
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
     }
     
     // Show success message and redirect
@@ -718,6 +737,8 @@ function handleCallAccepted(data) {
 // Initiate call to a user
 async function initiateCall(userId) {
     try {
+        window._dashboardCallResolved = false;
+
         const token = localStorage.getItem('token');
         const response = await fetch(API_ENDPOINTS.inviteCall, {
             method: 'POST',
@@ -730,9 +751,88 @@ async function initiateCall(userId) {
         
         if (response.ok) {
             const data = await response.json();
-            showToast('Call initiated!', 'success');
-            setTimeout(() => {
-                window.location.href = `call.html?callId=${data.id}&autoStart=true`;
+            window.pendingCallId = data.id;
+
+            const waitingDiv = document.createElement('div');
+            waitingDiv.id = 'call-waiting';
+            waitingDiv.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.8);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                z-index: 9999;
+            `;
+            waitingDiv.innerHTML = `
+                <div style="background: white; padding: 40px; border-radius: 20px; text-align: center; max-width: 420px;">
+                    <div style="font-size: 60px; margin-bottom: 20px;">📞</div>
+                    <h2 style="color: #667eea; margin-bottom: 15px;">Calling...</h2>
+                    <p style="color: #666; margin-bottom: 10px;">Waiting for the other person to answer</p>
+                    <p style="color: #999; font-size: 14px; margin-bottom: 20px;">They will receive Accept / Decline options</p>
+                    <div id="dashboard-call-waiting-timer" style="color: #667eea; font-weight: bold; margin-bottom: 20px;">30</div>
+                    <button onclick="cancelPendingDashboardCall('${data.id}')" 
+                            style="background: #f5576c; color: white; border: none; padding: 12px 30px; border-radius: 8px; cursor: pointer; font-size: 16px;">
+                        Cancel Call
+                    </button>
+                </div>
+            `;
+            document.body.appendChild(waitingDiv);
+
+            showToast('Call invitation sent! Waiting for response...', 'success');
+
+            let countdown = 30;
+            window.callWaitingInterval = setInterval(async () => {
+                if (window._dashboardCallResolved) {
+                    clearInterval(window.callWaitingInterval);
+                    window.callWaitingInterval = null;
+                    return;
+                }
+
+                countdown -= 1;
+                const timerEl = document.getElementById('dashboard-call-waiting-timer');
+                if (timerEl) timerEl.textContent = countdown;
+
+                if (countdown % 2 === 0) {
+                    try {
+                        const statusResponse = await fetch(`${API_BASE_URL}/api/calls/check-status/${data.id}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (statusResponse.ok) {
+                            const statusData = await statusResponse.json();
+
+                            if (statusData.status === 'active') {
+                                handleCallAccepted({
+                                    call_id: data.id,
+                                    partner_name: 'Partner'
+                                });
+                                return;
+                            }
+
+                            if (statusData.status === 'rejected') {
+                                handleCallRejected({
+                                    call_id: data.id,
+                                    rejected_by_name: statusData.rejected_by_name || 'The user'
+                                });
+                                return;
+                            }
+
+                            if (statusData.status === 'cancelled' || statusData.status === 'completed' || statusData.status === 'not_found') {
+                                cancelPendingDashboardCall(data.id, true);
+                                return;
+                            }
+                        }
+                    } catch (e) {
+                        console.debug('Dashboard status check failed:', e.message);
+                    }
+                }
+
+                if (countdown <= 0) {
+                    cancelPendingDashboardCall(data.id, true);
+                }
             }, 1000);
         } else {
             const error = await response.json();
@@ -742,6 +842,25 @@ async function initiateCall(userId) {
         console.error('Error initiating call:', error);
         showToast('Network error', 'error');
     }
+}
+
+function cancelPendingDashboardCall(callId, isTimeout = false) {
+    if (window.callWaitingInterval) {
+        clearInterval(window.callWaitingInterval);
+        window.callWaitingInterval = null;
+    }
+
+    const waitingDiv = document.getElementById('call-waiting');
+    if (waitingDiv) {
+        waitingDiv.remove();
+    }
+
+    if (!window._dashboardCallResolved) {
+        window._dashboardCallResolved = true;
+    }
+
+    window.pendingCallId = null;
+    showToast(isTimeout ? 'Call timed out - no answer' : 'Call cancelled', 'info');
 }
 
 // Cleanup on page unload - do NOT close WebSocket (server grace period handles it)

@@ -76,12 +76,6 @@ async function checkPendingCallInvites() {
                 if (!document.getElementById('incoming-call-notification')) {
                     console.log('📞 Found pending call invite via polling:', invite);
                     showIncomingCallNotification(invite.caller_name, invite.call_id, invite.caller_id);
-                    
-                    // Mark as seen so we don't show it again
-                    await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${invite.call_id}`, {
-                        method: 'POST',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
                 }
             }
         }
@@ -829,6 +823,20 @@ async function initiateCall(userId) {
                                 handleCallAccepted(call.id);
                                 return;
                             }
+
+                            if (statusData.status === 'rejected') {
+                                console.log('❌ Call rejected (via polling)!');
+                                clearInterval(window.callWaitingInterval);
+                                handleCallRejected(statusData.rejected_by_name || 'The user');
+                                return;
+                            }
+
+                            if (statusData.status === 'cancelled' || statusData.status === 'completed' || statusData.status === 'not_found') {
+                                console.log('⚠️ Call no longer pending:', statusData.status);
+                                clearInterval(window.callWaitingInterval);
+                                cancelPendingCall(call.id, true);
+                                return;
+                            }
                         }
                     } catch (e) {
                         console.debug('Status check failed:', e.message);
@@ -1439,6 +1447,11 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
                 },
                 body: JSON.stringify({ call_id: callId })
             });
+
+            await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(() => {});
         } catch (e) {
             console.log('Accept API call failed, continuing anyway:', e);
         }
@@ -1474,6 +1487,11 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
                 },
                 body: JSON.stringify({ call_id: callId })
             });
+
+            await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(() => {});
         } catch (e) {
             console.log('Reject API call failed:', e);
         }
@@ -1493,6 +1511,15 @@ function showIncomingCallNotification(callerName, callId, fromUserId) {
                     from_user_id: fromUserId
                 }));
             }
+
+            const token = localStorage.getItem('token');
+            if (token) {
+                fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${callId}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => {});
+            }
+
             overlay.remove();
             showMessage('Missed call from ' + callerName, 'info');
         }

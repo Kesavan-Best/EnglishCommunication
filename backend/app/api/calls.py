@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from bson import ObjectId
 from datetime import datetime
+from typing import Optional
 import uuid
 import os
 import traceback
@@ -12,6 +13,37 @@ from backend.app.schemas import CallResponse, CallInviteRequest, CallAcceptReque
 from backend.app.core.config import settings
 
 router = APIRouter()
+
+
+def _to_object_id(value):
+    """Convert value to ObjectId when possible, otherwise return None."""
+    try:
+        if isinstance(value, ObjectId):
+            return value
+        return ObjectId(str(value))
+    except Exception:
+        return None
+
+
+def _is_stale_active_call(call_doc: dict) -> bool:
+    """Detect active calls that were never properly completed."""
+    now = datetime.utcnow()
+    started_at = call_doc.get("start_time") or call_doc.get("accepted_at") or call_doc.get("created_at")
+    if not started_at:
+        return True
+
+    age_seconds = (now - started_at).total_seconds()
+    both_connected = bool(call_doc.get("both_users_connected", False))
+
+    # If both users never fully joined, treat as stale after 2 minutes.
+    if not both_connected and age_seconds > 120:
+        return True
+
+    # Safety net for very old "active" rows left behind by disconnects.
+    if age_seconds > 60 * 60 * 3:
+        return True
+
+    return False
 
 @router.post("/invite", response_model=CallResponse)
 async def invite_to_call(
@@ -85,7 +117,21 @@ async def invite_to_call(
         })
         
         if existing_call:
-            # There's an active call, return it
+            if _is_stale_active_call(existing_call):
+                db.calls.update_one(
+                    {"_id": existing_call["_id"]},
+                    {
+                        "$set": {
+                            "status": "cancelled",
+                            "cancelled_at": datetime.utcnow(),
+                            "cancel_reason": "stale_active_call_reset"
+                        }
+                    }
+                )
+                existing_call = None
+
+        if existing_call:
+            # There's a real active call in progress; reuse it.
             return CallResponse(
                 id=str(existing_call["_id"]),
                 caller_id=str(existing_call["caller_id"]),
@@ -208,12 +254,28 @@ async def accept_call(
     
     # If call is still pending, update to active
     if call.status == "pending":
+        accepted_at = datetime.utcnow()
         db.calls.update_one(
             {"_id": call_id},
-            {"$set": {"status": "active", "start_time": datetime.utcnow()}}
+            {"$set": {"status": "active", "start_time": accepted_at, "accepted_at": accepted_at}}
         )
         call.status = "active"
-        call.start_time = datetime.utcnow()
+        call.start_time = accepted_at
+
+    # Best-effort notify caller (important when caller is waiting in UI)
+    try:
+        from backend.app.api.websocket import manager
+        acceptor_name = current_user.name if hasattr(current_user, 'name') else current_user.username
+        await manager.send_personal_message({
+            "type": "call_accepted",
+            "call_id": str(call.id),
+            "partner_id": str(current_user.id),
+            "partner_name": acceptor_name,
+            "accepted_at": call.start_time.isoformat() if call.start_time else None,
+            "timestamp": datetime.utcnow().isoformat()
+        }, str(call.caller_id))
+    except Exception as notify_error:
+        print(f"⚠️ Could not notify caller on accept: {notify_error}")
     
     return CallResponse(
         id=str(call.id),
@@ -506,9 +568,9 @@ async def get_pending_invites(
     
     invites = []
     for call in pending_calls:
-        # Check if call is not too old (< 120 seconds)
+        # Check if call is not too old (< 5 minutes)
         call_age = (datetime.utcnow() - call["created_at"]).total_seconds()
-        if call_age < 120:
+        if call_age < 300:
             invites.append({
                 "call_id": str(call["_id"]),
                 "caller_id": str(call["caller_id"]),
@@ -531,12 +593,39 @@ async def check_call_status(
         call = db.calls.find_one({"_id": ObjectId(call_id)})
         if not call:
             return {"status": "not_found"}
+
+        current_user_id = str(current_user.id)
+        caller_id = str(call.get("caller_id", ""))
+        receiver_id = str(call.get("receiver_id", ""))
+
+        if current_user_id not in [caller_id, receiver_id]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this call"
+            )
+
+        partner_user_id = receiver_id if current_user_id == caller_id else caller_id
+        rejected_by_raw = call.get("rejected_by")
+        rejected_by = str(rejected_by_raw) if rejected_by_raw is not None else None
+        rejected_by_name = None
+        if rejected_by:
+            rejected_oid = _to_object_id(rejected_by)
+            if rejected_oid is not None:
+                rejector = db.users.find_one({"_id": rejected_oid}, {"name": 1})
+                if rejector:
+                    rejected_by_name = rejector.get("name")
         
         return {
             "status": call.get("status", "unknown"),
             "accepted_at": call.get("accepted_at").isoformat() if call.get("accepted_at") else None,
+            "rejected_at": call.get("rejected_at").isoformat() if call.get("rejected_at") else None,
+            "rejected_by": rejected_by,
+            "rejected_by_name": rejected_by_name,
+            "partner_user_id": partner_user_id,
             "jitsi_room_id": call.get("jitsi_room_id")
         }
+    except HTTPException:
+        raise
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -981,6 +1070,7 @@ from backend.app.api.websocket import manager as ws_manager
 async def save_transcription(
     call_id: str,
     text: str,
+    message_id: Optional[str] = None,
     current_user: UserInDB = Depends(AuthHandler.get_current_user)
 ):
     """Save real-time transcription from a user during a call"""
@@ -1014,29 +1104,60 @@ async def save_transcription(
     # Determine role
     speaker_role = "caller" if is_caller else "receiver"
     transcript_field = "caller_transcript" if is_caller else "receiver_transcript"
-    
-    # Append to existing transcript or create new
-    existing_transcript = call_data.get(transcript_field, "")
-    updated_transcript = existing_transcript + " " + text if existing_transcript else text
-    
-    # Add to conversation array
-    conversation = call_data.get("conversation", [])
-    conversation.append({
+    cleaned_text = (text or "").strip()
+    if not cleaned_text:
+        return {
+            "success": True,
+            "message": "Empty transcription ignored",
+            "transcript_length": 0,
+            "message_id": message_id
+        }
+    resolved_message_id = message_id or uuid.uuid4().hex
+
+    conversation_item = {
+        "message_id": resolved_message_id,
         "speaker": speaker_role,
-        "text": text,
+        "speaker_id": str(current_user.id),
+        "text": cleaned_text,
         "timestamp": datetime.utcnow().isoformat()
-    })
+    }
     
-    # Update in database
+    # Atomic update to avoid transcript/conversation races between participants
     db.calls.update_one(
         {"_id": call_id_obj},
-        {
-            "$set": {
-                transcript_field: updated_transcript.strip(),
-                "conversation": conversation
+        [
+            {
+                "$set": {
+                    transcript_field: {
+                        "$trim": {
+                            "input": {
+                                "$concat": [
+                                    {"$ifNull": [f"${transcript_field}", ""]},
+                                    {
+                                        "$cond": [
+                                            {"$eq": [{"$ifNull": [f"${transcript_field}", ""]}, ""]},
+                                            "",
+                                            " "
+                                        ]
+                                    },
+                                    cleaned_text
+                                ]
+                            }
+                        }
+                    },
+                    "conversation": {
+                        "$concatArrays": [
+                            {"$ifNull": ["$conversation", []]},
+                            [conversation_item]
+                        ]
+                    }
+                }
             }
-        }
+        ]
     )
+
+    updated_call = db.calls.find_one({"_id": call_id_obj}, {transcript_field: 1})
+    updated_transcript = (updated_call or {}).get(transcript_field, "")
     
     # Note: Broadcasting is now handled via direct WebSocket messages from the frontend.
     # This endpoint only persists the transcription to the database.
@@ -1044,7 +1165,67 @@ async def save_transcription(
     return {
         "success": True,
         "message": "Transcription saved",
-        "transcript_length": len(updated_transcript)
+        "transcript_length": len(updated_transcript),
+        "message_id": resolved_message_id
+    }
+
+
+@router.get("/transcriptions/{call_id}")
+async def get_call_transcriptions(
+    call_id: str,
+    after_index: int = -1,
+    limit: int = 40,
+    current_user: UserInDB = Depends(AuthHandler.get_current_user)
+):
+    """Poll conversation chunks for cross-instance live transcription fallback."""
+    db = Database.get_db()
+
+    try:
+        call_id_obj = ObjectId(call_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid call ID"
+        )
+
+    call_data = db.calls.find_one({"_id": call_id_obj})
+    if not call_data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Call not found"
+        )
+
+    current_user_id = str(current_user.id)
+    if current_user_id not in [str(call_data["caller_id"]), str(call_data["receiver_id"] )]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized to access this call"
+        )
+
+    if limit < 1:
+        limit = 1
+    if limit > 200:
+        limit = 200
+
+    conversation = call_data.get("conversation", []) or []
+    start_index = max(after_index + 1, 0)
+    end_index = min(start_index + limit, len(conversation))
+
+    messages = []
+    for idx in range(start_index, end_index):
+        item = conversation[idx] or {}
+        messages.append({
+            "index": idx,
+            "message_id": item.get("message_id"),
+            "speaker": item.get("speaker"),
+            "speaker_id": item.get("speaker_id"),
+            "text": item.get("text", ""),
+            "timestamp": item.get("timestamp")
+        })
+
+    return {
+        "messages": messages,
+        "last_index": end_index - 1 if end_index > 0 else after_index
     }
 
 def _update_user_ai_score(db, user_id, new_rating: float, weaknesses: list):

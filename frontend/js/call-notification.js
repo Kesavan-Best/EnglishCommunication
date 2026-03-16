@@ -98,11 +98,6 @@
                 var invite = data.invites[0];
                 if (!document.getElementById('incoming-call-notification')) {
                     showCallNotification(invite.caller_name, invite.call_id, invite.caller_id);
-                    // Mark as seen
-                    fetch((typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '') + '/api/calls/mark-invite-seen?call_id=' + invite.call_id, {
-                        method: 'POST',
-                        headers: { 'Authorization': 'Bearer ' + token }
-                    }).catch(function() {});
                 }
             }
         })
@@ -161,6 +156,11 @@
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ call_id: callId })
             }).catch(function() {});
+
+            fetch((typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '') + '/api/calls/mark-invite-seen?call_id=' + callId, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).catch(function() {});
             // Redirect to call page
             window.location.href = '/frontend/templates/call.html?callId=' + callId + '&autoStart=true';
         };
@@ -183,12 +183,26 @@
                 headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
                 body: JSON.stringify({ call_id: callId })
             }).catch(function() {});
+
+            fetch((typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '') + '/api/calls/mark-invite-seen?call_id=' + callId, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).catch(function() {});
         };
 
         // Auto-dismiss after 30 seconds
         setTimeout(function() {
             var el = document.getElementById('incoming-call-notification');
-            if (el) el.remove();
+            if (el) {
+                el.remove();
+                var token = localStorage.getItem('token');
+                if (token) {
+                    fetch((typeof API_BASE_URL !== 'undefined' ? API_BASE_URL : '') + '/api/calls/mark-invite-seen?call_id=' + callId, {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    }).catch(function() {});
+                }
+            }
         }, 30000);
     }
 

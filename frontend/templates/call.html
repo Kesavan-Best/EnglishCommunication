@@ -631,10 +631,14 @@
         let callWasAccepted = false;
         let signalPollInterval = null;
         let callStatusPollInterval = null;
+        let pendingInvitePollInterval = null;
+        let transcriptionPollInterval = null;
         let callEnded = false;
         let wsHeartbeatInterval = null;
         let readySignalSent = false; // track if we sent ready signal
         let webrtcStarted = false; // guard against double start
+        let lastTranscriptionIndex = -1;
+        const displayedTranscriptionIds = new Set();
         
         // WebRTC signal deduplication and ICE buffering
         let remoteDescriptionSet = false;
@@ -717,6 +721,8 @@
             callId = urlParams.get('callId');
             const autoStart = urlParams.get('autoStart');
             callWasAccepted = autoStart === 'true';
+            lastTranscriptionIndex = -1;
+            displayedTranscriptionIds.clear();
             
             // Store active call in session so user can return to it
             if (callId) {
@@ -764,6 +770,7 @@
                 console.log('⚠️ No call ID in URL - waiting for incoming call');
                 updatePreCallMessage('Waiting for incoming call or start a new one');
                 connectWebSocket();
+                startPendingInvitePolling();
             }
         });
         
@@ -857,6 +864,47 @@
                 
             } catch (error) {
                 console.error('❌ Error connecting to WebSocket:', error);
+            }
+        }
+
+        function startPendingInvitePolling() {
+            if (pendingInvitePollInterval) return;
+            pollPendingInviteForCallPage();
+            pendingInvitePollInterval = setInterval(pollPendingInviteForCallPage, 1200);
+        }
+
+        function stopPendingInvitePolling() {
+            if (pendingInvitePollInterval) {
+                clearInterval(pendingInvitePollInterval);
+                pendingInvitePollInterval = null;
+            }
+        }
+
+        async function pollPendingInviteForCallPage() {
+            // Only poll for incoming invites when not already in/handling a call.
+            if (callId || incomingCallData || callEnded) return;
+
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/calls/pending-invites`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return;
+                const data = await response.json();
+                if (!data.invites || data.invites.length === 0) return;
+
+                const invite = data.invites[0];
+                handleIncomingCall({
+                    type: 'call_invite',
+                    call_id: invite.call_id,
+                    from_user_id: invite.caller_id,
+                    caller_name: invite.caller_name
+                });
+            } catch (error) {
+                console.debug('Pending invite poll failed:', error.message);
             }
         }
         
@@ -1002,19 +1050,30 @@
         // Handle incoming call
         function handleIncomingCall(data) {
             console.log('📞 Incoming call:', data);
-            
-            incomingCallData = data;
+
+            const normalized = {
+                call_id: data.call_id,
+                from_user_id: data.from_user_id || data.from_user,
+                invitation_id: data.invitation_id || null,
+                caller_name: data.caller_name || data.call_data?.caller_name || 'Someone'
+            };
+            if (!normalized.call_id) return;
+
+            incomingCallData = normalized;
+            stopPendingInvitePolling();
             
             // Show incoming call screen
             document.getElementById('preCallScreen').style.display = 'none';
             document.getElementById('incomingCallScreen').style.display = 'flex';
             
             // Update UI
-            document.getElementById('callerName').textContent = 'User';
-            document.getElementById('callerAvatar').textContent = '?';
+            document.getElementById('callerName').textContent = normalized.caller_name;
+            document.getElementById('callerAvatar').textContent = (normalized.caller_name || '?').charAt(0).toUpperCase();
             
             // Fetch caller details
-            fetchCallerDetails(data.from_user);
+            if (normalized.from_user_id) {
+                fetchCallerDetails(normalized.from_user_id);
+            }
         }
         
         // Fetch caller details
@@ -1043,10 +1102,38 @@
             
             // Send acceptance via WebSocket
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({
-                    type: 'accept_call_invitation',
-                    invitation_id: incomingCallData.invitation_id
-                }));
+                if (incomingCallData.invitation_id) {
+                    ws.send(JSON.stringify({
+                        type: 'accept_call_invitation',
+                        invitation_id: incomingCallData.invitation_id
+                    }));
+                } else {
+                    ws.send(JSON.stringify({
+                        type: 'accept_call',
+                        call_id: incomingCallData.call_id,
+                        from_user_id: incomingCallData.from_user_id
+                    }));
+                }
+            }
+
+            // Persist acceptance for cross-instance delivery.
+            try {
+                const token = localStorage.getItem('token');
+                await fetch(`${API_BASE_URL}/api/calls/accept`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ call_id: incomingCallData.call_id })
+                });
+
+                await fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${incomingCallData.call_id}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                }).catch(() => {});
+            } catch (e) {
+                console.warn('⚠️ Accept API call failed:', e);
             }
             
             // Hide incoming call screen
@@ -1055,6 +1142,10 @@
             // Set up call
             callId = incomingCallData.call_id;
             isCaller = false;
+            sessionStorage.setItem('activeCallId', callId);
+            sessionStorage.setItem('activeCallTimestamp', Date.now().toString());
+            lastTranscriptionIndex = -1;
+            displayedTranscriptionIds.clear();
             
             // Show loading screen
             document.getElementById('loadingScreen').style.display = 'block';
@@ -1079,19 +1170,32 @@
                     from_user_id: incomingCallData.from_user_id
                 }));
             }
+
+            // Persist rejection in DB so caller polling sees it immediately.
+            const token = localStorage.getItem('token');
+            fetch(`${API_BASE_URL}/api/calls/reject`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ call_id: incomingCallData.call_id })
+            }).catch(() => {});
+
+            fetch(`${API_BASE_URL}/api/calls/mark-invite-seen?call_id=${incomingCallData.call_id}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).catch(() => {});
             
             // Clean up state
             incomingCallData = null;
             callId = null;
             
-            // Hide incoming call screen and return to dashboard
+            // Hide incoming call screen and return to waiting state
             document.getElementById('incomingCallScreen').style.display = 'none';
-            
-            // Show message and redirect to dashboard
-            console.log('🔙 Redirecting to dashboard...');
-            setTimeout(() => {
-                window.location.href = 'dashboard.html';
-            }, 500);
+            document.getElementById('preCallScreen').style.display = 'flex';
+            updatePreCallMessage('Waiting for incoming call or start a new one');
+            startPendingInvitePolling();
         }
         
         // Fetch call details WITHOUT connecting WebSocket (to avoid double-connection)
@@ -1210,6 +1314,7 @@
                 return;
             }
             webrtcStarted = true;
+            stopPendingInvitePolling();
             
             console.log('🎬 Starting WebRTC call...');
             console.log('Role:', isCaller ? 'Caller' : 'Receiver');
@@ -1220,6 +1325,9 @@
                 
                 // Initialize WebRTC
                 await initializeWebRTC();
+
+                // Poll call status while negotiating so caller learns about rejection quickly.
+                startCallStatusPolling();
                 
                 // Process any signals that were buffered before peerConnection was ready
                 await processSignalBuffer();
@@ -1762,12 +1870,26 @@
                 
                 if (response.ok) {
                     const data = await response.json();
+
+                    if (data.status === 'rejected') {
+                        console.log('📞 Call was declined');
+                        callEnded = true;
+                        stopCallStatusPolling();
+                        stopSignalPolling();
+                        stopTranscriptionPolling();
+                        updateStatus(data.rejected_by_name ? `${data.rejected_by_name} declined the call` : 'Call declined', '❌');
+                        setTimeout(() => {
+                            window.location.href = 'users.html';
+                        }, 1500);
+                        return;
+                    }
                     
                     if (data.status === 'completed' || data.status === 'cancelled' || data.status === 'not_found') {
                         console.log('📞 Call ended by partner');
                         callEnded = true;
                         stopCallStatusPolling();
                         stopSignalPolling();
+                        stopTranscriptionPolling();
                         
                         // Clean up and redirect
                         if (peerConnection) {
@@ -1872,6 +1994,9 @@
             
             // Start the call timer immediately
             startCallTimer();
+
+            // Keep transcript synchronized even when participants are on different backend instances.
+            startTranscriptionPolling();
             
             // Start speech-to-text transcription after a short delay
             setTimeout(() => {
@@ -1939,6 +2064,8 @@
             // Stop signal polling
             stopSignalPolling();
             stopCallStatusPolling();
+            stopTranscriptionPolling();
+            stopPendingInvitePolling();
             
             // Clear connection timeout
             if (connectionTimeoutId) {
@@ -2104,6 +2231,8 @@
             offerCreated = false;
             processedSignalIds.clear();
             partnerReady = false;
+            lastTranscriptionIndex = -1;
+            displayedTranscriptionIds.clear();
             if (connectionTimeoutId) {
                 clearTimeout(connectionTimeoutId);
                 connectionTimeoutId = null;
@@ -2119,6 +2248,7 @@
                 localStream = null;
             }
             stopSignalPolling();
+            stopTranscriptionPolling();
             
             // Clean up old signals from DB to start fresh
             cleanupSignals();
@@ -2252,6 +2382,74 @@
                 console.log('🛑 Transcription stopped');
             }
         }
+
+        function startTranscriptionPolling() {
+            if (transcriptionPollInterval || !callId) return;
+            pollTranscriptions();
+            transcriptionPollInterval = setInterval(pollTranscriptions, 900);
+        }
+
+        function stopTranscriptionPolling() {
+            if (transcriptionPollInterval) {
+                clearInterval(transcriptionPollInterval);
+                transcriptionPollInterval = null;
+            }
+        }
+
+        async function pollTranscriptions() {
+            if (!callId || callEnded) return;
+
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const response = await fetch(
+                    `${API_BASE_URL}/api/calls/transcriptions/${callId}?after_index=${lastTranscriptionIndex}&limit=80`,
+                    {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    }
+                );
+
+                if (!response.ok) return;
+                const payload = await response.json();
+                const messages = Array.isArray(payload.messages) ? payload.messages : [];
+
+                for (const message of messages) {
+                    if (typeof message.index === 'number' && message.index > lastTranscriptionIndex) {
+                        lastTranscriptionIndex = message.index;
+                    }
+                    handlePolledTranscriptionMessage(message);
+                }
+
+                if (typeof payload.last_index === 'number' && payload.last_index > lastTranscriptionIndex) {
+                    lastTranscriptionIndex = payload.last_index;
+                }
+            } catch (error) {
+                console.debug('Transcription poll failed:', error.message);
+            }
+        }
+
+        function handlePolledTranscriptionMessage(message) {
+            if (!message || !message.text) return;
+
+            const currentUserId = String(currentUser?.id || '');
+            const speakerId = String(message.speaker_id || '');
+            const syntheticId = typeof message.index === 'number' ? `conv-${message.index}` : null;
+            const messageId = message.message_id || syntheticId;
+
+            if (speakerId && speakerId === currentUserId) {
+                if (messageId) displayedTranscriptionIds.add(messageId);
+                return;
+            }
+
+            displayTranscription(
+                message.speaker,
+                message.text,
+                partnerUser?.name,
+                messageId,
+                message.timestamp
+            );
+        }
         
         // Save and broadcast transcription
         async function saveAndBroadcastTranscription(text) {
@@ -2259,9 +2457,10 @@
             if (!cleanedText) return;
 
             const role = isCaller ? 'caller' : 'receiver';
+            const messageId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
             
             // Display in UI immediately (sender side)
-            displayTranscription(role, cleanedText, currentUser?.name || 'You');
+            displayTranscription(role, cleanedText, currentUser?.name || 'You', messageId, new Date().toISOString());
             
             // Send via WebSocket for instant delivery to partner
             if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2269,7 +2468,8 @@
                     type: 'transcription',
                     call_id: callId,
                     text: cleanedText,
-                    speaker_role: role
+                    speaker_role: role,
+                    message_id: messageId
                 }));
                 console.log('📤 Transcription sent via WebSocket:', cleanedText);
             }
@@ -2277,7 +2477,7 @@
             // Also save to backend via REST (for persistence, non-blocking)
             try {
                 const token = localStorage.getItem('token');
-                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(cleanedText)}`, {
+                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(cleanedText)}&message_id=${encodeURIComponent(messageId)}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -2363,12 +2563,19 @@
             }
         }
         
-        function displayTranscription(speaker, text, speakerName) {
+        function displayTranscription(speaker, text, speakerName, messageId = null, timestamp = null) {
             const messagesContainer = document.getElementById('transcriptionMessages');
             if (!messagesContainer) return;
 
             const cleanedText = (text || '').trim();
             if (!cleanedText) return;
+
+            if (messageId && displayedTranscriptionIds.has(messageId)) {
+                return;
+            }
+            if (messageId) {
+                displayedTranscriptionIds.add(messageId);
+            }
             
             // Remove placeholder if exists
             removeChatPlaceholder();
@@ -2382,8 +2589,9 @@
             const displayName = isCurrentUser ? 'You' : (partnerUser?.name || 'Partner');
             
             // Get current time
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const parsedTime = timestamp ? new Date(timestamp) : new Date();
+            const safeTime = Number.isNaN(parsedTime.getTime()) ? new Date() : parsedTime;
+            const timeStr = safeTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             
             // Create chat bubble
             const messageDiv = createChatBubble(displayName, cleanedText, timeStr, isCurrentUser);
@@ -2443,9 +2651,12 @@
             const currentUserId = String(currentUser?.id || '');
             const speakerId = String(data.speaker_id || '');
             const isFromCurrentUser = !!speakerId && speakerId === currentUserId;
+            const messageId = data.message_id || null;
             
             if (!isFromCurrentUser) {
-                displayTranscription(data.speaker_role, data.text, partnerUser?.name);
+                displayTranscription(data.speaker_role, data.text, partnerUser?.name, messageId, data.timestamp);
+            } else if (messageId) {
+                displayedTranscriptionIds.add(messageId);
             }
         }
         

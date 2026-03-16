@@ -205,7 +205,14 @@ class ConnectionManager:
         
         return success
     
-    async def broadcast_transcription(self, call_id: str, speaker_id: str, speaker_role: str, text: str):
+    async def broadcast_transcription(
+        self,
+        call_id: str,
+        speaker_id: str,
+        speaker_role: str,
+        text: str,
+        message_id: str = None
+    ):
         """Broadcast real-time transcription to all participants in a call"""
         if call_id not in self.active_calls:
             return False
@@ -218,6 +225,7 @@ class ConnectionManager:
             "speaker_id": speaker_id,
             "speaker_role": speaker_role,  # "caller" or "receiver"
             "text": text,
+            "message_id": message_id,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -749,6 +757,7 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                 call_id = data.get("call_id")
                 text = data.get("text")
                 speaker_role = data.get("speaker_role")
+                message_id = data.get("message_id") or uuid.uuid4().hex
                 
                 if call_id and text:
                     # Register call in active_calls if not present (same as webrtc_signal)
@@ -774,7 +783,8 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str):
                             call_id=call_id,
                             speaker_id=user_id,
                             speaker_role=speaker_role,
-                            text=text
+                            text=text,
+                            message_id=message_id
                         )
                 
             elif message_type == "end_call":
