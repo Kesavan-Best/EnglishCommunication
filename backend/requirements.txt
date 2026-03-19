@@ -11,6 +11,7 @@ pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
 requests>=2.31.0
+numpy>=1.24.0
 
 # ⚡ MEMORY-OPTIMIZED FOR RENDER (< 512MB)
 # NLP/AI Libraries REMOVED - Using instant analyzer instead
@@ -20,12 +21,21 @@ requests>=2.31.0
 # transformers>=4.30.0
 # sentence-transformers>=2.2.0
 # torch>=2.0.0
-# numpy>=1.24.0
 
 # DISABLED for Render free tier - these require Java + 500MB+ RAM
 # Uncomment ONLY if on paid Render plan:
 # nltk>=3.8.1
 # language-tool-python>=2.7.1
+
+# Speech-to-text (server-side) - faster-whisper for accurate live transcription
+# Requires ffmpeg installed on system:  winget install ffmpeg  (Windows)
+faster-whisper>=1.0.0
+
+# Bundled ffmpeg binary fallback for audio decoding on servers/PCs without ffmpeg in PATH
+imageio-ffmpeg>=0.4.9
+
+# Optional speaker encoder backend (free):
+# resemblyzer>=0.1.4
 
 # Optional (install separately if needed)
 # redis==5.0.1

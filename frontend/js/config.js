@@ -23,6 +23,8 @@ const API_ENDPOINTS = {
     findRandomPartner: `${API_BASE_URL}/api/users/find-random-partner`,
     userProfile: (userId) => `${API_BASE_URL}/api/users/${userId}`,
     updateProfile: `${API_BASE_URL}/api/users/profile`,
+    voiceEnrollmentStatus: `${API_BASE_URL}/api/users/voice-enrollment-status`,
+    enrollVoice: `${API_BASE_URL}/api/users/enroll-voice`,
     
     // Call endpoints
     inviteCall: `${API_BASE_URL}/api/calls/invite`,

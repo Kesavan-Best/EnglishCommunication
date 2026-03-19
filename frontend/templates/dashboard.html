@@ -407,12 +407,68 @@
         </section>
     </div>
 
+    <!-- ===================== Voice ID Enrollment Modal ===================== -->
+    <div id="voiceEnrollModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+         z-index:9999; align-items:center; justify-content:center; padding:20px;">
+        <div style="background:#fff; border-radius:20px; padding:36px; max-width:480px; width:100%;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.25); text-align:center; position:relative;">
+            <div style="font-size:48px; margin-bottom:12px;">🎙️</div>
+            <h2 style="color:#4361ee; margin-bottom:8px; font-size:24px;">Set Up Your Voice ID</h2>
+            <p style="color:#555; margin-bottom:20px; line-height:1.5;">
+                Record 20-30 seconds of you speaking English so the app can convert your voice
+                to a secure embedding and store it in your account for call matching.
+            </p>
+            <p style="color:#b42318; margin-bottom:20px; font-size:13px; font-weight:600;">
+                This setup is required for new users before random matching.
+            </p>
+
+            <!-- Status display -->
+            <div id="enrollStatus" style="min-height:28px; margin-bottom:16px; font-weight:600; color:#4361ee;"></div>
+
+            <!-- Timer bar -->
+            <div id="timerBar" style="display:none; background:#e2e8f0; border-radius:10px; height:8px; margin-bottom:20px; overflow:hidden;">
+                <div id="timerFill" style="height:100%; background:linear-gradient(90deg,#4361ee,#7209b7);
+                     width:0%; transition:width 0.5s linear; border-radius:10px;"></div>
+            </div>
+
+            <!-- Buttons -->
+            <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+                <button id="enrollStartBtn" onclick="startVoiceEnrollment()"
+                    style="background:linear-gradient(135deg,#4361ee,#7209b7); color:#fff; border:none;
+                           padding:14px 28px; border-radius:12px; font-size:16px; font-weight:600;
+                           cursor:pointer; transition:opacity .2s;">
+                    🎤 Start Recording
+                </button>
+                <button id="enrollSkipBtn" onclick="exitEnrollmentFlow()"
+                    style="background:#f1f3f4; color:#555; border:none; padding:14px 28px;
+                           border-radius:12px; font-size:16px; cursor:pointer;">
+                    Logout
+                </button>
+            </div>
+            <p style="margin-top:14px; font-size:12px; color:#999;">
+                If microphone access is blocked, allow it in the browser and log in again.
+                You can also complete Voice ID later from
+                <a href="/frontend/templates/profile.html" style="color:#4361ee; font-weight:600; text-decoration:none;">My Profile</a>.
+            </p>
+        </div>
+    </div>
+    <!-- ================================================================== -->
+
     <script>
+        function showVoiceEnrollModal() {
+            const modal = document.getElementById('voiceEnrollModal');
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+        }
+
         // Check authentication
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const token = localStorage.getItem('token');
             const user = JSON.parse(localStorage.getItem('user') || '{}');
-            
+            const params = new URLSearchParams(window.location.search);
+            const forceVoiceEnroll = params.get('force_voice_enroll') === '1';
+
             if (!token || !user.email) {
                 window.location.href = '/frontend/templates/login.html';
                 return;
@@ -425,7 +481,158 @@
                     welcomeEl.textContent = `Welcome, ${user.first_name} ${user.last_name || ''}!`;
                 }
             }
+
+            // Voice enrollment is mandatory for newly registered users.
+            let enrolled = localStorage.getItem('voice_fingerprint_enrolled') === 'true';
+            let required = localStorage.getItem('voice_enrollment_required') === 'true';
+
+            try {
+                const resp = await fetch(`${API_BASE_URL}/api/users/voice-enrollment-status`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    enrolled = Boolean(data.enrolled);
+                    required = Boolean(data.required) && !enrolled;
+
+                    localStorage.setItem('voice_fingerprint_enrolled', enrolled ? 'true' : 'false');
+                    localStorage.setItem('voice_enrollment_required', required ? 'true' : 'false');
+                }
+            } catch (e) {
+                // Fall back to cached values when the network check fails.
+            }
+
+            if (!enrolled && (required || forceVoiceEnroll)) {
+                localStorage.removeItem('voice_enroll_skip_until');
+                setTimeout(showVoiceEnrollModal, 600);
+            }
         });
+
+        // ─── Voice Enrollment ────────────────────────────────────────────────
+        let enrollRecorder = null;
+        let enrollChunks  = [];
+        let enrollTimer   = null;
+        let enrollSeconds = 0;
+        const ENROLL_TARGET = 25; // seconds
+
+        function setEnrollStatus(msg, color) {
+            const el = document.getElementById('enrollStatus');
+            if (el) { el.textContent = msg; el.style.color = color || '#4361ee'; }
+        }
+
+        async function startVoiceEnrollment() {
+            const btn = document.getElementById('enrollStartBtn');
+            if (btn) btn.disabled = true;
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                enrollChunks = [];
+                const preferredMimeTypes = [
+                    'audio/webm;codecs=opus',
+                    'audio/webm',
+                    'audio/ogg;codecs=opus',
+                    'audio/mp4'
+                ];
+                let selectedMimeType = '';
+                for (const mime of preferredMimeTypes) {
+                    if (window.MediaRecorder && MediaRecorder.isTypeSupported(mime)) {
+                        selectedMimeType = mime;
+                        break;
+                    }
+                }
+
+                enrollRecorder = selectedMimeType
+                    ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+                    : new MediaRecorder(stream);
+                window.__voiceEnrollMimeType = enrollRecorder.mimeType || selectedMimeType || 'audio/webm';
+
+                enrollRecorder.ondataavailable = e => e.data.size > 0 && enrollChunks.push(e.data);
+                enrollRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); uploadEnrollment(); };
+                enrollRecorder.start();
+
+                // Show timer
+                enrollSeconds = 0;
+                document.getElementById('timerBar').style.display = 'block';
+                setEnrollStatus('🔴 Recording… speak naturally in English', '#e53e3e');
+
+                enrollTimer = setInterval(() => {
+                    enrollSeconds++;
+                    const pct = Math.min((enrollSeconds / ENROLL_TARGET) * 100, 100);
+                    document.getElementById('timerFill').style.width = pct + '%';
+                    setEnrollStatus(`🔴 Recording… ${enrollSeconds}s / ${ENROLL_TARGET}s`, '#e53e3e');
+                    if (enrollSeconds >= ENROLL_TARGET) {
+                        clearInterval(enrollTimer);
+                        enrollRecorder.stop();
+                    }
+                }, 1000);
+
+            } catch (err) {
+                if (btn) btn.disabled = false;
+                setEnrollStatus('❌ Microphone access denied — please allow microphone access.', '#e53e3e');
+            }
+        }
+
+        async function uploadEnrollment() {
+            setEnrollStatus('⏳ Processing your voice…', '#4361ee');
+            const mimeType = window.__voiceEnrollMimeType || 'audio/webm';
+            const blob = new Blob(enrollChunks, { type: mimeType });
+            const token = localStorage.getItem('token');
+
+            const form = new FormData();
+            let filename = 'enrollment.webm';
+            if (mimeType.includes('wav')) filename = 'enrollment.wav';
+            else if (mimeType.includes('ogg')) filename = 'enrollment.ogg';
+            else if (mimeType.includes('mp4') || mimeType.includes('m4a')) filename = 'enrollment.mp4';
+            form.append('audio', blob, filename);
+
+            try {
+                const resp = await fetch(`${API_BASE_URL}/api/users/enroll-voice`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: form
+                });
+                const data = await resp.json();
+                if (resp.ok && data.success) {
+                    localStorage.setItem('voice_fingerprint_enrolled', 'true');
+                    localStorage.setItem('voice_enrollment_required', 'false');
+                    setEnrollStatus('✅ Voice ID enrolled successfully!', '#38a169');
+                    document.getElementById('timerBar').style.display = 'none';
+                    document.getElementById('enrollStartBtn').style.display = 'none';
+                    const secondaryBtn = document.getElementById('enrollSkipBtn');
+                    if (secondaryBtn) {
+                        secondaryBtn.textContent = 'Close';
+                        secondaryBtn.onclick = closeEnrollModal;
+                    }
+                    if (window.location.search.includes('force_voice_enroll=1')) {
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                    setTimeout(() => closeEnrollModal(), 2500);
+                } else {
+                    setEnrollStatus('❌ ' + (data.detail || 'Enrollment failed — please try again.'), '#e53e3e');
+                    const btn = document.getElementById('enrollStartBtn');
+                    if (btn) btn.disabled = false;
+                }
+            } catch (err) {
+                setEnrollStatus('❌ Network error — please try again.', '#e53e3e');
+                const btn = document.getElementById('enrollStartBtn');
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function exitEnrollmentFlow() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/frontend/templates/login.html';
+        }
+
+        function closeEnrollModal() {
+            const modal = document.getElementById('voiceEnrollModal');
+            if (modal) modal.style.display = 'none';
+            if (enrollTimer) { clearInterval(enrollTimer); enrollTimer = null; }
+            if (enrollRecorder && enrollRecorder.state !== 'inactive') {
+                try { enrollRecorder.stop(); } catch(e) {}
+            }
+        }
 
         // Logout function
         function logout() {

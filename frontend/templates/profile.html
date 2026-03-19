@@ -565,6 +565,169 @@
             font-size: 1.1em;
             color: #667eea;
         }
+
+        /* Voice ID Enrollment */
+        .voice-id-container {
+            background: var(--light-card);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            border: 1px solid var(--light-border);
+        }
+
+        .voice-id-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .voice-id-header h2 {
+            color: var(--light-text);
+            margin: 0;
+            font-size: 1.3em;
+        }
+
+        .voice-id-help {
+            color: var(--light-text-secondary);
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+
+        .voice-id-badge {
+            padding: 6px 12px;
+            border-radius: 999px;
+            font-weight: 700;
+            font-size: 0.8em;
+            background: #e9ecef;
+            color: #495057;
+            white-space: nowrap;
+        }
+
+        .voice-id-badge.enrolled {
+            background: rgba(26, 188, 156, 0.18);
+            color: #1f8f7b;
+            border: 1px solid rgba(26, 188, 156, 0.35);
+        }
+
+        .voice-id-badge.required {
+            background: rgba(231, 76, 60, 0.15);
+            color: #c0392b;
+            border: 1px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .voice-id-badge.optional {
+            background: rgba(102, 126, 234, 0.12);
+            color: #4e5fd3;
+            border: 1px solid rgba(102, 126, 234, 0.28);
+        }
+
+        .voice-id-status-line {
+            color: var(--light-text);
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        .voice-id-status-meta {
+            color: var(--light-text-secondary);
+            font-size: 0.9em;
+            margin-bottom: 16px;
+        }
+
+        .voice-id-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .voice-enroll-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 10001;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .voice-enroll-modal-content {
+            background: #fff;
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 520px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+        }
+
+        .voice-enroll-title {
+            color: #4361ee;
+            margin-bottom: 8px;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .voice-enroll-description {
+            color: #555;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .voice-enroll-status {
+            min-height: 28px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            color: #4361ee;
+        }
+
+        .voice-enroll-timer {
+            display: none;
+            background: #e2e8f0;
+            border-radius: 10px;
+            height: 8px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .voice-enroll-timer-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4361ee, #7209b7);
+            width: 0%;
+            transition: width 0.5s linear;
+            border-radius: 10px;
+        }
+
+        .voice-enroll-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .voice-enroll-start-btn {
+            background: linear-gradient(135deg, #4361ee, #7209b7);
+            color: #fff;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity .2s;
+        }
+
+        .voice-enroll-close-btn {
+            background: #f1f3f4;
+            color: #555;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-size: 16px;
+            cursor: pointer;
+        }
         
         /* Empty States */
         .empty-state {
@@ -797,6 +960,28 @@
             </div>
         </div>
 
+        <!-- Voice ID Enrollment -->
+        <div class="voice-id-container" id="voice-id-container">
+            <div class="voice-id-header">
+                <h2><i class="fas fa-microphone"></i> Voice ID</h2>
+                <span class="voice-id-badge" id="voice-enrollment-badge">Checking...</span>
+            </div>
+            <p class="voice-id-help">
+                Set up your Voice ID any time from Profile. Existing users can enroll or re-enroll later,
+                even if they skipped the first-time popup.
+            </p>
+            <div class="voice-id-status-line" id="voice-enrollment-state">Checking voice enrollment status...</div>
+            <div class="voice-id-status-meta" id="voice-enrollment-meta"></div>
+            <div class="voice-id-actions">
+                <button class="btn btn-primary" id="voice-enroll-open-btn">
+                    <i class="fas fa-microphone"></i> Set Up Voice ID
+                </button>
+                <button class="btn btn-secondary" id="voice-enroll-refresh-btn">
+                    <i class="fas fa-sync-alt"></i> Refresh Status
+                </button>
+            </div>
+        </div>
+
         <!-- Progress Section -->
         <div class="progress-container">
             <div class="progress-title">
@@ -907,6 +1092,29 @@
                         <i class="fas fa-users"></i> Find Partners
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Voice ID Modal (Profile) -->
+    <div id="profileVoiceEnrollModal" class="voice-enroll-modal">
+        <div class="voice-enroll-modal-content">
+            <div style="font-size:48px; margin-bottom:12px;">🎙️</div>
+            <h2 class="voice-enroll-title">Set Up Your Voice ID</h2>
+            <p class="voice-enroll-description">
+                Record 20-30 seconds of your English speech so the app can generate and store
+                your voice fingerprint for call matching and speaker verification.
+            </p>
+
+            <div id="profileEnrollStatus" class="voice-enroll-status"></div>
+
+            <div id="profileTimerBar" class="voice-enroll-timer">
+                <div id="profileTimerFill" class="voice-enroll-timer-fill"></div>
+            </div>
+
+            <div class="voice-enroll-actions">
+                <button id="profileEnrollStartBtn" class="voice-enroll-start-btn">🎤 Start Recording</button>
+                <button id="profileEnrollCloseBtn" class="voice-enroll-close-btn">Close</button>
             </div>
         </div>
     </div>

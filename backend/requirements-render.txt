@@ -14,6 +14,9 @@ websockets>=12.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+numpy>=1.24.0
+faster-whisper>=1.0.0
+imageio-ffmpeg>=0.4.9
 
 # Deploy time: ~2-3 minutes (vs 15+ minutes with NLP)
 # After app is running, you can add NLP libraries back later

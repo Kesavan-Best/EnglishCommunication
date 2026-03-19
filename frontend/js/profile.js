@@ -1,8 +1,23 @@
 // js/profile.js - Fixed version
 // API_BASE_URL is loaded from config.js
 
+let profilePageInitialized = false;
+let profileEnrollRecorder = null;
+let profileEnrollChunks = [];
+let profileEnrollTimer = null;
+let profileEnrollSeconds = 0;
+const PROFILE_ENROLL_TARGET_SECONDS = 25;
+let profileVoiceEnrolled = false;
+let profileVoiceRequired = false;
+let profileVoiceSectionReady = false;
+
 // Initialize profile page
 async function initProfilePage() {
+    if (profilePageInitialized) {
+        return;
+    }
+    profilePageInitialized = true;
+
     console.log('Initializing profile page...');
     
     // Show loading
@@ -27,6 +42,9 @@ async function initProfilePage() {
         
         // Load recent activity
         await loadRecentActivity(token, userId);
+
+        // Voice enrollment entry point from profile for current user.
+        await initVoiceEnrollmentProfile(token, userId);
         
         // Hide loading
         showLoading(false);
@@ -418,4 +436,360 @@ if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initProfilePage);
 } else {
     initProfilePage();
+}
+
+async function initVoiceEnrollmentProfile(token, userId) {
+    const container = document.getElementById('voice-id-container');
+    if (!container) return;
+
+    // Voice setup is only for the logged-in user's own profile.
+    if (userId) {
+        container.style.display = 'none';
+        return;
+    }
+
+    bindVoiceEnrollmentProfileEvents();
+    await refreshVoiceEnrollmentProfileStatus(token);
+}
+
+function bindVoiceEnrollmentProfileEvents() {
+    if (profileVoiceSectionReady) return;
+    profileVoiceSectionReady = true;
+
+    const openBtn = document.getElementById('voice-enroll-open-btn');
+    const refreshBtn = document.getElementById('voice-enroll-refresh-btn');
+    const startBtn = document.getElementById('profileEnrollStartBtn');
+    const closeBtn = document.getElementById('profileEnrollCloseBtn');
+
+    if (openBtn) {
+        openBtn.addEventListener('click', () => {
+            openProfileVoiceEnrollModal();
+        });
+    }
+
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            const token = localStorage.getItem('token');
+            if (token) {
+                await refreshVoiceEnrollmentProfileStatus(token);
+                showToast('Voice ID status refreshed', 'info');
+            }
+        });
+    }
+
+    if (startBtn) {
+        startBtn.addEventListener('click', startProfileVoiceEnrollment);
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', closeProfileVoiceEnrollModal);
+    }
+
+    const modal = document.getElementById('profileVoiceEnrollModal');
+    if (modal) {
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeProfileVoiceEnrollModal();
+            }
+        });
+    }
+}
+
+async function refreshVoiceEnrollmentProfileStatus(token) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/users/voice-enrollment-status`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(`Voice status request failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        profileVoiceEnrolled = Boolean(data.enrolled);
+        profileVoiceRequired = Boolean(data.required) && !profileVoiceEnrolled;
+
+        localStorage.setItem('voice_fingerprint_enrolled', profileVoiceEnrolled ? 'true' : 'false');
+        localStorage.setItem('voice_enrollment_required', profileVoiceRequired ? 'true' : 'false');
+
+        updateVoiceEnrollmentProfileUI(data);
+    } catch (error) {
+        console.error('Voice enrollment status check failed:', error);
+        updateVoiceEnrollmentProfileErrorState();
+    }
+}
+
+function updateVoiceEnrollmentProfileUI(data) {
+    const badge = document.getElementById('voice-enrollment-badge');
+    const state = document.getElementById('voice-enrollment-state');
+    const meta = document.getElementById('voice-enrollment-meta');
+    const openBtn = document.getElementById('voice-enroll-open-btn');
+
+    if (badge) {
+        badge.classList.remove('required', 'optional', 'enrolled');
+        if (profileVoiceEnrolled) {
+            badge.classList.add('enrolled');
+            badge.textContent = 'Enrolled';
+        } else if (profileVoiceRequired) {
+            badge.classList.add('required');
+            badge.textContent = 'Required';
+        } else {
+            badge.classList.add('optional');
+            badge.textContent = 'Optional';
+        }
+    }
+
+    if (state) {
+        if (profileVoiceEnrolled) {
+            state.textContent = 'Voice ID is set. You can re-record any time from this page.';
+        } else if (profileVoiceRequired) {
+            state.textContent = 'Voice ID setup is required for random matching. Complete it here now.';
+        } else {
+            state.textContent = 'Voice ID is not set yet. You can set it now from your profile.';
+        }
+    }
+
+    if (meta) {
+        if (data.enrolled_at) {
+            const dt = new Date(data.enrolled_at);
+            meta.textContent = `Last enrolled: ${dt.toLocaleString()}`;
+        } else {
+            meta.textContent = 'Recommended recording length: 20-30 seconds in a quiet place.';
+        }
+    }
+
+    if (openBtn) {
+        openBtn.innerHTML = profileVoiceEnrolled
+            ? '<i class="fas fa-redo"></i> Re-Record Voice ID'
+            : '<i class="fas fa-microphone"></i> Set Up Voice ID';
+    }
+}
+
+function updateVoiceEnrollmentProfileErrorState() {
+    const badge = document.getElementById('voice-enrollment-badge');
+    const state = document.getElementById('voice-enrollment-state');
+    const meta = document.getElementById('voice-enrollment-meta');
+
+    if (badge) {
+        badge.classList.remove('required', 'optional', 'enrolled');
+        badge.textContent = 'Unavailable';
+    }
+    if (state) {
+        state.textContent = 'Could not load Voice ID status right now.';
+    }
+    if (meta) {
+        meta.textContent = 'Please check connection and click Refresh Status.';
+    }
+}
+
+function openProfileVoiceEnrollModal() {
+    const modal = document.getElementById('profileVoiceEnrollModal');
+    const status = document.getElementById('profileEnrollStatus');
+    const timerBar = document.getElementById('profileTimerBar');
+    const timerFill = document.getElementById('profileTimerFill');
+    const startBtn = document.getElementById('profileEnrollStartBtn');
+
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+
+    if (status) {
+        status.textContent = profileVoiceEnrolled
+            ? 'You are re-enrolling your Voice ID. This will replace the previous fingerprint.'
+            : 'Record 20-30 seconds of natural English speech.';
+        status.style.color = '#4361ee';
+    }
+
+    if (timerBar) {
+        timerBar.style.display = 'none';
+    }
+    if (timerFill) {
+        timerFill.style.width = '0%';
+    }
+    if (startBtn) {
+        startBtn.disabled = false;
+        startBtn.textContent = profileVoiceEnrolled ? '🎤 Re-Record Voice ID' : '🎤 Start Recording';
+    }
+}
+
+function closeProfileVoiceEnrollModal() {
+    const modal = document.getElementById('profileVoiceEnrollModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+
+    if (profileEnrollTimer) {
+        clearInterval(profileEnrollTimer);
+        profileEnrollTimer = null;
+    }
+
+    if (profileEnrollRecorder && profileEnrollRecorder.state !== 'inactive') {
+        try {
+            profileEnrollRecorder.stop();
+        } catch (e) {
+            // Ignore recorder stop race.
+        }
+    }
+}
+
+function setProfileEnrollStatus(message, color = '#4361ee') {
+    const status = document.getElementById('profileEnrollStatus');
+    if (!status) return;
+    status.textContent = message;
+    status.style.color = color;
+}
+
+async function startProfileVoiceEnrollment() {
+    const startBtn = document.getElementById('profileEnrollStartBtn');
+    if (startBtn) {
+        startBtn.disabled = true;
+    }
+
+    if (!window.MediaRecorder) {
+        setProfileEnrollStatus('❌ This browser does not support voice recording.', '#e53e3e');
+        if (startBtn) {
+            startBtn.disabled = false;
+        }
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        profileEnrollChunks = [];
+
+        const preferredMimeTypes = [
+            'audio/webm;codecs=opus',
+            'audio/webm',
+            'audio/ogg;codecs=opus',
+            'audio/mp4'
+        ];
+
+        let selectedMimeType = '';
+        for (const mime of preferredMimeTypes) {
+            if (MediaRecorder.isTypeSupported(mime)) {
+                selectedMimeType = mime;
+                break;
+            }
+        }
+
+        profileEnrollRecorder = selectedMimeType
+            ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+            : new MediaRecorder(stream);
+
+        window.__profileVoiceEnrollMimeType = profileEnrollRecorder.mimeType || selectedMimeType || 'audio/webm';
+
+        profileEnrollRecorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                profileEnrollChunks.push(event.data);
+            }
+        };
+
+        profileEnrollRecorder.onstop = async () => {
+            stream.getTracks().forEach(track => track.stop());
+            await uploadProfileVoiceEnrollment();
+        };
+
+        profileEnrollRecorder.start();
+
+        const timerBar = document.getElementById('profileTimerBar');
+        if (timerBar) {
+            timerBar.style.display = 'block';
+        }
+
+        profileEnrollSeconds = 0;
+        setProfileEnrollStatus('🔴 Recording... speak naturally in English', '#e53e3e');
+
+        profileEnrollTimer = setInterval(() => {
+            profileEnrollSeconds += 1;
+            const progress = Math.min((profileEnrollSeconds / PROFILE_ENROLL_TARGET_SECONDS) * 100, 100);
+            const fill = document.getElementById('profileTimerFill');
+            if (fill) {
+                fill.style.width = `${progress}%`;
+            }
+
+            setProfileEnrollStatus(`🔴 Recording... ${profileEnrollSeconds}s / ${PROFILE_ENROLL_TARGET_SECONDS}s`, '#e53e3e');
+
+            if (profileEnrollSeconds >= PROFILE_ENROLL_TARGET_SECONDS) {
+                clearInterval(profileEnrollTimer);
+                profileEnrollTimer = null;
+                profileEnrollRecorder.stop();
+            }
+        }, 1000);
+    } catch (error) {
+        console.error('Profile voice enrollment start failed:', error);
+        setProfileEnrollStatus('❌ Microphone access denied. Please allow microphone permission.', '#e53e3e');
+        if (startBtn) {
+            startBtn.disabled = false;
+        }
+    }
+}
+
+async function uploadProfileVoiceEnrollment() {
+    const token = localStorage.getItem('token');
+    const startBtn = document.getElementById('profileEnrollStartBtn');
+
+    if (!token) {
+        setProfileEnrollStatus('❌ You are not logged in. Please log in again.', '#e53e3e');
+        if (startBtn) {
+            startBtn.disabled = false;
+        }
+        return;
+    }
+
+    setProfileEnrollStatus('⏳ Processing your voice...', '#4361ee');
+
+    const mimeType = window.__profileVoiceEnrollMimeType || 'audio/webm';
+    const blob = new Blob(profileEnrollChunks, { type: mimeType });
+    const formData = new FormData();
+
+    let filename = 'profile_enrollment.webm';
+    if (mimeType.includes('wav')) filename = 'profile_enrollment.wav';
+    else if (mimeType.includes('ogg')) filename = 'profile_enrollment.ogg';
+    else if (mimeType.includes('mp4') || mimeType.includes('m4a')) filename = 'profile_enrollment.mp4';
+
+    formData.append('audio', blob, filename);
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/users/enroll-voice`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            localStorage.setItem('voice_fingerprint_enrolled', 'true');
+            localStorage.setItem('voice_enrollment_required', 'false');
+
+            setProfileEnrollStatus('✅ Voice ID enrolled successfully!', '#38a169');
+            await refreshVoiceEnrollmentProfileStatus(token);
+
+            if (startBtn) {
+                startBtn.textContent = '🎤 Re-Record Voice ID';
+                startBtn.disabled = false;
+            }
+
+            showToast('Voice ID saved to your profile successfully', 'success');
+
+            setTimeout(() => {
+                closeProfileVoiceEnrollModal();
+            }, 1800);
+        } else {
+            setProfileEnrollStatus(`❌ ${data.detail || 'Voice enrollment failed. Please try again.'}`, '#e53e3e');
+            if (startBtn) {
+                startBtn.disabled = false;
+            }
+        }
+    } catch (error) {
+        console.error('Profile voice enrollment upload failed:', error);
+        setProfileEnrollStatus('❌ Network error while uploading voice. Please try again.', '#e53e3e');
+        if (startBtn) {
+            startBtn.disabled = false;
+        }
+    }
 }

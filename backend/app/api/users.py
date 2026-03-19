@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File,
 from datetime import datetime
 from typing import List
 from bson import ObjectId
+from pymongo import ReturnDocument
 import shutil
 import os
 import logging
@@ -41,7 +42,7 @@ def is_user_online_db(user_id: str) -> bool:
         if not user:
             return False
         
-        # User must have is_online=True AND last_seen within last 60 seconds
+        # User must have is_online=True AND last_seen within the recent heartbeat window
         is_online = user.get("is_online", False)
         last_seen = user.get("last_seen")
         
@@ -49,8 +50,8 @@ def is_user_online_db(user_id: str) -> bool:
             return False
         
         if last_seen:
-            # Check if last_seen is within the last 60 seconds (heartbeats every 15s + grace period)
-            time_threshold = datetime.utcnow() - timedelta(seconds=60)
+            # Check if last_seen is within the last 20 seconds (heartbeat is 15s)
+            time_threshold = datetime.utcnow() - timedelta(seconds=20)
             if last_seen < time_threshold:
                 # Stale status - mark as offline in DB to clean up
                 db.users.update_one(
@@ -122,6 +123,11 @@ async def register(user_data: UserRegisterRequest):
             "total_call_duration": 0,
             "avg_fluency_score": 0.0,
             "weaknesses": [],
+            "voice_fingerprint": None,
+            # Voice enrollment is required only for users created after this feature.
+            "voice_enrollment_required": True,
+            "voice_fingerprint_enrolled": False,
+            "voice_fingerprint_enrolled_at": None,
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow()
         }
@@ -217,9 +223,14 @@ async def login(user_data: UserLoginRequest):
     all_users = list(db.users.find().sort("ai_score", -1))
     rank = next((i + 1 for i, u in enumerate(all_users) if str(u["_id"]) == str(user["_id"])), None)
     
+    voice_fingerprint_enrolled = bool(user.get("voice_fingerprint_enrolled", False))
+    voice_enrollment_required = bool(user.get("voice_enrollment_required", False)) and not voice_fingerprint_enrolled
+
     return {
         "access_token": token,
         "token_type": "bearer",
+        "voice_fingerprint_enrolled": voice_fingerprint_enrolled,
+        "voice_enrollment_required": voice_enrollment_required,
         "user": UserResponse(
             id=str(user["_id"]),
             email=user["email"],
@@ -990,40 +1001,183 @@ async def get_all_friend_statuses(
 async def find_random_partner(
     current_user: UserInDB = Depends(AuthHandler.get_current_user)
 ):
-    """Find a random online partner for calling"""
-    db = Database.get_db()
-    
-    # Filter out test emails and current user
-    test_emails = ["john@example.com", "jane@example.com", "bob@example.com"]
-    
-    # Get all users except current user and test accounts
-    all_users = list(db.users.find({
-        "_id": {"$ne": current_user.id},
-        "email": {"$nin": test_emails}
-    }))
-    
-    # Filter to only actually online users (from database - works across instances)
-    online_users = [
-        user for user in all_users 
-        if is_user_online_db(str(user["_id"]))
-    ]
-    
-    if not online_users:
-        return {"message": "No online partners available", "partner": None}
-    
-    # Get a random user
-    import random
-    random_partner = random.choice(online_users)
-    
+    """Deprecated: random calls now use real-time queue so both users explicitly opt in."""
     return {
-        "partner": {
-            "id": str(random_partner["_id"]),
-            "name": random_partner["name"],
-            "email": random_partner["email"],
-            "avatar_url": random_partner.get("avatar_url"),
-            "ai_score": random_partner.get("ai_score", 0.0)
-        }
+        "message": "Random matching now uses the live queue. Click Find Random Partner to join queue.",
+        "partner": None
     }
+
+@router.post("/enroll-voice")
+async def enroll_voice(
+    audio: UploadFile = File(..., description="Voice recording (20-30s, WebM/WAV)"),
+    current_user: UserInDB = Depends(AuthHandler.get_current_user),
+):
+    """
+    Enroll the current user's voice fingerprint.
+
+    Accepts a 20-30 second audio recording, extracts MFCC-based voice features,
+    and stores the fingerprint in the user's DB document.  This is called once
+    on first login so the system can later identify the user's voice during calls.
+    """
+    import shutil
+    import tempfile
+
+    content_type = (audio.content_type or "").lower()
+    if "wav" in content_type:
+        suffix = ".wav"
+    elif "ogg" in content_type:
+        suffix = ".ogg"
+    elif "mp4" in content_type or "m4a" in content_type:
+        suffix = ".mp4"
+    else:
+        suffix = ".webm"
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            shutil.copyfileobj(audio.file, tmp)
+            tmp_path = tmp.name
+
+        file_size = os.path.getsize(tmp_path)
+        if file_size < 10_000:  # < 10 KB is probably too short
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Recording is too short. Please record at least 20 seconds of speech.",
+            )
+
+        with open(tmp_path, "rb") as f:
+            audio_bytes = f.read()
+
+        try:
+            from backend.app.ai_processing.voice_fingerprint import (
+                estimate_audio_duration_seconds,
+                extract_voice_fingerprint,
+            )
+        except ModuleNotFoundError as dep_exc:
+            missing_module = dep_exc.name or "required dependency"
+            logger.error(
+                "[VoiceEnroll] Missing dependency '%s' while enrolling user %s",
+                missing_module,
+                current_user.id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=(
+                    f"Voice enrollment dependency missing on server: {missing_module}. "
+                    "Install backend requirements and restart the backend."
+                ),
+            ) from dep_exc
+
+        duration_seconds = estimate_audio_duration_seconds(audio_bytes, suffix=suffix)
+        if duration_seconds is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=(
+                    "Could not decode audio. Please re-record in Chrome/Edge and try again. "
+                    "Supported formats: WebM, WAV, OGG, MP4."
+                ),
+            )
+
+        if duration_seconds < 20 or duration_seconds > 30:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Recording must be 20-30 seconds. Current length: {duration_seconds:.1f}s.",
+            )
+
+        fingerprint = extract_voice_fingerprint(audio_bytes, suffix=suffix)
+
+        if fingerprint is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Could not extract voice features. Please re-record in a quiet environment.",
+            )
+
+        db = Database.get_db()
+        now = datetime.utcnow()
+
+        # Atomic one-shot write to the authenticated user's document.
+        updated_user = db.users.find_one_and_update(
+            {"_id": current_user.id},
+            {
+                "$set": {
+                    "voice_fingerprint": fingerprint,
+                    "voice_enrollment_required": False,
+                    "voice_fingerprint_enrolled": True,
+                    "voice_fingerprint_enrolled_at": now,
+                    "voice_fingerprint_duration_seconds": round(duration_seconds, 2),
+                    "updated_at": now,
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+            projection={
+                "_id": 1,
+                "voice_fingerprint": 1,
+                "voice_fingerprint_enrolled": 1,
+                "voice_fingerprint_enrolled_at": 1,
+            },
+        )
+
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found while saving voice enrollment.",
+            )
+
+        stored_fp = updated_user.get("voice_fingerprint")
+        if not updated_user.get("voice_fingerprint_enrolled") or not isinstance(stored_fp, list) or not stored_fp:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Voice enrollment could not be persisted for this user.",
+            )
+
+        logger.info(
+            "[VoiceEnroll] User %s enrolled (fp_dim=%d)", current_user.id, len(fingerprint)
+        )
+        return {
+            "success": True,
+            "message": "Voice ID enrolled successfully!",
+            "fingerprint_dimensions": len(fingerprint),
+            "recording_duration_seconds": round(duration_seconds, 2),
+            "user_id": str(updated_user["_id"]),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("[VoiceEnroll] Failed for user %s: %s", current_user.id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Voice enrollment failed: {exc}",
+        )
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
+@router.get("/voice-enrollment-status")
+async def voice_enrollment_status(
+    current_user: UserInDB = Depends(AuthHandler.get_current_user),
+):
+    """Return whether the current user has a stored voice fingerprint."""
+    db = Database.get_db()
+    user_doc = db.users.find_one(
+        {"_id": current_user.id},
+        {
+            "voice_enrollment_required": 1,
+            "voice_fingerprint_enrolled": 1,
+            "voice_fingerprint_enrolled_at": 1,
+        },
+    )
+    enrolled = bool(user_doc and user_doc.get("voice_fingerprint_enrolled", False))
+    required = bool(user_doc and user_doc.get("voice_enrollment_required", False)) and not enrolled
+    enrolled_at = None
+    if enrolled and user_doc.get("voice_fingerprint_enrolled_at"):
+        enrolled_at = user_doc["voice_fingerprint_enrolled_at"].isoformat()
+    return {"enrolled": enrolled, "required": required, "enrolled_at": enrolled_at}
+
 
 @router.get("/debug/db-status")
 async def debug_db_status():
