@@ -290,18 +290,33 @@
         .reading-content {
             line-height: 1.8;
             color: #333;
+            background: #f8faff;
+            border: 1px solid #e7ecff;
+            border-radius: 12px;
+            padding: 22px;
         }
 
         .reading-content h2 {
             color: #667eea;
             margin-top: 25px;
             margin-bottom: 15px;
+            font-size: 24px;
         }
 
         .reading-content h3 {
             color: #764ba2;
             margin-top: 20px;
             margin-bottom: 10px;
+            font-size: 20px;
+        }
+
+        .reading-content p {
+            margin: 12px 0;
+            font-size: 17px;
+        }
+
+        .reading-content strong {
+            color: #3347b9;
         }
 
         .reading-content ul {
@@ -383,6 +398,32 @@
             color: #667eea;
             margin-top: 20px;
         }
+
+        #submitQuiz {
+            margin-top: 14px;
+            background: #667eea;
+            color: #fff;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.25);
+        }
+
+        #submitQuiz:hover {
+            background: #5569d8;
+        }
+
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                padding: 22px 18px;
+            }
+
+            .reading-content {
+                padding: 16px;
+            }
+
+            .question-text {
+                font-size: 16px;
+            }
+        }
     </style>
     <link rel="stylesheet" href="/frontend/css/modern-ui.css">
 </head>
@@ -461,6 +502,7 @@
         const callId = urlParams.get('callId');
         let currentTopicData = null;
         let quizAnswers = {};
+        let recommendedTopicsById = {};
 
         async function loadResults() {
             if (!callId) {
@@ -576,14 +618,30 @@
             // Topics
             const topicsGrid = document.getElementById('topicsGrid');
             topicsGrid.innerHTML = '';
-            feedback.recommended_topics.forEach(topic => {
+            recommendedTopicsById = {};
+
+            if (!feedback.recommended_topics || feedback.recommended_topics.length === 0) {
+                const emptyCard = document.createElement('div');
+                emptyCard.className = 'topic-card';
+                emptyCard.innerHTML = `
+                    <div class="topic-name">No topic recommendations yet</div>
+                    <div class="topic-desc">Complete another conversation with more speech to unlock reading and quiz recommendations.</div>
+                `;
+                topicsGrid.appendChild(emptyCard);
+                return;
+            }
+
+            feedback.recommended_topics.forEach((topic, idx) => {
+                const topicId = `topic-${idx}`;
+                recommendedTopicsById[topicId] = topic;
+
                 const card = document.createElement('div');
                 card.className = 'topic-card';
                 card.innerHTML = `
                     <div class="topic-name">${topic.name}</div>
                     <div class="topic-desc">${topic.description}</div>
                     <div class="topic-actions">
-                        <button class="btn btn-primary" onclick='openTopic(${JSON.stringify(topic)})'>
+                        <button class="btn btn-primary" onclick="openTopicById('${topicId}')">
                             📖 Read & Quiz
                         </button>
                     </div>
@@ -592,22 +650,108 @@
             });
         }
 
+        function openTopicById(topicId) {
+            const topic = recommendedTopicsById[topicId];
+            if (!topic) {
+                alert('Topic data not available. Please refresh and try again.');
+                return;
+            }
+            openTopic(topic);
+        }
+
         function openTopic(topic) {
             currentTopicData = topic;
             document.getElementById('modalTitle').textContent = topic.name;
-            
-            // Convert markdown-style content to HTML
-            const readingHTML = topic.reading_content
-                .replace(/## /g, '<h2>')
-                .replace(/### /g, '<h3>')
-                .replace(/\n/g, '<br>');
-            
-            document.getElementById('modalReading').innerHTML = readingHTML;
+
+            document.getElementById('modalReading').innerHTML = renderReadingContent(topic.reading_content || '');
             
             // Load quiz
-            loadQuiz(topic.quiz);
+            if (!topic.quiz || !Array.isArray(topic.quiz) || topic.quiz.length === 0) {
+                document.getElementById('quizQuestions').innerHTML = '<p>No quiz available for this topic yet.</p>';
+                document.getElementById('quizScore').style.display = 'none';
+                document.getElementById('submitQuiz').style.display = 'none';
+            } else {
+                loadQuiz(topic.quiz);
+                document.getElementById('submitQuiz').style.display = 'block';
+            }
             
             document.getElementById('topicModal').classList.add('active');
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatInlineMarkdown(text) {
+            let formatted = escapeHtml(text);
+            formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            formatted = formatted.replace(/`(.+?)`/g, '<code>$1</code>');
+            return formatted;
+        }
+
+        function renderReadingContent(content) {
+            const lines = String(content || '').split(/\r?\n/);
+            const htmlParts = [];
+            let inList = false;
+
+            const closeListIfNeeded = () => {
+                if (inList) {
+                    htmlParts.push('</ul>');
+                    inList = false;
+                }
+            };
+
+            lines.forEach((rawLine) => {
+                const line = rawLine.trim();
+
+                if (!line) {
+                    closeListIfNeeded();
+                    return;
+                }
+
+                const h1 = line.match(/^#\s+(.+)/);
+                if (h1) {
+                    closeListIfNeeded();
+                    htmlParts.push(`<h2>${formatInlineMarkdown(h1[1])}</h2>`);
+                    return;
+                }
+
+                const h2 = line.match(/^##\s+(.+)/);
+                if (h2) {
+                    closeListIfNeeded();
+                    htmlParts.push(`<h2>${formatInlineMarkdown(h2[1])}</h2>`);
+                    return;
+                }
+
+                const h3 = line.match(/^###\s+(.+)/);
+                if (h3) {
+                    closeListIfNeeded();
+                    htmlParts.push(`<h3>${formatInlineMarkdown(h3[1])}</h3>`);
+                    return;
+                }
+
+                const bullet = line.match(/^-\s+(.+)/);
+                if (bullet) {
+                    if (!inList) {
+                        htmlParts.push('<ul>');
+                        inList = true;
+                    }
+                    htmlParts.push(`<li>${formatInlineMarkdown(bullet[1])}</li>`);
+                    return;
+                }
+
+                closeListIfNeeded();
+                htmlParts.push(`<p>${formatInlineMarkdown(line)}</p>`);
+            });
+
+            closeListIfNeeded();
+            return htmlParts.join('');
         }
 
         function loadQuiz(quiz) {
