@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 from bson import ObjectId
 from pymongo import ReturnDocument
@@ -8,6 +8,7 @@ import os
 import logging
 import random
 import string
+from pathlib import Path
 
 from backend.app.schemas import UserRegisterRequest, UserLoginRequest, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from backend.app.models import UserInDB
@@ -19,6 +20,22 @@ from backend.app.email_service import email_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+def _persist_voice_enrollment_audio(user_id: str, audio_bytes: bytes, suffix: str) -> str:
+    """Persist latest enrollment audio under static and return the public URL path."""
+    static_audio_dir = Path(__file__).resolve().parents[3] / "static" / "audio" / "enrollments"
+    static_audio_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ext = suffix if suffix.startswith(".") else f".{suffix}"
+    filename = f"{user_id}_{timestamp}{ext}"
+    file_path = static_audio_dir / filename
+
+    with open(file_path, "wb") as f:
+        f.write(audio_bytes)
+
+    return f"/static/audio/enrollments/{filename}"
 
 # Helper function to check if user is online based on WebSocket + database status
 # Priority: WebSocket connection (real-time) > Database flag (cross-instance)
@@ -1084,6 +1101,40 @@ async def enroll_voice(
                 detail=f"Recording must be 20-30 seconds. Current length: {duration_seconds:.1f}s.",
             )
 
+        enrollment_transcription = ""
+        transcription_confidence = None
+        transcription_note = ""
+        enrollment_audio_url = ""
+
+        # Persist latest enrollment recording for user-side audit/playback.
+        try:
+            enrollment_audio_url = _persist_voice_enrollment_audio(str(current_user.id), audio_bytes, suffix)
+        except Exception as audio_save_exc:
+            logger.warning("[VoiceEnroll] Could not save enrollment audio for user %s: %s", current_user.id, audio_save_exc)
+
+        # Best-effort STT for auditability using the same faster-whisper pipeline.
+        try:
+            from backend.app.ai_processing.faster_whisper_stt import faster_whisper_stt
+
+            transcription_text, confidence = faster_whisper_stt.transcribe(tmp_path, language="en")
+            enrollment_transcription = (transcription_text or "").strip()
+            if isinstance(confidence, (int, float)):
+                transcription_confidence = round(float(confidence), 4)
+
+            if not enrollment_transcription:
+                transcription_note = (
+                    "No clear speech detected for transcription. Please speak clearly and re-record if needed."
+                )
+                if not faster_whisper_stt.is_available():
+                    transcription_note = "Server fast-whisper model is unavailable."
+        except Exception as stt_exc:
+            logger.warning(
+                "[VoiceEnroll] STT preview unavailable for user %s: %s",
+                current_user.id,
+                stt_exc,
+            )
+            transcription_note = "Could not generate speech-to-text preview for this recording."
+
         fingerprint = extract_voice_fingerprint(audio_bytes, suffix=suffix)
 
         if fingerprint is None:
@@ -1093,7 +1144,8 @@ async def enroll_voice(
             )
 
         db = Database.get_db()
-        now = datetime.utcnow()
+        now = datetime.now().astimezone()
+        voice_id_label = f"VID-{str(current_user.id)[-6:].upper()}"
 
         # Atomic one-shot write to the authenticated user's document.
         updated_user = db.users.find_one_and_update(
@@ -1105,6 +1157,11 @@ async def enroll_voice(
                     "voice_fingerprint_enrolled": True,
                     "voice_fingerprint_enrolled_at": now,
                     "voice_fingerprint_duration_seconds": round(duration_seconds, 2),
+                    "voice_enrollment_transcript": enrollment_transcription,
+                    "voice_enrollment_transcript_confidence": transcription_confidence,
+                    "voice_enrollment_transcript_generated_at": now,
+                    "voice_enrollment_audio_url": enrollment_audio_url,
+                    "voice_enrollment_audio_saved_at": now if enrollment_audio_url else None,
                     "updated_at": now,
                 }
             },
@@ -1114,6 +1171,9 @@ async def enroll_voice(
                 "voice_fingerprint": 1,
                 "voice_fingerprint_enrolled": 1,
                 "voice_fingerprint_enrolled_at": 1,
+                "voice_enrollment_transcript": 1,
+                "voice_enrollment_transcript_confidence": 1,
+                "voice_enrollment_audio_url": 1,
             },
         )
 
@@ -1136,8 +1196,15 @@ async def enroll_voice(
         return {
             "success": True,
             "message": "Voice ID enrolled successfully!",
+            "voice_id_label": voice_id_label,
             "fingerprint_dimensions": len(fingerprint),
             "recording_duration_seconds": round(duration_seconds, 2),
+            "enrolled_at": now.isoformat(),
+            "enrollment_transcription": updated_user.get("voice_enrollment_transcript", "") or "",
+            "transcription_confidence": updated_user.get("voice_enrollment_transcript_confidence"),
+            "transcription_available": bool(updated_user.get("voice_enrollment_transcript")),
+            "transcription_note": transcription_note,
+            "enrollment_audio_url": updated_user.get("voice_enrollment_audio_url", "") or "",
             "user_id": str(updated_user["_id"]),
         }
 
@@ -1169,14 +1236,29 @@ async def voice_enrollment_status(
             "voice_enrollment_required": 1,
             "voice_fingerprint_enrolled": 1,
             "voice_fingerprint_enrolled_at": 1,
+            "voice_enrollment_transcript": 1,
+            "voice_enrollment_transcript_confidence": 1,
+            "voice_enrollment_audio_url": 1,
         },
     )
     enrolled = bool(user_doc and user_doc.get("voice_fingerprint_enrolled", False))
     required = bool(user_doc and user_doc.get("voice_enrollment_required", False)) and not enrolled
     enrolled_at = None
     if enrolled and user_doc.get("voice_fingerprint_enrolled_at"):
-        enrolled_at = user_doc["voice_fingerprint_enrolled_at"].isoformat()
-    return {"enrolled": enrolled, "required": required, "enrolled_at": enrolled_at}
+        raw_enrolled_at = user_doc["voice_fingerprint_enrolled_at"]
+        if raw_enrolled_at.tzinfo is None:
+            raw_enrolled_at = raw_enrolled_at.replace(tzinfo=timezone.utc)
+        enrolled_at = raw_enrolled_at.astimezone().isoformat()
+    voice_id_label = f"VID-{str(current_user.id)[-6:].upper()}"
+    return {
+        "enrolled": enrolled,
+        "required": required,
+        "voice_id_label": voice_id_label,
+        "enrolled_at": enrolled_at,
+        "last_enrollment_transcription": (user_doc or {}).get("voice_enrollment_transcript", "") if user_doc else "",
+        "last_enrollment_transcription_confidence": (user_doc or {}).get("voice_enrollment_transcript_confidence") if user_doc else None,
+        "last_enrollment_audio_url": (user_doc or {}).get("voice_enrollment_audio_url", "") if user_doc else "",
+    }
 
 
 @router.get("/debug/db-status")

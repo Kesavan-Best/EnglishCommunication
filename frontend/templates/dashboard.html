@@ -359,7 +359,7 @@
                         <i class="fas fa-brain"></i>
                     </div>
                 </div>
-                <div class="stat-value">0.0</div>
+                <div class="stat-value" id="ai-score">0.0</div>
                 <div class="stat-label">AI Communication Score</div>
             </div>
             
@@ -369,7 +369,7 @@
                         <i class="fas fa-phone-alt"></i>
                     </div>
                 </div>
-                <div class="stat-value">0</div>
+                <div class="stat-value" id="total-calls">0</div>
                 <div class="stat-label">Total Practice Calls</div>
             </div>
             
@@ -379,7 +379,7 @@
                         <i class="fas fa-globe"></i>
                     </div>
                 </div>
-                <div class="stat-value">#2</div>
+                <div class="stat-value" id="rank">#0</div>
                 <div class="stat-label">Global Rank</div>
             </div>
             
@@ -389,7 +389,7 @@
                         <i class="fas fa-chart-line"></i>
                     </div>
                 </div>
-                <div class="stat-value">0.0%</div>
+                <div class="stat-value" id="fluency-score">0.0%</div>
                 <div class="stat-label">Average Fluency</div>
             </div>
         </div>
@@ -431,6 +431,21 @@
                      width:0%; transition:width 0.5s linear; border-radius:10px;"></div>
             </div>
 
+            <div id="enrollTranscriptWrap" style="display:none; margin-bottom:18px; text-align:left;">
+                <button id="toggleEnrollTranscriptBtn" onclick="toggleEnrollTranscript()"
+                    style="background:#edf2ff; color:#3347b9; border:1px solid #c8d3ff; border-radius:10px;
+                           padding:10px 14px; font-size:13px; font-weight:700; cursor:pointer; width:100%;">
+                    Show Captured Speech Text
+                </button>
+                <div id="enrollTranscriptBox" style="display:none; margin-top:10px; background:#f7f9ff;
+                     border:1px solid #dbe4ff; border-radius:12px; padding:12px;">
+                    <div style="font-size:12px; font-weight:700; color:#3347b9; margin-bottom:6px;">Voice ID Recording & Transcription</div>
+                    <audio id="enrollTranscriptAudio" controls style="display:none; width:100%; margin-bottom:8px;"></audio>
+                    <div id="enrollTranscriptText" style="font-size:14px; line-height:1.45; color:#2d3748; white-space:pre-wrap;"></div>
+                    <div id="enrollTranscriptMeta" style="margin-top:8px; font-size:12px; color:#6b7280;"></div>
+                </div>
+            </div>
+
             <!-- Buttons -->
             <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
                 <button id="enrollStartBtn" onclick="startVoiceEnrollment()"
@@ -455,6 +470,48 @@
     <!-- ================================================================== -->
 
     <script>
+        let dashboardStatsInterval = null;
+
+        function updateStatValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value;
+            }
+        }
+
+        function applyDashboardStats(user) {
+            if (!user || typeof user !== 'object') return;
+
+            const aiScore = Number(user.ai_score || 0);
+            const totalCalls = Number(user.total_calls || 0);
+            const fluency = Number(user.avg_fluency_score || 0);
+            const rankValue = user.rank ? `#${user.rank}` : 'N/A';
+
+            updateStatValue('ai-score', aiScore.toFixed(1));
+            updateStatValue('total-calls', String(totalCalls));
+            updateStatValue('fluency-score', `${fluency.toFixed(1)}%`);
+            updateStatValue('rank', rankValue);
+        }
+
+        async function refreshDashboardStats() {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+
+            try {
+                const response = await fetch(API_ENDPOINTS.me, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return;
+
+                const user = await response.json();
+                localStorage.setItem('user', JSON.stringify(user));
+                applyDashboardStats(user);
+            } catch (error) {
+                console.debug('Dashboard stats refresh failed:', error.message);
+            }
+        }
+
         function showVoiceEnrollModal() {
             const modal = document.getElementById('voiceEnrollModal');
             if (modal) {
@@ -472,6 +529,15 @@
             if (!token || !user.email) {
                 window.location.href = '/frontend/templates/login.html';
                 return;
+            }
+
+            // Render cached values immediately for faster dashboard paint.
+            applyDashboardStats(user);
+
+            // Fetch latest values from backend, then keep dashboard live.
+            await refreshDashboardStats();
+            if (!dashboardStatsInterval) {
+                dashboardStatsInterval = setInterval(refreshDashboardStats, 15000);
             }
 
             // Update user info if available
@@ -497,6 +563,16 @@
 
                     localStorage.setItem('voice_fingerprint_enrolled', enrolled ? 'true' : 'false');
                     localStorage.setItem('voice_enrollment_required', required ? 'true' : 'false');
+                    if (data.last_enrollment_transcription || data.last_enrollment_audio_url) {
+                        updateEnrollTranscriptPanel(
+                            data.last_enrollment_transcription,
+                            data.last_enrollment_transcription_confidence,
+                            data.last_enrollment_audio_url,
+                            data.voice_id_label,
+                            data.enrolled_at,
+                            'This is the latest saved enrollment transcription.'
+                        );
+                    }
                 }
             } catch (e) {
                 // Fall back to cached values when the network check fails.
@@ -518,6 +594,66 @@
         function setEnrollStatus(msg, color) {
             const el = document.getElementById('enrollStatus');
             if (el) { el.textContent = msg; el.style.color = color || '#4361ee'; }
+        }
+
+        function toggleEnrollTranscript() {
+            const box = document.getElementById('enrollTranscriptBox');
+            const btn = document.getElementById('toggleEnrollTranscriptBtn');
+            if (!box || !btn) return;
+
+            const isOpen = box.style.display === 'block';
+            box.style.display = isOpen ? 'none' : 'block';
+            btn.textContent = isOpen ? 'Show Captured Speech Text' : 'Hide Captured Speech Text';
+        }
+
+        function updateEnrollTranscriptPanel(transcript, confidence, audioUrl, voiceIdLabel, enrolledAt, note) {
+            const wrap = document.getElementById('enrollTranscriptWrap');
+            const box = document.getElementById('enrollTranscriptBox');
+            const textEl = document.getElementById('enrollTranscriptText');
+            const metaEl = document.getElementById('enrollTranscriptMeta');
+            const btn = document.getElementById('toggleEnrollTranscriptBtn');
+            const audioEl = document.getElementById('enrollTranscriptAudio');
+
+            if (!wrap || !box || !textEl || !metaEl || !btn || !audioEl) return;
+
+            const safeTranscript = (transcript || '').trim();
+            const safeNote = (note || '').trim();
+            const safeAudioUrl = (audioUrl || '').trim();
+            const safeVoiceIdLabel = (voiceIdLabel || '').trim();
+            const safeEnrolledAt = (enrolledAt || '').trim();
+            if (!safeTranscript && !safeNote && !safeAudioUrl) {
+                wrap.style.display = 'none';
+                box.style.display = 'none';
+                btn.textContent = 'Show Captured Speech Text';
+                audioEl.style.display = 'none';
+                audioEl.removeAttribute('src');
+                return;
+            }
+
+            wrap.style.display = 'block';
+            box.style.display = 'none';
+            btn.textContent = 'Show Captured Speech Text';
+
+            if (safeAudioUrl) {
+                audioEl.src = safeAudioUrl;
+                audioEl.style.display = 'block';
+            } else {
+                audioEl.style.display = 'none';
+                audioEl.removeAttribute('src');
+            }
+
+            textEl.textContent = safeTranscript || 'Transcription is unavailable for this recording.';
+
+            const confidenceText = (typeof confidence === 'number' && !Number.isNaN(confidence))
+                ? `Confidence: ${Math.round(confidence * 100)}%`
+                : 'Confidence: not available';
+            const enrolledText = safeEnrolledAt
+                ? `Enrolled: ${new Date(safeEnrolledAt).toLocaleString()}`
+                : '';
+            const labelText = safeVoiceIdLabel ? `Voice ID: ${safeVoiceIdLabel}` : '';
+            const baseMetaParts = [labelText, enrolledText, confidenceText].filter(Boolean);
+            const baseMeta = baseMetaParts.join(' | ');
+            metaEl.textContent = safeNote ? `${baseMeta} | ${safeNote}` : baseMeta;
         }
 
         async function startVoiceEnrollment() {
@@ -549,6 +685,8 @@
                 enrollRecorder.ondataavailable = e => e.data.size > 0 && enrollChunks.push(e.data);
                 enrollRecorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); uploadEnrollment(); };
                 enrollRecorder.start();
+
+                updateEnrollTranscriptPanel('', null, '', '', '', '');
 
                 // Show timer
                 enrollSeconds = 0;
@@ -596,17 +734,24 @@
                     localStorage.setItem('voice_fingerprint_enrolled', 'true');
                     localStorage.setItem('voice_enrollment_required', 'false');
                     setEnrollStatus('✅ Voice ID enrolled successfully!', '#38a169');
+                    updateEnrollTranscriptPanel(
+                        data.enrollment_transcription,
+                        data.transcription_confidence,
+                        data.enrollment_audio_url,
+                        data.voice_id_label,
+                        data.enrolled_at,
+                        data.transcription_note
+                    );
                     document.getElementById('timerBar').style.display = 'none';
                     document.getElementById('enrollStartBtn').style.display = 'none';
                     const secondaryBtn = document.getElementById('enrollSkipBtn');
                     if (secondaryBtn) {
-                        secondaryBtn.textContent = 'Close';
+                        secondaryBtn.textContent = 'Done';
                         secondaryBtn.onclick = closeEnrollModal;
                     }
                     if (window.location.search.includes('force_voice_enroll=1')) {
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
-                    setTimeout(() => closeEnrollModal(), 2500);
                 } else {
                     setEnrollStatus('❌ ' + (data.detail || 'Enrollment failed — please try again.'), '#e53e3e');
                     const btn = document.getElementById('enrollStartBtn');
@@ -634,9 +779,19 @@
             }
         }
 
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                refreshDashboardStats();
+            }
+        });
+
         // Logout function
         function logout() {
             if (confirm('Are you sure you want to logout?')) {
+                if (dashboardStatsInterval) {
+                    clearInterval(dashboardStatsInterval);
+                    dashboardStatsInterval = null;
+                }
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 window.location.href = 'login.html';

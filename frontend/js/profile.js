@@ -10,6 +10,11 @@ const PROFILE_ENROLL_TARGET_SECONDS = 25;
 let profileVoiceEnrolled = false;
 let profileVoiceRequired = false;
 let profileVoiceSectionReady = false;
+let profileLastEnrollmentTranscript = '';
+let profileLastEnrollmentTranscriptConfidence = null;
+let profileLastEnrollmentAudioUrl = '';
+let profileVoiceIdLabel = '';
+let profileEnrolledAt = '';
 
 // Initialize profile page
 async function initProfilePage() {
@@ -460,6 +465,7 @@ function bindVoiceEnrollmentProfileEvents() {
     const refreshBtn = document.getElementById('voice-enroll-refresh-btn');
     const startBtn = document.getElementById('profileEnrollStartBtn');
     const closeBtn = document.getElementById('profileEnrollCloseBtn');
+    const transcriptToggleBtn = document.getElementById('profileEnrollTranscriptToggle');
 
     if (openBtn) {
         openBtn.addEventListener('click', () => {
@@ -483,6 +489,10 @@ function bindVoiceEnrollmentProfileEvents() {
 
     if (closeBtn) {
         closeBtn.addEventListener('click', closeProfileVoiceEnrollModal);
+    }
+
+    if (transcriptToggleBtn) {
+        transcriptToggleBtn.addEventListener('click', toggleProfileEnrollTranscript);
     }
 
     const modal = document.getElementById('profileVoiceEnrollModal');
@@ -510,6 +520,11 @@ async function refreshVoiceEnrollmentProfileStatus(token) {
         const data = await response.json();
         profileVoiceEnrolled = Boolean(data.enrolled);
         profileVoiceRequired = Boolean(data.required) && !profileVoiceEnrolled;
+        profileLastEnrollmentTranscript = (data.last_enrollment_transcription || '').trim();
+        profileLastEnrollmentTranscriptConfidence = data.last_enrollment_transcription_confidence;
+        profileLastEnrollmentAudioUrl = (data.last_enrollment_audio_url || '').trim();
+        profileVoiceIdLabel = (data.voice_id_label || '').trim();
+        profileEnrolledAt = (data.enrolled_at || '').trim();
 
         localStorage.setItem('voice_fingerprint_enrolled', profileVoiceEnrolled ? 'true' : 'false');
         localStorage.setItem('voice_enrollment_required', profileVoiceRequired ? 'true' : 'false');
@@ -565,6 +580,50 @@ function updateVoiceEnrollmentProfileUI(data) {
             ? '<i class="fas fa-redo"></i> Re-Record Voice ID'
             : '<i class="fas fa-microphone"></i> Set Up Voice ID';
     }
+
+    updateVoiceEnrollmentTranscriptPreview(
+        data.last_enrollment_transcription,
+        data.last_enrollment_transcription_confidence,
+        data.last_enrollment_audio_url,
+        data.voice_id_label,
+        data.enrolled_at
+    );
+}
+
+function updateVoiceEnrollmentTranscriptPreview(transcript, confidence, audioUrl, voiceIdLabel, enrolledAt) {
+    const preview = document.getElementById('voice-enrollment-transcript-preview');
+    const textEl = document.getElementById('voice-enrollment-transcript-preview-text');
+    const metaEl = document.getElementById('voice-enrollment-transcript-preview-meta');
+    const audioEl = document.getElementById('voice-enrollment-transcript-preview-audio');
+
+    if (!preview || !textEl || !metaEl || !audioEl) return;
+
+    const safeTranscript = (transcript || '').trim();
+    const safeAudioUrl = (audioUrl || '').trim();
+    if (!safeTranscript && !safeAudioUrl) {
+        preview.style.display = 'none';
+        textEl.textContent = '';
+        metaEl.textContent = '';
+        audioEl.style.display = 'none';
+        audioEl.removeAttribute('src');
+        return;
+    }
+
+    preview.style.display = 'block';
+    if (safeAudioUrl) {
+        audioEl.src = safeAudioUrl;
+        audioEl.style.display = 'block';
+    } else {
+        audioEl.style.display = 'none';
+        audioEl.removeAttribute('src');
+    }
+    textEl.textContent = safeTranscript || 'Transcription is unavailable for this recording.';
+    const confidenceText = (typeof confidence === 'number' && !Number.isNaN(confidence))
+        ? `Confidence: ${Math.round(confidence * 100)}%`
+        : 'Confidence: not available';
+    const labelText = voiceIdLabel ? `Voice ID: ${voiceIdLabel}` : '';
+    const enrolledText = enrolledAt ? `Enrolled: ${new Date(enrolledAt).toLocaleString()}` : '';
+    metaEl.textContent = [labelText, enrolledText, confidenceText].filter(Boolean).join(' | ');
 }
 
 function updateVoiceEnrollmentProfileErrorState() {
@@ -612,6 +671,15 @@ function openProfileVoiceEnrollModal() {
         startBtn.disabled = false;
         startBtn.textContent = profileVoiceEnrolled ? '🎤 Re-Record Voice ID' : '🎤 Start Recording';
     }
+
+    updateProfileEnrollTranscriptPanel(
+        profileLastEnrollmentTranscript,
+        profileLastEnrollmentTranscriptConfidence,
+        profileLastEnrollmentAudioUrl,
+        profileVoiceIdLabel,
+        profileEnrolledAt,
+        profileLastEnrollmentTranscript ? 'This is the latest saved enrollment transcription.' : ''
+    );
 }
 
 function closeProfileVoiceEnrollModal() {
@@ -639,6 +707,61 @@ function setProfileEnrollStatus(message, color = '#4361ee') {
     if (!status) return;
     status.textContent = message;
     status.style.color = color;
+}
+
+function toggleProfileEnrollTranscript() {
+    const box = document.getElementById('profileEnrollTranscriptBox');
+    const btn = document.getElementById('profileEnrollTranscriptToggle');
+    if (!box || !btn) return;
+
+    const isOpen = box.style.display === 'block';
+    box.style.display = isOpen ? 'none' : 'block';
+    btn.textContent = isOpen ? 'Show Captured Speech Text' : 'Hide Captured Speech Text';
+}
+
+function updateProfileEnrollTranscriptPanel(transcript, confidence, audioUrl, voiceIdLabel, enrolledAt, note = '') {
+    const wrap = document.getElementById('profileEnrollTranscriptWrap');
+    const box = document.getElementById('profileEnrollTranscriptBox');
+    const textEl = document.getElementById('profileEnrollTranscriptText');
+    const metaEl = document.getElementById('profileEnrollTranscriptMeta');
+    const btn = document.getElementById('profileEnrollTranscriptToggle');
+    const audioEl = document.getElementById('profileEnrollTranscriptAudio');
+
+    if (!wrap || !box || !textEl || !metaEl || !btn || !audioEl) return;
+
+    const safeTranscript = (transcript || '').trim();
+    const safeNote = (note || '').trim();
+    const safeAudioUrl = (audioUrl || '').trim();
+    if (!safeTranscript && !safeNote && !safeAudioUrl) {
+        wrap.style.display = 'none';
+        box.style.display = 'none';
+        btn.textContent = 'Show Captured Speech Text';
+        textEl.textContent = '';
+        metaEl.textContent = '';
+        audioEl.style.display = 'none';
+        audioEl.removeAttribute('src');
+        return;
+    }
+
+    wrap.style.display = 'block';
+    box.style.display = 'none';
+    btn.textContent = 'Show Captured Speech Text';
+    if (safeAudioUrl) {
+        audioEl.src = safeAudioUrl;
+        audioEl.style.display = 'block';
+    } else {
+        audioEl.style.display = 'none';
+        audioEl.removeAttribute('src');
+    }
+    textEl.textContent = safeTranscript || 'Transcription is unavailable for this recording.';
+
+    const confidenceText = (typeof confidence === 'number' && !Number.isNaN(confidence))
+        ? `Confidence: ${Math.round(confidence * 100)}%`
+        : 'Confidence: not available';
+    const labelText = voiceIdLabel ? `Voice ID: ${voiceIdLabel}` : '';
+    const enrolledText = enrolledAt ? `Enrolled: ${new Date(enrolledAt).toLocaleString()}` : '';
+    const baseMeta = [labelText, enrolledText, confidenceText].filter(Boolean).join(' | ');
+    metaEl.textContent = safeNote ? `${baseMeta} | ${safeNote}` : baseMeta;
 }
 
 async function startProfileVoiceEnrollment() {
@@ -692,6 +815,7 @@ async function startProfileVoiceEnrollment() {
         };
 
         profileEnrollRecorder.start();
+        updateProfileEnrollTranscriptPanel('', null, '', '', '', '');
 
         const timerBar = document.getElementById('profileTimerBar');
         if (timerBar) {
@@ -765,20 +889,34 @@ async function uploadProfileVoiceEnrollment() {
         if (response.ok && data.success) {
             localStorage.setItem('voice_fingerprint_enrolled', 'true');
             localStorage.setItem('voice_enrollment_required', 'false');
+            profileLastEnrollmentTranscript = (data.enrollment_transcription || '').trim();
+            profileLastEnrollmentTranscriptConfidence = data.transcription_confidence;
+            profileLastEnrollmentAudioUrl = (data.enrollment_audio_url || '').trim();
+            profileVoiceIdLabel = (data.voice_id_label || '').trim();
+            profileEnrolledAt = (data.enrolled_at || '').trim();
 
             setProfileEnrollStatus('✅ Voice ID enrolled successfully!', '#38a169');
             await refreshVoiceEnrollmentProfileStatus(token);
+            updateProfileEnrollTranscriptPanel(
+                data.enrollment_transcription,
+                data.transcription_confidence,
+                data.enrollment_audio_url,
+                data.voice_id_label,
+                data.enrolled_at,
+                data.transcription_note
+            );
 
             if (startBtn) {
                 startBtn.textContent = '🎤 Re-Record Voice ID';
                 startBtn.disabled = false;
             }
 
-            showToast('Voice ID saved to your profile successfully', 'success');
+            const closeBtn = document.getElementById('profileEnrollCloseBtn');
+            if (closeBtn) {
+                closeBtn.textContent = 'Done';
+            }
 
-            setTimeout(() => {
-                closeProfileVoiceEnrollModal();
-            }, 1800);
+            showToast('Voice ID saved to your profile successfully', 'success');
         } else {
             setProfileEnrollStatus(`❌ ${data.detail || 'Voice enrollment failed. Please try again.'}`, '#e53e3e');
             if (startBtn) {

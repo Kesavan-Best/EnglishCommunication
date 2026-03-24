@@ -642,6 +642,35 @@
             flex-wrap: wrap;
         }
 
+        .voice-id-transcript-preview {
+            display: none;
+            margin-top: 14px;
+            background: #f7f9ff;
+            border: 1px solid #dbe4ff;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .voice-id-transcript-preview-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #3347b9;
+            margin-bottom: 6px;
+        }
+
+        .voice-id-transcript-preview-text {
+            font-size: 14px;
+            color: var(--light-text);
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .voice-id-transcript-preview-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--light-text-secondary);
+        }
+
         .voice-enroll-modal {
             display: none;
             position: fixed;
@@ -705,6 +734,53 @@
             gap: 12px;
             justify-content: center;
             flex-wrap: wrap;
+        }
+
+        .voice-enroll-transcript {
+            display: none;
+            margin-bottom: 18px;
+            text-align: left;
+        }
+
+        .voice-enroll-transcript-toggle {
+            background: #edf2ff;
+            color: #3347b9;
+            border: 1px solid #c8d3ff;
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .voice-enroll-transcript-box {
+            display: none;
+            margin-top: 10px;
+            background: #f7f9ff;
+            border: 1px solid #dbe4ff;
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .voice-enroll-transcript-title {
+            font-size: 12px;
+            font-weight: 700;
+            color: #3347b9;
+            margin-bottom: 6px;
+        }
+
+        .voice-enroll-transcript-text {
+            font-size: 14px;
+            line-height: 1.45;
+            color: var(--light-text);
+            white-space: pre-wrap;
+        }
+
+        .voice-enroll-transcript-meta {
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--light-text-secondary);
         }
 
         .voice-enroll-start-btn {
@@ -980,6 +1056,12 @@
                     <i class="fas fa-sync-alt"></i> Refresh Status
                 </button>
             </div>
+            <div class="voice-id-transcript-preview" id="voice-enrollment-transcript-preview">
+                <div class="voice-id-transcript-preview-title">Latest Voice ID Recording & Transcription</div>
+                <audio id="voice-enrollment-transcript-preview-audio" controls style="display:none; width:100%; margin-bottom:8px;"></audio>
+                <div class="voice-id-transcript-preview-text" id="voice-enrollment-transcript-preview-text"></div>
+                <div class="voice-id-transcript-preview-meta" id="voice-enrollment-transcript-preview-meta"></div>
+            </div>
         </div>
 
         <!-- Progress Section -->
@@ -1110,6 +1192,18 @@
 
             <div id="profileTimerBar" class="voice-enroll-timer">
                 <div id="profileTimerFill" class="voice-enroll-timer-fill"></div>
+            </div>
+
+            <div id="profileEnrollTranscriptWrap" class="voice-enroll-transcript">
+                <button id="profileEnrollTranscriptToggle" class="voice-enroll-transcript-toggle" type="button">
+                    Show Captured Speech Text
+                </button>
+                <div id="profileEnrollTranscriptBox" class="voice-enroll-transcript-box">
+                    <div class="voice-enroll-transcript-title">Voice ID Recording & Transcription</div>
+                    <audio id="profileEnrollTranscriptAudio" controls style="display:none; width:100%; margin-bottom:8px;"></audio>
+                    <div id="profileEnrollTranscriptText" class="voice-enroll-transcript-text"></div>
+                    <div id="profileEnrollTranscriptMeta" class="voice-enroll-transcript-meta"></div>
+                </div>
             </div>
 
             <div class="voice-enroll-actions">
