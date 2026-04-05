@@ -40,7 +40,7 @@ async function initUsersPage() {
     
     // Lightweight status refresh every 12 seconds - only updates online/offline badges
     // WITHOUT full re-render (which causes flickering). Full reload only happens on tab switch.
-    setInterval(refreshOnlineStatuses, 12000);
+    setInterval(refreshOnlineStatuses, 6000);
     
     // Poll for friend requests (cross-instance support)
     setInterval(() => {
@@ -211,6 +211,56 @@ function setupTabs() {
     });
 }
 
+function isFriendUser(userId) {
+    const cachedStatus = friendStatusCache[userId];
+    return cachedStatus === 'friends' || friends.some(friend => friend.id === userId);
+}
+
+async function ensureVoiceEnrollment() {
+    const token = localStorage.getItem('token');
+    let enrolled = localStorage.getItem('voice_fingerprint_enrolled') === 'true';
+    let required = localStorage.getItem('voice_enrollment_required') === 'true';
+
+    if (enrolled) {
+        if (required) {
+            localStorage.setItem('voice_enrollment_required', 'false');
+        }
+        return true;
+    }
+
+    if (!token) {
+        return !required;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/users/voice-enrollment-status`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            enrolled = Boolean(data.enrolled);
+            required = Boolean(data.required) && !enrolled;
+
+            localStorage.setItem('voice_fingerprint_enrolled', enrolled ? 'true' : 'false');
+            localStorage.setItem('voice_enrollment_required', required ? 'true' : 'false');
+
+            return enrolled || !required;
+        }
+    } catch (error) {
+        console.debug('Voice enrollment status check failed:', error.message);
+    }
+
+    return !required;
+}
+
+function promptVoiceEnrollment(message = 'Voice ID setup is required before making calls.') {
+    showMessage(message, 'info');
+    setTimeout(() => {
+        window.location.href = '/frontend/templates/dashboard.html?force_voice_enroll=1';
+    }, 900);
+}
+
 function switchTab(tabName) {
     // Update tab buttons
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -228,7 +278,7 @@ function switchTab(tabName) {
     } else if (tabName === 'friends') {
         loadFriends();
     } else if (tabName === 'random') {
-        loadRandomPartner();
+        prepareRandomMatchTab();
     }
 }
 
@@ -446,35 +496,17 @@ async function rejectFriendRequest(requestId) {
 // Track if user is currently searching for random match
 let isSearchingRandom = false;
 
-async function loadRandomPartner() {
-    const btn = document.getElementById('find-random-btn');
+function renderRandomSearchingStatus(positionText = 'Waiting in queue...') {
     const statusDiv = document.getElementById('random-status');
-    
-    // If already searching, cancel
-    if (isSearchingRandom) {
-        cancelRandomSearch();
-        return;
-    }
-    
-    // Check if WebSocket is connected
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.warn('⚠️ WebSocket not connected, reconnecting...');
-        setupWebSocket();
-        await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-    
-    isSearchingRandom = true;
-    btn.disabled = false;
-    btn.textContent = '❌ Cancel Search';
-    btn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
-    
+    if (!statusDiv) return;
+
     statusDiv.innerHTML = `
         <div style="text-align: center; padding: 30px;">
             <div style="font-size: 50px; margin-bottom: 20px; animation: pulse 1.5s infinite;">🔍</div>
             <p style="font-size: 18px; color: #667eea; font-weight: 600;">Searching for a partner...</p>
-            <p style="color: #666; margin-top: 10px;">When someone else clicks "Find Random Partner", you'll be matched!</p>
+            <p style="color: #666; margin-top: 10px;">When someone else clicks \"Find Random Partner\", you'll be matched!</p>
             <div style="margin-top: 20px; padding: 15px; background: rgba(102, 126, 234, 0.1); border-radius: 10px;">
-                <p style="color: #667eea; font-size: 14px;">⏳ Waiting in queue...</p>
+                <p style="color: #667eea; font-size: 14px;">⏳ ${positionText}</p>
             </div>
         </div>
         <style>
@@ -484,6 +516,73 @@ async function loadRandomPartner() {
             }
         </style>
     `;
+}
+
+function prepareRandomMatchTab() {
+    const statusDiv = document.getElementById('random-status');
+    if (!statusDiv) return;
+
+    if (isSearchingRandom) {
+        setRandomButtonSearching();
+        renderRandomSearchingStatus();
+        return;
+    }
+
+    setRandomButtonIdle();
+    statusDiv.innerHTML = `
+        <div style="text-align:center; padding:24px; border-radius:12px; background:rgba(102,126,234,0.1); color:#334155;">
+            Click <strong>Find Random Partner</strong> to start searching.
+        </div>
+    `;
+}
+
+function setRandomButtonIdle() {
+    const btn = document.getElementById('find-random-btn');
+    if (!btn) return;
+    btn.disabled = false;
+    btn.textContent = '🔀 Find Random Partner';
+    btn.style.background = '';
+}
+
+function setRandomButtonSearching() {
+    const btn = document.getElementById('find-random-btn');
+    if (!btn) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ Searching...';
+    btn.style.background = 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)';
+}
+
+async function loadRandomPartner() {
+    const btn = document.getElementById('find-random-btn');
+    const statusDiv = document.getElementById('random-status');
+    if (!btn || !statusDiv) return;
+
+    if (!(await ensureVoiceEnrollment())) {
+        promptVoiceEnrollment('Voice ID enrollment is required for random matching.');
+        return;
+    }
+    
+    // Ignore repeated clicks while already queued.
+    if (isSearchingRandom) {
+        return;
+    }
+    
+    // Check if WebSocket is connected
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        console.warn('⚠️ WebSocket not connected, reconnecting...');
+        setupWebSocket();
+        await new Promise(resolve => setTimeout(resolve, 1200));
+    }
+
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+        showMessage('Unable to connect to matching service. Please try again.', 'error');
+        setRandomButtonIdle();
+        return;
+    }
+    
+    isSearchingRandom = true;
+    setRandomButtonSearching();
+    renderRandomSearchingStatus();
     
     // Send join queue message via WebSocket
     if (ws && ws.readyState === WebSocket.OPEN) {
@@ -492,24 +591,10 @@ async function loadRandomPartner() {
             user_name: currentUser?.name || 'Anonymous'
         }));
         console.log('🎲 Joined random matching queue');
-    }
-}
-
-function cancelRandomSearch() {
-    const btn = document.getElementById('find-random-btn');
-    const statusDiv = document.getElementById('random-status');
-    
-    isSearchingRandom = false;
-    btn.textContent = '🔀 Find Random Partner';
-    btn.style.background = '';
-    statusDiv.innerHTML = '';
-    
-    // Send leave queue message via WebSocket
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({
-            type: 'leave_random_queue'
-        }));
-        console.log('🎲 Left random matching queue');
+    } else {
+        isSearchingRandom = false;
+        setRandomButtonIdle();
+        showMessage('Matching connection was interrupted. Please try again.', 'error');
     }
 }
 
@@ -521,8 +606,11 @@ function handleRandomMatchFound(data) {
     const statusDiv = document.getElementById('random-status');
     
     isSearchingRandom = false;
-    btn.textContent = '🔀 Find Random Partner';
-    btn.style.background = '';
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = '✅ Match Found';
+        btn.style.background = 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)';
+    }
     
     statusDiv.innerHTML = `
         <div style="text-align: center; padding: 30px; background: linear-gradient(135deg, rgba(17, 153, 142, 0.1) 0%, rgba(56, 239, 125, 0.1) 100%); border-radius: 15px;">
@@ -593,13 +681,17 @@ function createUserCard(user, isFriend) {
     const isPendingSent = cachedStatus === 'pending_sent';
     const isPendingReceived = cachedStatus === 'pending_received';
     
-    const callBtn = user.is_online ? 
-        `<button class="btn-action btn-call" onclick="initiateCall('${user.id}')" title="Start Call">
-            📞 Call
-        </button>` :
-        `<button class="btn-action btn-disabled" disabled title="User is offline">
-            📞 Offline
-        </button>`;
+    const callBtn = (!isAlreadyFriend)
+        ? `<button class="btn-action btn-disabled" disabled title="Only friends can call directly">
+            📞 Friends Only
+        </button>`
+        : (user.is_online
+            ? `<button class="btn-action btn-call" onclick="initiateCall('${user.id}')" title="Start Call">
+                📞 Call
+            </button>`
+            : `<button class="btn-action btn-disabled" disabled title="User is offline">
+                📞 Offline
+            </button>`);
     
     let friendBtn;
     if (isAlreadyFriend) {
@@ -715,6 +807,16 @@ async function sendFriendRequest(userId) {
 async function initiateCall(userId) {
     try {
         console.log('🔵 Initiating call to user:', userId);
+
+        if (!isFriendUser(userId)) {
+            showMessage('Direct calls are allowed only with friends. Send a request first or use Random Match.', 'info');
+            return;
+        }
+
+        if (!(await ensureVoiceEnrollment())) {
+            promptVoiceEnrollment('Complete Voice ID setup before making calls.');
+            return;
+        }
         
         // Reset call accept guard for new call
         window._callAcceptHandled = false;
@@ -853,14 +955,30 @@ async function initiateCall(userId) {
         } else {
             const error = await response.json();
             console.error('❌ API Error:', error);
+            const detail = (error?.detail || '').toString();
             
             // Re-enable button
             callButtons.forEach(btn => {
                 btn.disabled = false;
                 btn.textContent = '📞 Call';
             });
+
+            const lowerDetail = detail.toLowerCase();
+            if ((response.status === 403 || response.status === 422) && lowerDetail.includes('voice')) {
+                if (lowerDetail.startsWith('you ') || lowerDetail.includes('you must')) {
+                    promptVoiceEnrollment(detail);
+                } else {
+                    showMessage(detail || 'This user has not completed Voice ID setup yet.', 'info');
+                }
+                return;
+            }
+
+            if (response.status === 403 && detail.toLowerCase().includes('friends')) {
+                showMessage('Direct calls are only available between friends.', 'info');
+                return;
+            }
             
-            showMessage(`❌ ${error.detail || 'Failed to start call'}`, 'error');
+            showMessage(`❌ ${detail || 'Failed to start call'}`, 'error');
         }
     } catch (error) {
         console.error('❌ Network Error:', error);
@@ -1109,6 +1227,20 @@ function setupWebSocket() {
             clearInterval(heartbeatInterval);
             heartbeatInterval = null;
         }
+
+        if (isSearchingRandom) {
+            isSearchingRandom = false;
+            setRandomButtonIdle();
+            const statusDiv = document.getElementById('random-status');
+            if (statusDiv) {
+                statusDiv.innerHTML = `
+                    <div style="text-align:center; padding:24px; border-radius:12px; background:rgba(245,158,11,0.12); color:#92400e;">
+                        Connection interrupted. Please click Find Random Partner again.
+                    </div>
+                `;
+            }
+        }
+
         ws = null;
         setTimeout(setupWebSocket, 1500);
     };
@@ -1192,14 +1324,43 @@ function handleWebSocketMessage(data) {
         handleRandomMatchFound(data);
     } else if (data.type === 'random_queue_status') {
         console.log('🎲 Queue status:', data.data);
-        if (data.data.status === 'waiting') {
+        const status = data?.data?.status;
+        if (status === 'waiting') {
             // Still waiting in queue
             console.log('🎲 Position in queue:', data.data.position);
-        } else if (data.data.status === 'already_in_queue') {
+            isSearchingRandom = true;
+            setRandomButtonSearching();
+            const position = Number(data?.data?.position);
+            const positionText = Number.isFinite(position) && position > 0
+                ? `Waiting in queue (position ${position})...`
+                : 'Waiting in queue...';
+            renderRandomSearchingStatus(positionText);
+        } else if (status === 'already_in_queue') {
             showMessage('You are already in the queue', 'info');
+            isSearchingRandom = true;
+            setRandomButtonSearching();
+            renderRandomSearchingStatus();
+        } else if (status === 'no_partner_found') {
+            isSearchingRandom = false;
+            setRandomButtonIdle();
+            const statusDiv = document.getElementById('random-status');
+            if (statusDiv) {
+                statusDiv.innerHTML = `
+                    <div style="text-align:center; padding:24px; border-radius:12px; background:rgba(245,158,11,0.12); color:#92400e;">
+                        No partner found right now. Please try again.
+                    </div>
+                `;
+            }
+            showMessage('No random partner found right now.', 'info');
+        } else if (status === 'voice_enrollment_required') {
+            isSearchingRandom = false;
+            setRandomButtonIdle();
+            promptVoiceEnrollment(data?.data?.message || 'Voice ID enrollment is required for random matching.');
         }
     } else if (data.type === 'random_queue_left') {
         console.log('🎲 Left queue:', data.data);
+        isSearchingRandom = false;
+        setRandomButtonIdle();
     } else {
         console.log('⚠️ Unknown message type:', data.type);
     }
@@ -1218,12 +1379,19 @@ function updateUserStatus(userId, isOnline) {
         // Update call button
         const callBtn = card.querySelector('.btn-call, .btn-disabled');
         if (callBtn) {
-            if (isOnline) {
+            const isFriend = isFriendUser(userId);
+            if (isOnline && isFriend) {
                 callBtn.className = 'btn-action btn-call';
                 callBtn.disabled = false;
                 callBtn.innerHTML = '📞 Call';
                 callBtn.setAttribute('onclick', `initiateCall('${userId}')`);
                 callBtn.title = 'Start Call';
+            } else if (isOnline && !isFriend) {
+                callBtn.className = 'btn-action btn-disabled';
+                callBtn.disabled = true;
+                callBtn.innerHTML = '📞 Friends Only';
+                callBtn.removeAttribute('onclick');
+                callBtn.title = 'Only friends can call directly';
             } else {
                 callBtn.className = 'btn-action btn-disabled';
                 callBtn.disabled = true;
