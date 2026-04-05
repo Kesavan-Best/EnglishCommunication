@@ -686,6 +686,8 @@
         let connectionTimeoutId = null;
         let processedSignalIds = new Set(); // Deduplicate signals from WS + polling
         let partnerReady = false; // Track if partner's WebRTC is initialized
+        let callUiActivated = false;
+        let joinedMarked = false;
 
         function getPartnerId(fallbackId = null) {
             return String(
@@ -694,6 +696,17 @@
                 incomingCallData?.from_user_id ||
                 ''
             );
+        }
+
+        function activateConnectedCallUI() {
+            if (callUiActivated) return;
+
+            callUiActivated = true;
+            callActive = true;
+            showActiveCallScreen();
+            markUserJoined();
+            startCallStatusPolling();
+            updateStatus('Call connected!', '🎉');
         }
         
         // WebRTC Configuration - fetched dynamically from backend, with hardcoded fallback
@@ -1367,6 +1380,9 @@
                 return;
             }
             webrtcStarted = true;
+            callUiActivated = false;
+            joinedMarked = false;
+            remoteStream = null;
             stopPendingInvitePolling();
             
             console.log('🎬 Starting WebRTC call...');
@@ -1666,27 +1682,28 @@
                 
                 // Handle incoming audio
                 peerConnection.ontrack = (event) => {
-                    console.log('🎵 Received remote track');
-                    remoteStream = event.streams[0];
+                    console.log('🎵 Received remote track', event.track?.kind);
+
+                    // Some browsers may not provide event.streams[0].
+                    if (event.streams && event.streams[0]) {
+                        remoteStream = event.streams[0];
+                    } else {
+                        if (!remoteStream) {
+                            remoteStream = new MediaStream();
+                        }
+                        if (event.track && !remoteStream.getTracks().some(t => t.id === event.track.id)) {
+                            remoteStream.addTrack(event.track);
+                        }
+                    }
+
                     const remoteAudio = document.getElementById('remoteAudio');
                     
                     if (remoteAudio.srcObject !== remoteStream) {
                         remoteAudio.srcObject = remoteStream;
                         console.log('✅ Remote audio connected');
-
-                        // Show active call screen
-                        showActiveCallScreen();
-
-                        // Mark user as joined
-                        markUserJoined();
-
-                        // Start call status polling to detect if partner ends call
-                        startCallStatusPolling();
-
-                        // Update status
-                        updateStatus('Call connected!', '🎉');
                     }
 
+                    activateConnectedCallUI();
                     ensureRemoteAudioPlayback(remoteAudio);
                 };
                 
@@ -1718,8 +1735,7 @@
                     
                     switch(state) {
                         case 'connected':
-                            updateStatus('Call connected!', '🎉');
-                            callActive = true;
+                            activateConnectedCallUI();
                             break;
                         case 'connecting':
                             updateStatus('Connecting...', '🔄');
@@ -2251,12 +2267,15 @@
         
         // Mark user as joined
         async function markUserJoined() {
+            if (joinedMarked) return;
+
             try {
                 const token = localStorage.getItem('token');
                 await fetch(`${API_BASE_URL}/api/calls/mark-joined?call_id=${callId}`, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+                joinedMarked = true;
                 console.log('✅ Marked as joined');
             } catch (error) {
                 console.error('❌ Error marking joined:', error);
@@ -2272,6 +2291,8 @@
             sessionStorage.removeItem('activeCallTimestamp');
             callActive = false;
             callEnded = true;
+            callUiActivated = false;
+            joinedMarked = false;
             
             // Stop signal polling
             stopSignalPolling();
@@ -2439,6 +2460,8 @@
             
             // Reset the guard so we can start again
             webrtcStarted = false;
+            callUiActivated = false;
+            joinedMarked = false;
             
             // Reset deduplication state
             remoteDescriptionSet = false;
