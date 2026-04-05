@@ -94,6 +94,7 @@
         .end-call-btn {
             background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
             border: none;
+            color: white;
         }
         
         .call-content {
@@ -457,6 +458,38 @@
             background: rgba(99, 102, 241, 1);
             transform: scale(1.1);
         }
+
+        @media (max-width: 768px) {
+            .call-header {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                padding: 14px;
+            }
+
+            .call-info {
+                justify-content: center;
+            }
+
+            .call-controls {
+                justify-content: center;
+                flex-wrap: wrap;
+            }
+
+            .control-btn {
+                padding: 10px 14px;
+                font-size: 14px;
+            }
+
+            .call-content {
+                padding: 16px;
+            }
+
+            #transcriptionContainer {
+                width: 100% !important;
+                height: 360px !important;
+            }
+        }
     </style>
     <link rel="stylesheet" href="/frontend/css/modern-ui.css">
 </head>
@@ -542,7 +575,6 @@
                         flex-direction: column;
                         gap: 8px;
                         padding: 16px 16px 8px;
-                        scroll-behavior: smooth;
                         -webkit-overflow-scrolling: touch;
                     ">
                         <div id="chatPlaceholder" style="
@@ -635,6 +667,10 @@
         let transcriptionPollInterval = null;
         let callEnded = false;
         let wsHeartbeatInterval = null;
+        let micHealthInterval = null;
+        let micRecoveryInProgress = false;
+        let audioResumeHandler = null;
+        const speechRecognitionSupported = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
         let readySignalSent = false; // track if we sent ready signal
         let webrtcStarted = false; // guard against double start
         let lastTranscriptionIndex = -1;
@@ -1444,6 +1480,8 @@
                     if (localAudio) {
                         localAudio.srcObject = localStream;
                     }
+
+                    setupLocalTrackMonitoring(localStream);
                     
                     // Show mic indicator
                     document.getElementById('micIndicator').style.display = 'flex';
@@ -1466,6 +1504,127 @@
                 throw new Error('Microphone is in use by another app. Close other apps using the mic and try again.');
             } else {
                 throw new Error('Could not access microphone: ' + (lastError.message || lastError.name));
+            }
+        }
+
+        function setupLocalTrackMonitoring(stream) {
+            if (micHealthInterval) {
+                clearInterval(micHealthInterval);
+                micHealthInterval = null;
+            }
+
+            if (!stream) return;
+
+            const audioTrack = stream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.onended = () => {
+                    if (callActive && !callEnded) {
+                        attemptMicrophoneRecovery('Microphone disconnected. Reconnecting...');
+                    }
+                };
+            }
+
+            micHealthInterval = setInterval(() => {
+                if (!callActive || callEnded || !localStream) return;
+                const track = localStream.getAudioTracks()[0];
+                if (!track || track.readyState === 'ended') {
+                    attemptMicrophoneRecovery('Microphone signal lost. Reconnecting...');
+                }
+            }, 3000);
+        }
+
+        async function attemptMicrophoneRecovery(statusMessage = 'Recovering microphone...') {
+            if (micRecoveryInProgress || callEnded) return;
+
+            micRecoveryInProgress = true;
+            updateStatus(statusMessage, '🎤');
+
+            try {
+                const replacementStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: { ideal: true },
+                        noiseSuppression: { ideal: true },
+                        autoGainControl: { ideal: true }
+                    },
+                    video: false
+                });
+
+                const replacementTrack = replacementStream.getAudioTracks()[0];
+                if (!replacementTrack) {
+                    throw new Error('No microphone track available for recovery.');
+                }
+
+                if (peerConnection) {
+                    const audioSender = peerConnection.getSenders().find(
+                        sender => sender.track && sender.track.kind === 'audio'
+                    );
+                    if (audioSender) {
+                        await audioSender.replaceTrack(replacementTrack);
+                    } else {
+                        peerConnection.addTrack(replacementTrack, replacementStream);
+                    }
+                }
+
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+
+                localStream = replacementStream;
+
+                const localAudio = document.getElementById('localAudio');
+                if (localAudio) {
+                    localAudio.srcObject = localStream;
+                }
+
+                replacementTrack.enabled = !isMuted;
+                setupLocalTrackMonitoring(localStream);
+                updateMicStatus();
+
+                if (!isMuted) {
+                    startAudioChunkRecording(localStream);
+                }
+
+                updateStatus('Microphone restored', '✅');
+                console.log('✅ Microphone recovered and track replaced');
+            } catch (error) {
+                console.error('❌ Microphone recovery failed:', error);
+                updateStatus('Microphone issue detected. Check permissions and reconnect.', '⚠️');
+            } finally {
+                micRecoveryInProgress = false;
+            }
+        }
+
+        function clearAudioResumeHandler() {
+            if (audioResumeHandler) {
+                document.removeEventListener('click', audioResumeHandler);
+                document.removeEventListener('touchstart', audioResumeHandler);
+                audioResumeHandler = null;
+            }
+        }
+
+        function ensureRemoteAudioPlayback(audioElement) {
+            if (!audioElement) return;
+
+            audioElement.autoplay = true;
+            audioElement.playsInline = true;
+            audioElement.muted = false;
+            audioElement.volume = 1;
+
+            const playPromise = audioElement.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {
+                    updateStatus('Tap anywhere to resume partner audio', '🔈');
+                    clearAudioResumeHandler();
+                    audioResumeHandler = () => {
+                        const retry = audioElement.play();
+                        if (retry && typeof retry.catch === 'function') {
+                            retry.catch(() => {});
+                        }
+                        clearAudioResumeHandler();
+                    };
+                    document.addEventListener('click', audioResumeHandler, { once: true });
+                    document.addEventListener('touchstart', audioResumeHandler, { once: true });
+                });
             }
         }
         
@@ -1491,22 +1650,21 @@
                     if (remoteAudio.srcObject !== remoteStream) {
                         remoteAudio.srcObject = remoteStream;
                         console.log('✅ Remote audio connected');
-                        
+
                         // Show active call screen
                         showActiveCallScreen();
-                        
-                        // Start timer
-                        startCallTimer();
-                        
+
                         // Mark user as joined
                         markUserJoined();
-                        
+
                         // Start call status polling to detect if partner ends call
                         startCallStatusPolling();
-                        
+
                         // Update status
                         updateStatus('Call connected!', '🎉');
                     }
+
+                    ensureRemoteAudioPlayback(remoteAudio);
                 };
                 
                 // Handle ICE candidates
@@ -1921,11 +2079,17 @@
         function toggleMute() {
             if (!localStream) {
                 console.error('❌ No local stream to mute');
+                attemptMicrophoneRecovery('Microphone unavailable. Reconnecting...');
                 return;
             }
             
             const audioTracks = localStream.getAudioTracks();
             if (audioTracks.length > 0) {
+                if (audioTracks[0].readyState === 'ended') {
+                    attemptMicrophoneRecovery('Microphone track ended. Reconnecting...');
+                    return;
+                }
+
                 // Get current state
                 const currentlyEnabled = audioTracks[0].enabled;
                 
@@ -1958,6 +2122,7 @@
                 console.log(isMuted ? '🔇 Microphone MUTED' : '🔊 Microphone UNMUTED');
             } else {
                 console.error('❌ No audio tracks found');
+                attemptMicrophoneRecovery('No active microphone track. Reconnecting...');
             }
         }
         
@@ -1987,6 +2152,7 @@
             document.getElementById('loadingScreen').style.display = 'none';
             document.getElementById('callActive').style.display = 'block';
             document.getElementById('callStatus').textContent = 'In call';
+            document.getElementById('muteBtn').style.display = 'flex';
             document.getElementById('endCallBtn').style.display = 'flex';
             
             // Mark call as active so speech recognition keeps restarting
@@ -2066,6 +2232,12 @@
             stopCallStatusPolling();
             stopTranscriptionPolling();
             stopPendingInvitePolling();
+
+            if (micHealthInterval) {
+                clearInterval(micHealthInterval);
+                micHealthInterval = null;
+            }
+            clearAudioResumeHandler();
             
             // Clear connection timeout
             if (connectionTimeoutId) {
@@ -2247,6 +2419,11 @@
                 localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
+            if (micHealthInterval) {
+                clearInterval(micHealthInterval);
+                micHealthInterval = null;
+            }
+            clearAudioResumeHandler();
             stopSignalPolling();
             stopTranscriptionPolling();
             
@@ -2271,6 +2448,11 @@
                 e.returnValue = 'You have an active call. Are you sure you want to leave?';
                 endCall();
             }
+            if (micHealthInterval) {
+                clearInterval(micHealthInterval);
+                micHealthInterval = null;
+            }
+            clearAudioResumeHandler();
             // Do NOT explicitly close WebSocket - let server grace period handle it
             // This prevents online status flicker during page navigation
         });
@@ -2281,6 +2463,8 @@
         
         let recognition = null;
         let isTranscribing = false;
+        let mediaRecorder = null;    // for faster-whisper audio chunks
+        let isUsingFasterWhisper = false; // true when server STT is active
         
         // Initialize Speech Recognition
         function initializeSpeechRecognition() {
@@ -2295,6 +2479,7 @@
             recognition.continuous = true;
             recognition.interimResults = true;
             recognition.lang = 'en-US';
+            recognition.maxAlternatives = 1;
             
             recognition.onstart = () => {
                 console.log('🎤 Speech recognition started');
@@ -2321,7 +2506,8 @@
                 const cleanedInterim = interimTranscript.trim();
                 updateInterimTranscription(cleanedInterim);
 
-                // Persist and broadcast finalized chunks only
+                // Web Speech API finals are ALWAYS used for immediate display & broadcast.
+                // Faster-whisper handles accurate DB saves separately.
                 if (finalizedChunks.length > 0) {
                     updateInterimTranscription('');
                     finalizedChunks.forEach(chunk => saveAndBroadcastTranscription(chunk));
@@ -2329,32 +2515,32 @@
             };
             
             recognition.onerror = (event) => {
-                console.error('❌ Speech recognition error:', event.error);
+                if (event.error === 'aborted') return; // we triggered this — ignore
+                console.warn('⚠️ Speech recognition error:', event.error);
                 updateInterimTranscription('');
-                if (event.error === 'no-speech') {
-                    // Automatically restart
+                if (event.error === 'no-speech' || event.error === 'network') {
+                    // Restart quickly so we don't miss words
                     setTimeout(() => {
                         if (callActive && !isMuted) {
-                            recognition.start();
+                            try { recognition.start(); } catch(e) {}
                         }
-                    }, 1000);
+                    }, 300);
                 }
             };
             
             recognition.onend = () => {
-                console.log('🎤 Speech recognition ended');
                 isTranscribing = false;
                 updateInterimTranscription('');
-                
-                // Automatically restart if call is still active and not muted
+
+                // Restart with minimal delay — avoid gaps where words get missed
                 if (callActive && !isMuted) {
                     setTimeout(() => {
                         try {
                             recognition.start();
                         } catch (e) {
-                            console.log('⚠️ Could not restart recognition:', e);
+                            // Already running — ignore
                         }
-                    }, 500);
+                    }, 100);
                 }
             };
         }
@@ -2364,7 +2550,7 @@
             if (!recognition) {
                 initializeSpeechRecognition();
             }
-            
+
             if (recognition && !isTranscribing && !isMuted) {
                 try {
                     recognition.start();
@@ -2373,13 +2559,106 @@
                     console.log('⚠️ Transcription already running');
                 }
             }
+
+            // Also start server-side faster-whisper recording for better accuracy
+            if (localStream && !mediaRecorder) {
+                startAudioChunkRecording(localStream);
+            }
         }
-        
+
         // Stop transcription
         function stopTranscription() {
             if (recognition && isTranscribing) {
                 recognition.stop();
                 console.log('🛑 Transcription stopped');
+            }
+            stopAudioChunkRecording();
+        }
+
+        // ============================================================
+        // faster-whisper audio chunk recording (server-side STT)
+        // Runs in parallel with the Web Speech API.
+        // - Web Speech API shows INTERIM text while speaking.
+        // - faster-whisper provides the accurate FINAL text every ~4 seconds.
+        // Falls back to Web Speech API finals if the server is unavailable.
+        // ============================================================
+
+        function startAudioChunkRecording(stream) {
+            if (!stream || !window.MediaRecorder || mediaRecorder) return;
+
+            const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+                ? 'audio/webm;codecs=opus'
+                : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : '';
+            if (!mimeType) {
+                console.warn('⚠️ MediaRecorder: no supported audio MIME – using Web Speech API only');
+                return;
+            }
+
+            try {
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
+            } catch (e) {
+                console.warn('⚠️ MediaRecorder init failed:', e);
+                return;
+            }
+
+            mediaRecorder.ondataavailable = async (e) => {
+                if (e.data && e.data.size > 1500 && callActive && !isMuted) {
+                    await sendChunkToWhisper(new Blob([e.data], { type: mimeType }));
+                }
+            };
+
+            mediaRecorder.onerror = () => {
+                isUsingFasterWhisper = false;
+                mediaRecorder = null;
+            };
+
+            mediaRecorder.start(4000); // emit one chunk every 4 seconds
+            isUsingFasterWhisper = true;
+            console.log('🎯 faster-whisper chunk recording started');
+        }
+
+        function stopAudioChunkRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                try { mediaRecorder.stop(); } catch(e) {}
+            }
+            mediaRecorder = null;
+            isUsingFasterWhisper = false;
+        }
+
+        async function sendChunkToWhisper(audioBlob) {
+            const token = localStorage.getItem('token');
+            if (!token || !callActive) return;
+
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'chunk.webm');
+
+            // Include voice-fingerprint verification if the user has enrolled
+            const voiceEnrolled = localStorage.getItem('voice_fingerprint_enrolled') === 'true';
+            const verifyUrl = `${API_BASE_URL}/api/stt/transcribe${voiceEnrolled ? '?verify_speaker=true' : ''}`;
+
+            try {
+                const resp = await fetch(verifyUrl, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    body: formData
+                });
+
+                if (!resp.ok) {
+                    isUsingFasterWhisper = false; // fall back to Web Speech API finals
+                    return;
+                }
+
+                const result = await resp.json();
+                if (result.text && result.text.trim().length > 0) {
+                    updateInterimTranscription('');
+                    // Web Speech API already handles display + broadcast.
+                    // Silently persist the accurate Whisper transcript for better AI feedback.
+                    saveWhisperTranscriptToDb(result.text.trim());
+                    console.log('🎯 faster-whisper (accurate DB save):', result.text);
+                }
+            } catch (err) {
+                isUsingFasterWhisper = false; // network error – Web Speech API takes over
+                console.debug('faster-whisper unavailable, falling back to Web Speech API');
             }
         }
 
@@ -2477,17 +2756,51 @@
             // Also save to backend via REST (for persistence, non-blocking)
             try {
                 const token = localStorage.getItem('token');
-                fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(cleanedText)}&message_id=${encodeURIComponent(messageId)}`, {
+                if (!token || !callId) return;
+
+                const saveResponse = await fetch(`${API_BASE_URL}/api/calls/save-transcription?call_id=${callId}&text=${encodeURIComponent(cleanedText)}&message_id=${encodeURIComponent(messageId)}`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`
-                    }
-                }).catch(err => console.warn('⚠️ REST transcription save failed:', err));
+                    },
+                    keepalive: true
+                });
+
+                if (!saveResponse.ok) {
+                    const errorText = await saveResponse.text().catch(() => '');
+                    console.warn('⚠️ REST transcription save failed:', saveResponse.status, errorText);
+                }
             } catch (error) {
                 console.warn('⚠️ Error saving transcription to backend:', error);
             }
         }
         
+        // Save accurate Whisper transcript to DB silently (for AI analysis).
+        // Web Speech API finals already handle the display & WebSocket broadcast.
+        async function saveWhisperTranscriptToDb(text) {
+            const token = localStorage.getItem('token');
+            if (!token || !callId || !text.trim()) return;
+
+            // Persist into conversation stream only when Web Speech recognition
+            // is unavailable or currently not active (fallback mode).
+            const persistToConversation = !speechRecognitionSupported || !isTranscribing;
+            const whisperMessageId = `whisper-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+            fetch(`${API_BASE_URL}/api/stt/save-whisper-transcript`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    call_id: callId,
+                    text: text.trim(),
+                    message_id: whisperMessageId,
+                    persist_to_conversation: persistToConversation
+                })
+            }).catch(() => {});
+        }
+
         // Display transcription in UI
         let userIsManuallyScrolling = false;
         let scrollTimeout = null;
@@ -2548,15 +2861,22 @@
 
             if (!userIsManuallyScrolling) {
                 requestAnimationFrame(() => {
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    requestAnimationFrame(() => {
+                        interimBubble.scrollIntoView({ block: 'end', inline: 'nearest' });
+                    });
                 });
             }
         }
-        
+
         function scrollToBottom() {
             const container = document.getElementById('transcriptionMessages');
             if (container) {
-                container.scrollTop = container.scrollHeight;
+                const last = container.lastElementChild;
+                if (last) {
+                    last.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                } else {
+                    container.scrollTop = container.scrollHeight;
+                }
                 userIsManuallyScrolling = false;
                 const btn = document.getElementById('scrollToBottomBtn');
                 if (btn) btn.style.display = 'none';
@@ -2605,8 +2925,11 @@
             
             // Auto-scroll to bottom ONLY if user is not manually scrolling
             if (!userIsManuallyScrolling) {
+                // Double RAF ensures DOM reflow is complete before we measure
                 requestAnimationFrame(() => {
-                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                    requestAnimationFrame(() => {
+                        messageDiv.scrollIntoView({ block: 'end', inline: 'nearest' });
+                    });
                 });
             } else {
                 // Show scroll-to-bottom button
@@ -2615,30 +2938,27 @@
             }
         }
         
-        // Detect manual scrolling
+        // Detect manual scrolling — runs immediately (script is at bottom of body)
         (function setupScrollDetection() {
-            setTimeout(() => {
-                const container = document.getElementById('transcriptionMessages');
-                if (container) {
-                    container.addEventListener('scroll', function() {
-                        const isAtBottom = this.scrollHeight - this.scrollTop <= this.clientHeight + 60;
-                        userIsManuallyScrolling = !isAtBottom;
-                        
-                        // Toggle scroll-to-bottom button
-                        const btn = document.getElementById('scrollToBottomBtn');
-                        if (btn) btn.style.display = isAtBottom ? 'none' : 'flex';
-                        
-                        // After 5 seconds of no scrolling, resume auto-scroll
-                        if (scrollTimeout) clearTimeout(scrollTimeout);
-                        scrollTimeout = setTimeout(() => {
-                            userIsManuallyScrolling = false;
-                            if (btn) btn.style.display = 'none';
-                        }, 5000);
-                    });
-                    
-                    console.log('✅ Scroll detection enabled');
-                }
-            }, 1000);
+            const container = document.getElementById('transcriptionMessages');
+            if (container) {
+                container.addEventListener('scroll', function() {
+                    // 100px tolerance – counts as "at bottom" even with a small gap
+                    const isAtBottom = this.scrollHeight - this.scrollTop <= this.clientHeight + 100;
+                    userIsManuallyScrolling = !isAtBottom;
+
+                    // Toggle scroll-to-bottom button
+                    const btn = document.getElementById('scrollToBottomBtn');
+                    if (btn) btn.style.display = isAtBottom ? 'none' : 'flex';
+
+                    // Resume auto-scroll after 5 seconds of no scrolling
+                    if (scrollTimeout) clearTimeout(scrollTimeout);
+                    scrollTimeout = setTimeout(() => {
+                        userIsManuallyScrolling = false;
+                        if (btn) btn.style.display = 'none';
+                    }, 5000);
+                });
+            }
         })();
         
         // Handle incoming transcription from WebSocket
