@@ -686,6 +686,15 @@
         let connectionTimeoutId = null;
         let processedSignalIds = new Set(); // Deduplicate signals from WS + polling
         let partnerReady = false; // Track if partner's WebRTC is initialized
+
+        function getPartnerId(fallbackId = null) {
+            return String(
+                fallbackId ||
+                partnerUser?.id ||
+                incomingCallData?.from_user_id ||
+                ''
+            );
+        }
         
         // WebRTC Configuration - fetched dynamically from backend, with hardcoded fallback
         let rtcConfig = {
@@ -1096,6 +1105,10 @@
             if (!normalized.call_id) return;
 
             incomingCallData = normalized;
+            partnerUser = {
+                id: normalized.from_user_id,
+                name: normalized.caller_name || 'Partner'
+            };
             stopPendingInvitePolling();
             
             // Show incoming call screen
@@ -1122,6 +1135,10 @@
                 
                 if (response.ok) {
                     const caller = await response.json();
+                    partnerUser = {
+                        ...caller,
+                        id: caller.id || callerId
+                    };
                     document.getElementById('callerName').textContent = caller.name;
                     document.getElementById('callerAvatar').textContent = caller.name.charAt(0).toUpperCase();
                 }
@@ -1401,17 +1418,23 @@
         
         // Send join-call signal via WebSocket to notify partner
         function sendJoinCallSignal() {
-            if (ws && ws.readyState === WebSocket.OPEN && partnerUser) {
+            const partnerId = getPartnerId();
+            if (!partnerId) {
+                console.warn('⚠️ Cannot send join-call signal: missing partner id');
+                return;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'join-call',
                     call_id: callId,
-                    partner_id: partnerUser.id
+                    partner_id: partnerId
                 }));
                 console.log('📤 Sent join-call signal');
             }
             
             // Also store in DB so partner can detect via polling
-            if (callId && partnerUser) {
+            if (callId) {
                 const token = localStorage.getItem('token');
                 fetch(`${API_BASE_URL}/api/calls/webrtc/signal`, {
                     method: 'POST',
@@ -1421,7 +1444,7 @@
                     },
                     body: JSON.stringify({
                         type: 'ready',
-                        to_user_id: partnerUser.id,
+                        to_user_id: partnerId,
                         call_id: callId,
                         from_user_id: currentUser.id
                     })
@@ -1669,12 +1692,17 @@
                 
                 // Handle ICE candidates
                 peerConnection.onicecandidate = (event) => {
-                    if (event.candidate && partnerUser) {
+                    if (event.candidate) {
+                        const partnerId = getPartnerId();
+                        if (!partnerId) {
+                            console.warn('⚠️ ICE candidate dropped: missing partner id');
+                            return;
+                        }
                         console.log('🧊 ICE candidate generated');
                         sendWebRTCSignal({
                             type: 'ice-candidate',
                             candidate: event.candidate,
-                            to_user_id: partnerUser.id,
+                            to_user_id: partnerId,
                             from_user_id: currentUser.id,
                             call_id: callId
                         });
@@ -1748,11 +1776,16 @@
                 
                 await peerConnection.setLocalDescription(offer);
                 console.log('✅ Local description set');
+
+                const partnerId = getPartnerId();
+                if (!partnerId) {
+                    throw new Error('Missing partner id while creating offer');
+                }
                 
                 sendWebRTCSignal({
                     type: 'offer',
                     offer: offer,
-                    to_user_id: partnerUser.id,
+                    to_user_id: partnerId,
                     from_user_id: currentUser.id,
                     call_id: callId
                 });
@@ -1778,6 +1811,14 @@
         // Handle incoming WebRTC signals (with deduplication and ICE buffering)
         async function handleWebRTCSignal(signal) {
             console.log('🔧 Handling signal:', signal.type);
+
+            // Ensure partner identity is available even when receiver accepted via invite flow.
+            if (!partnerUser?.id && signal?.from_user_id) {
+                partnerUser = {
+                    id: String(signal.from_user_id),
+                    name: partnerUser?.name || 'Partner'
+                };
+            }
             
             // Handle 'ready' signal from partner (join-call acknowledgment)
             if (signal.type === 'ready') {
@@ -1816,11 +1857,16 @@
                         
                         const answer = await peerConnection.createAnswer();
                         await peerConnection.setLocalDescription(answer);
+
+                        const targetPartnerId = getPartnerId(signal.from_user_id);
+                        if (!targetPartnerId) {
+                            throw new Error('Missing partner id while sending answer');
+                        }
                         
                         sendWebRTCSignal({
                             type: 'answer',
                             answer: answer,
-                            to_user_id: partnerUser.id,
+                            to_user_id: targetPartnerId,
                             from_user_id: currentUser.id,
                             call_id: callId
                         });
